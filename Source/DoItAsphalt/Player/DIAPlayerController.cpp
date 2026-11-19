@@ -8,7 +8,10 @@
 #include "Engine/LocalPlayer.h"
 #include "GameFramework/InputSettings.h"
 #include "InputActionValue.h"
+#include "Framework/Application/SlateApplication.h"
+#include "Misc/App.h"
 #include "Player/DIACharacter.h"
+#include "UI/DIAHUD.h"
 
 void ADIAPlayerController::InitInputSystem()
 {
@@ -78,6 +81,11 @@ void ADIAPlayerController::OnLook(const FInputActionValue& Value)
 
 void ADIAPlayerController::OnPourStarted()
 {
+	// A click in the shop is for the shop.
+	if (bShopInput)
+	{
+		return;
+	}
 	if (ADIACharacter* Character = GetDIACharacter())
 	{
 		Character->SetPouring(true);
@@ -115,10 +123,57 @@ void ADIAPlayerController::OnInteract()
 
 void ADIAPlayerController::OnShop()
 {
-	// Task 12: the shop screen.
+	if (ADIAHUD* Hud = Cast<ADIAHUD>(GetHUD()))
+	{
+		Hud->ToggleShop();
+	}
 }
 
 void ADIAPlayerController::OnPause()
 {
-	// Later task: pause menu.
+	// Esc closes the shop; the pause menu comes in a later task.
+	if (bShopInput)
+	{
+		if (ADIAHUD* Hud = Cast<ADIAHUD>(GetHUD()))
+		{
+			Hud->SetShopOpen(false);
+		}
+	}
+}
+
+void ADIAPlayerController::SetShopInput(bool bOpen)
+{
+	if (bShopInput == bOpen)
+	{
+		return;
+	}
+	bShopInput = bOpen;
+
+	// SetIgnoreLookInput counts: every open is matched by one close.
+	SetIgnoreLookInput(bOpen);
+	if (bOpen)
+	{
+		if (ADIACharacter* Character = GetDIACharacter())
+		{
+			Character->SetPouring(false);
+		}
+	}
+
+	// Without a window (tests, servers) there is no cursor or input mode to change.
+	if (!IsLocalPlayerController() || !FApp::CanEverRender() || !FSlateApplication::IsInitialized())
+	{
+		return;
+	}
+	SetShowMouseCursor(bOpen);
+	if (bOpen)
+	{
+		FInputModeGameAndUI Mode;
+		Mode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+		Mode.SetHideCursorDuringCapture(false);
+		SetInputMode(Mode);
+	}
+	else
+	{
+		SetInputMode(FInputModeGameOnly());
+	}
 }

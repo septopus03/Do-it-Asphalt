@@ -8,7 +8,41 @@
 #include "Engine/StaticMesh.h"
 #include "Game/DIAAssets.h"
 #include "Game/DIAModelSizes.h"
+#include "Game/DIAWorldSubsystem.h"
+#include "AsphaltGame.h"
+#include "Engine/World.h"
 #include "Materials/MaterialInterface.h"
+
+namespace
+{
+	/** The addons are solid for the player once built, but the camera boom must never be pushed in by them. */
+	void SetupAddon(UStaticMeshComponent* Addon, USceneComponent* Root, const FVector& Location)
+	{
+		Addon->SetupAttachment(Root);
+		Addon->SetRelativeLocation(Location);
+		Addon->SetCollisionProfileName(UCollisionProfile::BlockAll_ProfileName);
+		Addon->SetCollisionResponseToChannel(ECC_Camera, ECR_Ignore);
+		Addon->SetVisibility(false);
+		Addon->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	}
+
+	/** Sets the mesh of an addon: the real model stands on the ground at the origin; the placeholder shape is lifted by half its height. */
+	void LoadAddon(UStaticMeshComponent* Addon, const FVector& Location, FName ModelName, DIAAssets::EFallback Shape, const FVector& SizeCm)
+	{
+		FVector Scale = FVector::OneVector;
+		UStaticMesh* Mesh = DIAAssets::LoadMeshOrFallback(ModelName, Shape, SizeCm, Scale);
+		Addon->SetStaticMesh(Mesh);
+		Addon->SetRelativeScale3D(Scale);
+		if (Mesh && Mesh->GetPathName().StartsWith(TEXT("/Engine/BasicShapes/")))
+		{
+			Addon->SetRelativeLocation(Location + FVector(0.0, 0.0, SizeCm.Z * 0.5));
+			if (UMaterialInterface* Material = DIAAssets::Palette(TEXT("DIA_Concrete")))
+			{
+				Addon->SetMaterial(0, Material);
+			}
+		}
+	}
+}
 
 ADIAPlantActor::ADIAPlantActor()
 {
@@ -35,6 +69,52 @@ ADIAPlantActor::ADIAPlantActor()
 	ZoneMarker->SetupAttachment(Root);
 	ZoneMarker->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	ZoneMarker->SetCastShadow(false);
+
+	AddonA = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("AddonA"));
+	SetupAddon(AddonA, Root, DIAPlant::AddonALocationCm);
+	AddonB = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("AddonB"));
+	SetupAddon(AddonB, Root, DIAPlant::AddonBLocationCm);
+}
+
+UDIAWorldSubsystem* ADIAPlantActor::GetSubsystem() const
+{
+	UWorld* World = GetWorld();
+	return World ? World->GetSubsystem<UDIAWorldSubsystem>() : nullptr;
+}
+
+void ADIAPlantActor::ShowAddon(UStaticMeshComponent* Addon, bool bShow)
+{
+	if (Addon->IsVisible() == bShow)
+	{
+		return;
+	}
+	Addon->SetVisibility(bShow);
+	Addon->SetCollisionEnabled(bShow ? ECollisionEnabled::QueryAndPhysics : ECollisionEnabled::NoCollision);
+}
+
+void ADIAPlantActor::RefreshAddons()
+{
+	const UDIAWorldSubsystem* Subsystem = GetSubsystem();
+	if (!Subsystem)
+	{
+		return;
+	}
+	const int32 Level = Subsystem->GetGame().GetLevel(EAsphaltUpgrade::Plant);
+	ShowAddon(AddonA, Level >= DIAPlant::AddonALevel);
+	ShowAddon(AddonB, Level >= DIAPlant::AddonBLevel);
+}
+
+void ADIAPlantActor::EndPlay(const EEndPlayReason::Type Reason)
+{
+	if (StateHandle.IsValid())
+	{
+		if (UDIAWorldSubsystem* Subsystem = GetSubsystem())
+		{
+			Subsystem->OnStateChanged.Remove(StateHandle);
+		}
+		StateHandle.Reset();
+	}
+	Super::EndPlay(Reason);
 }
 
 void ADIAPlantActor::BeginPlay()
@@ -68,5 +148,15 @@ void ADIAPlantActor::BeginPlay()
 	if (UMaterialInterface* Material = DIAAssets::Palette(TEXT("DIA_Yellow")))
 	{
 		ZoneMarker->SetMaterial(0, Material);
+	}
+
+	// The addons: the real models stand on the ground at their spot.
+	LoadAddon(AddonA, DIAPlant::AddonALocationCm, TEXT("SM_Plant_AddonA"), DIAAssets::EFallback::Cylinder, DIAModelSizes::PlantAddonACm);
+	LoadAddon(AddonB, DIAPlant::AddonBLocationCm, TEXT("SM_Plant_AddonB"), DIAAssets::EFallback::Cube, DIAModelSizes::PlantAddonBCm);
+	RefreshAddons();
+	if (UDIAWorldSubsystem* Subsystem = GetSubsystem())
+	{
+		// Fires every tick; RefreshAddons returns at once unless a plant level was crossed.
+		StateHandle = Subsystem->OnStateChanged.AddUObject(this, &ADIAPlantActor::RefreshAddons);
 	}
 }

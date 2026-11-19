@@ -11,7 +11,8 @@ struct FInputActionValue;
 
 /**
  * Creates the input assets, adds the mapping context to the local player and routes the actions to the character.
- * Interact, Shop and Pause are bound but do nothing yet (later tasks fill them in).
+ * Shop (Tab) toggles the shop panel of the HUD and Pause (Esc) closes it; Interact and the rest of Pause are bound but do
+ * nothing yet (later tasks fill them in).
  */
 UCLASS(NotBlueprintable)
 class DOITASPHALT_API ADIAPlayerController : public APlayerController
@@ -20,6 +21,14 @@ class DOITASPHALT_API ADIAPlayerController : public APlayerController
 
 public:
 	const FDIAInput& GetInput() const { return Input; }
+
+	/**
+	 * Called by the HUD when the shop opens or closes: the mouse cursor and the mouse go to the panel (game and UI input,
+	 * the camera stops following the mouse, pouring stops and cannot start), and back to the game when it closes.
+	 * The game itself keeps running.
+	 */
+	void SetShopInput(bool bOpen);
+	bool IsShopInput() const { return bShopInput; }
 
 protected:
 	virtual void InitInputSystem() override;
@@ -40,4 +49,6 @@ private:
 
 	UPROPERTY()
 	FDIAInput Input;
+
+	bool bShopInput = false;
 };

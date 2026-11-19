@@ -8,11 +8,12 @@
 #include "DIAHUD.generated.h"
 
 class SDIAHudOverlay;
+class SDIAShopPanel;
 class UDIAWorldSubsystem;
 
 /**
  * The HUD actor: creates the Slate overlay in the game viewport (not when nothing can render, e.g. in tests), keeps the
- * contextual prompt and the toasts, and turns the game's events into toasts. The game state stays in the subsystem.
+ * contextual prompt, the toasts and the shop panel (Tab), and turns the game's events into toasts. The game state stays in the subsystem.
  */
 UCLASS(NotBlueprintable)
 class DOITASPHALT_API ADIAHUD : public AHUD
@@ -27,9 +28,15 @@ public:
 	/** A short message at the top of the screen; it fades after AsphaltHud::ToastHoldSeconds. */
 	void ShowToast(const FText& Text);
 
+	/** Opens the shop if it is closed and closes it if it is open; the game runs on either way. */
+	void ToggleShop();
+	void SetShopOpen(bool bOpen);
+	bool IsShopOpen() const { return bShopOpen; }
+
 	const FText& GetPrompt() const { return Prompt; }
 	const FDIAToasts& GetToasts() const { return Toasts; }
 	bool HasOverlay() const { return Overlay.IsValid(); }
+	bool HasShopPanel() const { return ShopPanel.IsValid(); }
 
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type Reason) override;
@@ -47,6 +54,9 @@ private:
 	FText Prompt;
 	FDIAToasts Toasts;
 	TSharedPtr<SDIAHudOverlay> Overlay;
+	/** Built once with the overlay; shown and hidden, never rebuilt. */
+	TSharedPtr<SDIAShopPanel> ShopPanel;
+	bool bShopOpen = false;
 
 	TWeakObjectPtr<UDIAWorldSubsystem> BoundSubsystem;
 	FDelegateHandle CellsHandle;

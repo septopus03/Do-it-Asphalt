@@ -17,6 +17,8 @@ namespace AsphaltHud
 	inline constexpr int32 MaxToasts = 3;
 	/** Z order of the overlay in the game viewport. */
 	inline constexpr int32 ViewportZOrder = 10;
+	/** The shop panel lies above the HUD. */
+	inline constexpr int32 ShopZOrder = 11;
 
 	// Colours.
 	inline const FLinearColor TextColor{0.97f, 0.97f, 0.97f, 1.f};
@@ -30,6 +32,14 @@ namespace AsphaltHud
 	inline const FLinearColor StockColor{0.80f, 0.80f, 0.84f, 1.f};
 	inline const FLinearColor BarTrackColor{1.f, 1.f, 1.f, 0.16f};
 	inline const FLinearColor PromptColor{1.f, 0.93f, 0.55f, 1.f};
+	inline const FLinearColor ShopPanelColor{0.04f, 0.05f, 0.07f, 0.94f};
+	inline const FLinearColor ShopRowColor{1.f, 1.f, 1.f, 0.07f};
+	inline const FLinearColor ButtonColor{1.f, 0.62f, 0.15f, 1.f};
+	inline const FLinearColor ButtonHoverColor{1.f, 0.74f, 0.36f, 1.f};
+	inline const FLinearColor ButtonPressedColor{0.82f, 0.46f, 0.08f, 1.f};
+	inline const FLinearColor ButtonDisabledColor{1.f, 1.f, 1.f, 0.10f};
+	inline const FLinearColor ButtonTextColor{0.08f, 0.06f, 0.03f, 1.f};
+	inline const FLinearColor ButtonTextDisabledColor{0.78f, 0.80f, 0.84f, 0.45f};
 
 	// Sizes.
 	inline constexpr int32 BigFontSize = 34;
@@ -44,6 +54,13 @@ namespace AsphaltHud
 	inline constexpr float ProgressBarWidth = 300.f;
 	/** Distance from the bottom edge of the screen to the lowest widget. */
 	inline constexpr float BottomMargin = 28.f;
+	/** Columns of the shop: name, change (current -> next), price, button. */
+	inline constexpr float ShopNameWidth = 170.f;
+	inline constexpr float ShopChangeWidth = 430.f;
+	inline constexpr float ShopPriceWidth = 150.f;
+	inline constexpr float ShopButtonWidth = 120.f;
+	inline constexpr float ShopRowSpacing = 10.f;
+	inline constexpr float ShopPadding = 26.f;
 	/** Distance of the toasts from the top edge. */
 	inline constexpr float ToastTop = 110.f;
 }

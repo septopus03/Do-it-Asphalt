@@ -28,6 +28,10 @@ namespace DIAModelSizes
 	/** Body of the plant (without the outlet); origin at the centre of the footprint on the ground. */
 	inline const FVector PlantCm(600.0, 400.0, 500.0);
 
+	/** Plant addons: the second silo (from plant level 5) and the lying tank (from level 10); origin at the centre of the footprint. */
+	inline const FVector PlantAddonACm(160.0, 160.0, 550.0);
+	inline const FVector PlantAddonBCm(240.0, 180.0, 300.0);
+
 	/** Thickness of the flat disc that marks the refill zone. */
 	inline constexpr double RefillMarkerThicknessCm = 1.0;
 }

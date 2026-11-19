@@ -20,6 +20,11 @@ namespace DIAFormat
 	/** Plain whole number with separators. */
 	DOITASPHALT_API FText Count(int64 Value);
 
+	/** Row names of the shop: Backpack, Sprayer (the tool), Plant. */
+	DOITASPHALT_API FText UpgradeName(EAsphaltUpgrade Upgrade);
+	/** The value of an upgrade at a level, from the balance tables: "5 L", "0.2 m", "15 L/min". The level is clamped. */
+	DOITASPHALT_API FText UpgradeValue(EAsphaltUpgrade Upgrade, int32 Level);
+
 	DOITASPHALT_API FText ShardsToast(int32 Shards);
 	/** Road is 0-based; the player sees it from 1. */
 	DOITASPHALT_API FText RoadToast(int32 Road);
@@ -81,6 +86,63 @@ private:
 
 	FKey Key;
 	FDIAHudView View;
+	int32 RebuildCount = 0;
+};
+
+/** One row of the shop, already formatted. */
+struct FDIAShopRow
+{
+	EAsphaltUpgrade Upgrade = EAsphaltUpgrade::Backpack;
+	FText Name;
+	/** "5 L → 7 L"; at the maximum level only the value ("200 L"). */
+	FText Change;
+	/** DIAFormat::Price of the next level ("1 shard", "25"); "MAX" at the maximum level. */
+	FText Price;
+	/** The BUY button is active only when this is true: affordable and not at the maximum. */
+	bool bCanBuy = false;
+	bool bMax = false;
+};
+
+/**
+ * The three rows of the shop (Backpack, Sprayer, Plant). Like FDIAHudModel it rebuilds the texts only when something
+ * shown changed: a row depends on the level of its upgrade and on whether it can be bought (the money itself is not
+ * shown), and the subsystem reports a state change every tick.
+ */
+class DOITASPHALT_API FDIAShopModel
+{
+public:
+	static constexpr int32 NumRows = 3;
+
+	/** Re-reads the game; true (and new rows) only if something shown changed. */
+	bool Update(const FAsphaltGame& Game);
+
+	const FDIAShopRow& GetRow(int32 Index) const { return Rows[FMath::Clamp(Index, 0, NumRows - 1)]; }
+	/** The upgrade shown in a row: Backpack, Tool, Plant. */
+	static EAsphaltUpgrade RowUpgrade(int32 Index);
+	/** How often the rows were rebuilt; for tests. */
+	int32 GetRebuildCount() const { return RebuildCount; }
+
+private:
+	struct FKey
+	{
+		int32 Level[NumRows] = {-1, -1, -1};
+		bool bCanBuy[NumRows] = {false, false, false};
+
+		bool operator==(const FKey& Other) const
+		{
+			for (int32 I = 0; I < NumRows; ++I)
+			{
+				if (Level[I] != Other.Level[I] || bCanBuy[I] != Other.bCanBuy[I])
+				{
+					return false;
+				}
+			}
+			return true;
+		}
+	};
+
+	FKey Key;
+	FDIAShopRow Rows[NumRows];
 	int32 RebuildCount = 0;
 };
 

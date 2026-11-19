@@ -84,6 +84,33 @@ FText DIAFormat::Price(double Price, bool bShards)
 	return FText::Format(Whole == 1 ? LOCTEXT("PriceShard", "{0} shard") : LOCTEXT("PriceShards", "{0} shards"), Count(Whole));
 }
 
+FText DIAFormat::UpgradeName(EAsphaltUpgrade Upgrade)
+{
+	switch (Upgrade)
+	{
+	case EAsphaltUpgrade::Backpack: return LOCTEXT("UpgradeBackpack", "Backpack");
+	case EAsphaltUpgrade::Tool: return LOCTEXT("UpgradeTool", "Sprayer");
+	case EAsphaltUpgrade::Plant: return LOCTEXT("UpgradePlant", "Plant");
+	default: return FText::GetEmpty();
+	}
+}
+
+FText DIAFormat::UpgradeValue(EAsphaltUpgrade Upgrade, int32 Level)
+{
+	switch (Upgrade)
+	{
+	case EAsphaltUpgrade::Backpack:
+		return FText::Format(LOCTEXT("ValueBackpack", "{0} L"), Count(FMath::RoundToInt64(AsphaltBalance::BackpackCapacityL[FMath::Clamp(Level, 0, 12)])));
+	case EAsphaltUpgrade::Tool:
+		// One decimal always, so that the widths line up: "0.2 m", "1.0 m", "2.0 m".
+		return FText::Format(LOCTEXT("ValueTool", "{0} m"), FText::AsCultureInvariant(FString::Printf(TEXT("%.1f"), AsphaltBalance::ToolWidthM[FMath::Clamp(Level, 0, 6)])));
+	case EAsphaltUpgrade::Plant:
+		return FText::Format(LOCTEXT("ValuePlant", "{0} L/min"), Count(FMath::RoundToInt64(AsphaltBalance::PlantRateLPerMin[FMath::Clamp(Level, 0, 12)])));
+	default:
+		return FText::GetEmpty();
+	}
+}
+
 FText DIAFormat::ShardsToast(int32 Shards)
 {
 	return FText::Format(Shards == 1 ? LOCTEXT("ToastShard", "+{0} shard") : LOCTEXT("ToastShards", "+{0} shards"), Count(Shards));
@@ -165,6 +192,45 @@ bool FDIAHudModel::Update(const FAsphaltGame& Game)
 	View.bShowStock = bStock;
 	View.Stock = bStock ? DIAFormat::Litres(Game.GetPlantStock(), Game.GetPlantStorage()) : FText::GetEmpty();
 	View.StockFraction = bStock ? Fraction(Game.GetPlantStock(), Game.GetPlantStorage()) : 0.f;
+	return true;
+}
+
+EAsphaltUpgrade FDIAShopModel::RowUpgrade(int32 Index)
+{
+	static constexpr EAsphaltUpgrade Order[NumRows] = {EAsphaltUpgrade::Backpack, EAsphaltUpgrade::Tool, EAsphaltUpgrade::Plant};
+	return Order[FMath::Clamp(Index, 0, NumRows - 1)];
+}
+
+bool FDIAShopModel::Update(const FAsphaltGame& Game)
+{
+	FKey NewKey;
+	for (int32 I = 0; I < NumRows; ++I)
+	{
+		const EAsphaltUpgrade Upgrade = RowUpgrade(I);
+		NewKey.Level[I] = Game.GetLevel(Upgrade);
+		NewKey.bCanBuy[I] = Game.CanBuy(Upgrade);
+	}
+	if (RebuildCount > 0 && NewKey == Key)
+	{
+		return false;
+	}
+	Key = NewKey;
+	++RebuildCount;
+
+	for (int32 I = 0; I < NumRows; ++I)
+	{
+		const EAsphaltUpgrade Upgrade = RowUpgrade(I);
+		const int32 Level = NewKey.Level[I];
+		const bool bMax = Level >= Game.GetMaxLevel(Upgrade);
+		FDIAShopRow& Row = Rows[I];
+		Row.Upgrade = Upgrade;
+		Row.Name = DIAFormat::UpgradeName(Upgrade);
+		Row.bMax = bMax;
+		Row.bCanBuy = NewKey.bCanBuy[I];
+		Row.Change = bMax ? DIAFormat::UpgradeValue(Upgrade, Level)
+			: FText::Format(LOCTEXT("ShopChange", "{0} → {1}"), DIAFormat::UpgradeValue(Upgrade, Level), DIAFormat::UpgradeValue(Upgrade, Level + 1));
+		Row.Price = DIAFormat::Price(Game.GetNextPrice(Upgrade), Upgrade == EAsphaltUpgrade::Backpack);
+	}
 	return true;
 }
 

@@ -259,6 +259,14 @@ namespace DIACheats
 		}
 	}
 
+	void Shop(const TArray<FString>& Args, UWorld* World)
+	{
+		if (ADIAHUD* Hud = GetHud(World))
+		{
+			Hud->SetShopOpen(true);
+		}
+	}
+
 	TWeakObjectPtr<ACameraActor> TopViewCamera;
 
 	void TopView(const TArray<FString>& Args, UWorld* World)
@@ -365,6 +373,7 @@ namespace DIACheats
 	FAutoConsoleCommandWithWorldAndArgs TeleportCommand(TEXT("dia.Teleport"), TEXT("dia.Teleport <x> <y> [yaw] [pitch]"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Teleport));
 	FAutoConsoleCommandWithWorldAndArgs PromptCommand(TEXT("dia.Prompt"), TEXT("dia.Prompt <text>: sets the contextual prompt (no text hides it)"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Prompt));
 	FAutoConsoleCommandWithWorldAndArgs ToastCommand(TEXT("dia.Toast"), TEXT("dia.Toast <text>: shows a toast"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Toast));
+	FAutoConsoleCommandWithWorldAndArgs ShopCommand(TEXT("dia.Shop"), TEXT("dia.Shop: opens the shop (Tab closes it)"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Shop));
 	FAutoConsoleCommandWithWorldAndArgs TopViewCommand(TEXT("dia.TopView"), TEXT("dia.TopView: camera 45 m above the centre, looking straight down"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&TopView));
 	FAutoConsoleCommandWithWorldAndArgs ShotAndQuitCommand(TEXT("dia.ShotAndQuit"), TEXT("dia.ShotAndQuit <seconds> <name>: saves Saved/Screenshots/<name>.png and quits"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&ShotAndQuit));
 }

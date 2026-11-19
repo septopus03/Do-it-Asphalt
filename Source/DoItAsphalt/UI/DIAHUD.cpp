@@ -9,7 +9,9 @@
 #include "Game/DIAWorldSubsystem.h"
 #include "Misc/App.h"
 #include "UI/DIAHudStyle.h"
+#include "Player/DIAPlayerController.h"
 #include "UI/SDIAHudOverlay.h"
+#include "UI/SDIAShopPanel.h"
 
 ADIAHUD::ADIAHUD()
 {
@@ -25,6 +27,29 @@ void ADIAHUD::SetPrompt(const FText& Text)
 void ADIAHUD::ShowToast(const FText& Text)
 {
 	Toasts.Add(Text);
+}
+
+void ADIAHUD::ToggleShop()
+{
+	SetShopOpen(!bShopOpen);
+}
+
+void ADIAHUD::SetShopOpen(bool bOpen)
+{
+	if (bShopOpen == bOpen)
+	{
+		return;
+	}
+	bShopOpen = bOpen;
+	if (ShopPanel.IsValid())
+	{
+		ShopPanel->SetVisibility(bShopOpen ? EVisibility::SelfHitTestInvisible : EVisibility::Collapsed);
+	}
+	// The cursor and the mouse go to the panel (and back to the camera); the controller also stops pouring.
+	if (ADIAPlayerController* Controller = Cast<ADIAPlayerController>(GetOwningPlayerController()))
+	{
+		Controller->SetShopInput(bShopOpen);
+	}
 }
 
 void ADIAHUD::BeginPlay()
@@ -71,10 +96,23 @@ void ADIAHUD::CreateOverlay(UDIAWorldSubsystem* Subsystem)
 	}
 	Overlay = SNew(SDIAHudOverlay).Hud(this).Subsystem(Subsystem);
 	GEngine->GameViewport->AddViewportWidgetContent(Overlay.ToSharedRef(), AsphaltHud::ViewportZOrder);
+
+	ShopPanel = SNew(SDIAShopPanel).Subsystem(Subsystem);
+	ShopPanel->SetVisibility(bShopOpen ? EVisibility::SelfHitTestInvisible : EVisibility::Collapsed);
+	GEngine->GameViewport->AddViewportWidgetContent(ShopPanel.ToSharedRef(), AsphaltHud::ShopZOrder);
 }
 
 void ADIAHUD::DestroyOverlay()
 {
+	if (ShopPanel.IsValid())
+	{
+		ShopPanel->Unbind();
+		if (GEngine && GEngine->GameViewport)
+		{
+			GEngine->GameViewport->RemoveViewportWidgetContent(ShopPanel.ToSharedRef());
+		}
+		ShopPanel.Reset();
+	}
 	if (Overlay.IsValid())
 	{
 		Overlay->Unbind();
