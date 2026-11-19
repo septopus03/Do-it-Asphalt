@@ -53,6 +53,21 @@ bool UDIAWorldSubsystem::BuySpecial(EAsphaltSpecial S)
 	return true;
 }
 
+void UDIAWorldSubsystem::Win()
+{
+	if (Game.HasWon())
+	{
+		return;
+	}
+	Game.SetWon();
+	if (!Game.HasWon())
+	{
+		return;
+	}
+	OnWon.Broadcast();
+	OnStateChanged.Broadcast();
+}
+
 void UDIAWorldSubsystem::RegisterInteractable(AActor* Actor, IDIAInteractable* Interactable)
 {
 	if (!Actor || !Interactable)

@@ -3,6 +3,7 @@
 #include "UI/SDIAShopPanel.h"
 #include "Game/DIAWorldSubsystem.h"
 #include "Styling/CoreStyle.h"
+#include "UI/DIAButtonStyle.h"
 #include "UI/DIAHudStyle.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SBorder.h"
@@ -29,13 +30,7 @@ void SDIAShopPanel::Construct(const FArguments& InArgs)
 {
 	Subsystem = InArgs._Subsystem;
 
-	ButtonStyle = FButtonStyle()
-		.SetNormal(ButtonNormalBrush)
-		.SetHovered(ButtonHoverBrush)
-		.SetPressed(ButtonPressedBrush)
-		.SetDisabled(ButtonDisabledBrush)
-		.SetNormalPadding(FMargin(0.f))
-		.SetPressedPadding(FMargin(0.f));
+	ButtonStyle = AsphaltHud::MakeButtonStyle();
 
 	if (UDIAWorldSubsystem* S = Subsystem.Get())
 	{

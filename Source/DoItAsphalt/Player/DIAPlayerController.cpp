@@ -113,7 +113,7 @@ void ADIAPlayerController::OnLook(const FInputActionValue& Value)
 void ADIAPlayerController::OnPourStarted()
 {
 	// A click in the shop is for the shop.
-	if (bShopInput)
+	if (IsUiInput())
 	{
 		return;
 	}
@@ -158,7 +158,7 @@ void ADIAPlayerController::OnSprintCompleted()
 IDIAInteractable* ADIAPlayerController::FindInteractable() const
 {
 	// The shop covers the screen and the mouse belongs to it: nothing can be used behind it.
-	if (bShopInput)
+	if (IsUiInput())
 	{
 		return nullptr;
 	}
@@ -184,7 +184,7 @@ void ADIAPlayerController::UpdatePrompt()
 	// Driving the truck there is only one thing to use: the way out (the shop covers the screen and the mouse, as on foot).
 	if (const ADIAPaverCar* Car = GetDIACar())
 	{
-		Hud->SetPrompt(bShopInput ? FText::GetEmpty() : Car->GetPrompt(nullptr));
+		Hud->SetPrompt(IsUiInput() ? FText::GetEmpty() : Car->GetPrompt(nullptr));
 		return;
 	}
 	const ADIACharacter* Character = GetDIACharacter();
@@ -196,7 +196,7 @@ void ADIAPlayerController::OnInteract()
 {
 	if (ADIAPaverCar* Car = GetDIACar())
 	{
-		if (!bShopInput)
+		if (!IsUiInput())
 		{
 			Car->ExitCar();
 		}
@@ -241,14 +241,7 @@ void ADIAPlayerController::SetShopInput(bool bOpen)
 	SetIgnoreLookInput(bOpen);
 	if (bOpen)
 	{
-		if (ADIAPaverCar* Car = GetDIACar())
-		{
-			Car->SetPouring(false);
-		}
-		else if (ADIACharacter* Character = GetDIACharacter())
-		{
-			Character->SetPouring(false);
-		}
+		StopPouring();
 	}
 
 	// Without a window (tests, servers) there is no cursor or input mode to change.
@@ -268,4 +261,44 @@ void ADIAPlayerController::SetShopInput(bool bOpen)
 	{
 		SetInputMode(FInputModeGameOnly());
 	}
+}
+
+void ADIAPlayerController::StopPouring()
+{
+	if (ADIAPaverCar* Car = GetDIACar())
+	{
+		Car->SetPouring(false);
+	}
+	else if (ADIACharacter* Character = GetDIACharacter())
+	{
+		Character->SetPouring(false);
+	}
+}
+
+void ADIAPlayerController::SetWinInput()
+{
+	if (bWinInput)
+	{
+		return;
+	}
+	bWinInput = true;
+	SetIgnoreLookInput(true);
+	SetIgnoreMoveInput(true);
+	StopPouring();
+	// UI-only input swallows the key releases, so the truck must not keep the throttle of the moment.
+	if (ADIAPaverCar* Car = GetDIACar())
+	{
+		Car->SetThrottle(0.f);
+		Car->SetSteer(0.f);
+	}
+
+	// Without a window (tests, servers) there is no cursor or input mode to change.
+	if (!IsLocalPlayerController() || !FApp::CanEverRender() || !FSlateApplication::IsInitialized())
+	{
+		return;
+	}
+	SetShowMouseCursor(true);
+	FInputModeUIOnly Mode;
+	Mode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+	SetInputMode(Mode);
 }

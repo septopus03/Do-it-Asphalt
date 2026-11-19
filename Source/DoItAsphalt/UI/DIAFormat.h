@@ -19,6 +19,12 @@ namespace DIAFormat
 	DOITASPHALT_API FText Price(double Price, bool bShards);
 	/** Plain whole number with separators. */
 	DOITASPHALT_API FText Count(int64 Value);
+	/** Game time, whole seconds rounded down: 754 -> "12:34", 3725 -> "1:02:05". Never negative. */
+	DOITASPHALT_API FText Duration(double Seconds);
+	/** Whole litres, rounded down, with the unit: 12345.9 -> "12,345 L". */
+	DOITASPHALT_API FText LitresPoured(double Litres);
+	/** Upgrades bought out of all of them: (8, 35) -> "8 / 35". */
+	DOITASPHALT_API FText Upgrades(int32 Bought, int32 Total);
 
 	/** Row names of the shop: Backpack, Sprayer (the tool), Plant. */
 	DOITASPHALT_API FText UpgradeName(EAsphaltUpgrade Upgrade);
@@ -156,6 +162,52 @@ private:
 
 	FKey Key;
 	FDIAShopRow Rows[NumRows];
+	int32 RebuildCount = 0;
+};
+
+/** What the win screen shows, already formatted. */
+struct FDIAWinView
+{
+	FText Time;
+	FText Poured;
+	FText Money;
+	FText Upgrades;
+};
+
+/**
+ * The statistics of the win screen (GDD chapter 9): game time, litres poured, money earned and upgrades bought. Like the other
+ * models it rebuilds the texts only when something shown changed. The money earned is what the poured litres paid
+ * (AsphaltBalance::MoneyPerLitre), not the money left in the purse; the upgrades are the levels of the three upgrades plus the
+ * specials, out of everything that can be bought.
+ */
+class DOITASPHALT_API FDIAWinModel
+{
+public:
+	/** Re-reads the game; true (and a new view) only if something shown changed. */
+	bool Update(const FAsphaltGame& Game);
+
+	const FDIAWinView& GetView() const { return View; }
+	/** How often the view was rebuilt; for tests. */
+	int32 GetRebuildCount() const { return RebuildCount; }
+
+	/** The sum of the three levels and the number of specials owned. */
+	static int32 UpgradesBought(const FAsphaltGame& Game);
+	/** The sum of the three maximum levels and the number of specials: 35. */
+	static int32 UpgradesTotal(const FAsphaltGame& Game);
+
+private:
+	struct FKey
+	{
+		int64 Seconds = -1;
+		int64 Litres = -1;
+		int32 Bought = -1;
+		int32 Total = -1;
+
+		bool operator==(const FKey& Other) const = default;
+	};
+
+	FKey Key;
+	FDIAWinView View;
 	int32 RebuildCount = 0;
 };
 

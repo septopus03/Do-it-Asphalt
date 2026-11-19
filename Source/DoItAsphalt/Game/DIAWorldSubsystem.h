@@ -48,6 +48,12 @@ public:
 	/** Buys a special; broadcasts OnSpecialBought and OnStateChanged on success. */
 	bool BuySpecial(EAsphaltSpecial S);
 
+	/**
+	 * Marks the game as won (the player reached the exit gate): the core ignores it while the exit is closed, and nothing
+	 * happens (no OnWon) then or if the game was won already. Otherwise broadcasts OnWon once and OnStateChanged.
+	 */
+	void Win();
+
 	/** Interactables (kiosks, later the station and the car) register themselves while they are in the world. */
 	void RegisterInteractable(AActor* Actor, IDIAInteractable* Interactable);
 	void UnregisterInteractable(const AActor* Actor);
@@ -63,6 +69,8 @@ public:
 	FOnRoad OnRoadCompleted;
 	FOnSpecial OnSpecialBought;
 	FSimpleMulticastDelegate OnExitOpened;
+	/** The game was won; fires once per game. */
+	FSimpleMulticastDelegate OnWon;
 
 	// UTickableWorldSubsystem
 	virtual void Tick(float DeltaTime) override;

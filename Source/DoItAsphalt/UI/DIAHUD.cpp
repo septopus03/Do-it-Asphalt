@@ -6,12 +6,15 @@
 #include "Engine/GameViewportClient.h"
 #include "Engine/World.h"
 #include "Framework/Application/SlateApplication.h"
+#include "Kismet/GameplayStatics.h"
+#include "Kismet/KismetSystemLibrary.h"
 #include "Game/DIAWorldSubsystem.h"
 #include "Misc/App.h"
 #include "UI/DIAHudStyle.h"
 #include "Player/DIAPlayerController.h"
 #include "UI/SDIAHudOverlay.h"
 #include "UI/SDIAShopPanel.h"
+#include "UI/SDIAWinScreen.h"
 
 ADIAHUD::ADIAHUD()
 {
@@ -41,7 +44,8 @@ void ADIAHUD::ToggleShop()
 
 void ADIAHUD::SetShopOpen(bool bOpen)
 {
-	if (bShopOpen == bOpen)
+	// The win screen owns the screen for good.
+	if (bShopOpen == bOpen || (bOpen && bWinShown))
 	{
 		return;
 	}
@@ -57,6 +61,41 @@ void ADIAHUD::SetShopOpen(bool bOpen)
 	}
 }
 
+void ADIAHUD::ShowWinScreen()
+{
+	if (bWinShown)
+	{
+		return;
+	}
+	SetShopOpen(false);
+	bWinShown = true;
+	if (const UDIAWorldSubsystem* Subsystem = BoundSubsystem.Get())
+	{
+		if (WinScreen.IsValid())
+		{
+			WinScreen->Show(Subsystem->GetGame());
+		}
+	}
+	if (ADIAPlayerController* Controller = Cast<ADIAPlayerController>(GetOwningPlayerController()))
+	{
+		Controller->SetWinInput();
+	}
+}
+
+void ADIAHUD::NewGame()
+{
+	// Task 18 starts a new game in the same world; until then the level is loaded again, which gives a fresh game.
+	if (UWorld* World = GetWorld())
+	{
+		UGameplayStatics::OpenLevel(World, FName(*UGameplayStatics::GetCurrentLevelName(World, true)));
+	}
+}
+
+void ADIAHUD::QuitGame()
+{
+	UKismetSystemLibrary::QuitGame(this, GetOwningPlayerController(), EQuitPreference::Quit, false);
+}
+
 void ADIAHUD::BeginPlay()
 {
 	Super::BeginPlay();
@@ -69,6 +108,7 @@ void ADIAHUD::BeginPlay()
 		RoadHandle = Subsystem->OnRoadCompleted.AddUObject(this, &ADIAHUD::HandleRoadCompleted);
 		SpecialHandle = Subsystem->OnSpecialBought.AddUObject(this, &ADIAHUD::HandleSpecialBought);
 		ExitHandle = Subsystem->OnExitOpened.AddUObject(this, &ADIAHUD::HandleExitOpened);
+		WonHandle = Subsystem->OnWon.AddUObject(this, &ADIAHUD::HandleWon);
 		CreateOverlay(Subsystem);
 	}
 }
@@ -81,6 +121,7 @@ void ADIAHUD::EndPlay(const EEndPlayReason::Type Reason)
 		Subsystem->OnRoadCompleted.Remove(RoadHandle);
 		Subsystem->OnSpecialBought.Remove(SpecialHandle);
 		Subsystem->OnExitOpened.Remove(ExitHandle);
+		Subsystem->OnWon.Remove(WonHandle);
 	}
 	DestroyOverlay();
 	Super::EndPlay(Reason);
@@ -105,10 +146,23 @@ void ADIAHUD::CreateOverlay(UDIAWorldSubsystem* Subsystem)
 	ShopPanel = SNew(SDIAShopPanel).Subsystem(Subsystem);
 	ShopPanel->SetVisibility(bShopOpen ? EVisibility::SelfHitTestInvisible : EVisibility::Collapsed);
 	GEngine->GameViewport->AddViewportWidgetContent(ShopPanel.ToSharedRef(), AsphaltHud::ShopZOrder);
+
+	WinScreen = SNew(SDIAWinScreen)
+		.OnNewGame(FSimpleDelegate::CreateUObject(this, &ADIAHUD::NewGame))
+		.OnQuit(FSimpleDelegate::CreateUObject(this, &ADIAHUD::QuitGame));
+	GEngine->GameViewport->AddViewportWidgetContent(WinScreen.ToSharedRef(), AsphaltHud::WinZOrder);
 }
 
 void ADIAHUD::DestroyOverlay()
 {
+	if (WinScreen.IsValid())
+	{
+		if (GEngine && GEngine->GameViewport)
+		{
+			GEngine->GameViewport->RemoveViewportWidgetContent(WinScreen.ToSharedRef());
+		}
+		WinScreen.Reset();
+	}
 	if (ShopPanel.IsValid())
 	{
 		ShopPanel->Unbind();
@@ -147,4 +201,9 @@ void ADIAHUD::HandleSpecialBought(EAsphaltSpecial Special)
 void ADIAHUD::HandleExitOpened()
 {
 	ShowToast(DIAFormat::ExitToast());
+}
+
+void ADIAHUD::HandleWon()
+{
+	ShowWinScreen();
 }

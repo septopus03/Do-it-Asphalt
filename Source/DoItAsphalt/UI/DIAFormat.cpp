@@ -59,6 +59,26 @@ FText DIAFormat::Money(double Value)
 	return Count(WholeMoney(Value));
 }
 
+FText DIAFormat::Duration(double Seconds)
+{
+	const int64 Whole = FMath::Max<int64>(0, FMath::FloorToInt64(Seconds + 1e-9));
+	const int64 Hours = Whole / 3600;
+	const int64 Minutes = Whole / 60 % 60;
+	const int64 Secs = Whole % 60;
+	return FText::AsCultureInvariant(Hours > 0 ? FString::Printf(TEXT("%lld:%02lld:%02lld"), Hours, Minutes, Secs)
+											   : FString::Printf(TEXT("%lld:%02lld"), Minutes, Secs));
+}
+
+FText DIAFormat::LitresPoured(double Litres)
+{
+	return FText::Format(LOCTEXT("LitresPoured", "{0} L"), Count(WholeMoney(Litres)));
+}
+
+FText DIAFormat::Upgrades(int32 Bought, int32 Total)
+{
+	return FText::Format(LOCTEXT("Upgrades", "{0} / {1}"), Count(Bought), Count(Total));
+}
+
 FText DIAFormat::Litres(double Have, double Capacity)
 {
 	return FText::Format(LOCTEXT("Litres", "{0} / {1} L"), TenthsText(Tenths(Have)), TenthsText(Tenths(Capacity)));
@@ -266,6 +286,53 @@ bool FDIAShopModel::Update(const FAsphaltGame& Game)
 			: FText::Format(LOCTEXT("ShopChange", "{0} → {1}"), DIAFormat::UpgradeValue(Upgrade, Level), DIAFormat::UpgradeValue(Upgrade, Level + 1));
 		Row.Price = DIAFormat::Price(Game.GetNextPrice(Upgrade), Upgrade == EAsphaltUpgrade::Backpack);
 	}
+	return true;
+}
+
+int32 FDIAWinModel::UpgradesBought(const FAsphaltGame& Game)
+{
+	int32 Bought = 0;
+	for (const EAsphaltUpgrade Upgrade : {EAsphaltUpgrade::Backpack, EAsphaltUpgrade::Tool, EAsphaltUpgrade::Plant})
+	{
+		Bought += Game.GetLevel(Upgrade);
+	}
+	for (int32 Special = 0; Special < static_cast<int32>(EAsphaltSpecial::Count); ++Special)
+	{
+		Bought += Game.HasSpecial(static_cast<EAsphaltSpecial>(Special)) ? 1 : 0;
+	}
+	return Bought;
+}
+
+int32 FDIAWinModel::UpgradesTotal(const FAsphaltGame& Game)
+{
+	int32 Total = static_cast<int32>(EAsphaltSpecial::Count);
+	for (const EAsphaltUpgrade Upgrade : {EAsphaltUpgrade::Backpack, EAsphaltUpgrade::Tool, EAsphaltUpgrade::Plant})
+	{
+		Total += Game.GetMaxLevel(Upgrade);
+	}
+	return Total;
+}
+
+bool FDIAWinModel::Update(const FAsphaltGame& Game)
+{
+	const double Poured = Game.GetTotalLitresPoured();
+	FKey NewKey;
+	NewKey.Seconds = FMath::Max<int64>(0, FMath::FloorToInt64(Game.GetPlaytimeSeconds() + 1e-9));
+	NewKey.Litres = WholeMoney(Poured);
+	NewKey.Bought = UpgradesBought(Game);
+	NewKey.Total = UpgradesTotal(Game);
+	if (RebuildCount > 0 && NewKey == Key)
+	{
+		return false;
+	}
+	Key = NewKey;
+	++RebuildCount;
+
+	View.Time = DIAFormat::Duration(Game.GetPlaytimeSeconds());
+	View.Poured = DIAFormat::LitresPoured(Poured);
+	// Every coin comes from pouring, so what was earned is what the litres paid; the purse is smaller after the shopping.
+	View.Money = DIAFormat::Money(Poured * AsphaltBalance::MoneyPerLitre);
+	View.Upgrades = DIAFormat::Upgrades(NewKey.Bought, NewKey.Total);
 	return true;
 }
 

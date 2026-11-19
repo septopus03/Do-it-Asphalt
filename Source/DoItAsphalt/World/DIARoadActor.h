@@ -23,7 +23,7 @@ class DOITASPHALT_API ADIARoadActor : public AActor
 public:
 	ADIARoadActor();
 
-	/** Road index 0..5; the road with AsphaltBalance::ExitRoad has no barrier (the exit gate comes in a later task). */
+	/** Road index 0..5; the road with AsphaltBalance::ExitRoad has no barrier (ADIAExitGate stands there). */
 	int32 Road = 0;
 
 	/** Position and yaw of the actor for a road: RoadEnd turned along RoadDirection. */

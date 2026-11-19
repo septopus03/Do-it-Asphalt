@@ -44,9 +44,5 @@ private:
 	FDIAShopModel Model;
 	FSlateRoundedBoxBrush PanelBrush{FLinearColor::White, 12.f};
 	FSlateRoundedBoxBrush RowBrush{FLinearColor::White, 8.f};
-	FSlateRoundedBoxBrush ButtonNormalBrush{AsphaltHud::ButtonColor, 8.f};
-	FSlateRoundedBoxBrush ButtonHoverBrush{AsphaltHud::ButtonHoverColor, 8.f};
-	FSlateRoundedBoxBrush ButtonPressedBrush{AsphaltHud::ButtonPressedColor, 8.f};
-	FSlateRoundedBoxBrush ButtonDisabledBrush{AsphaltHud::ButtonDisabledColor, 8.f};
 	FButtonStyle ButtonStyle;
 };

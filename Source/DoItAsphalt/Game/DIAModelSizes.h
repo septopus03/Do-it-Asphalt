@@ -55,6 +55,15 @@ namespace DIAModelSizes
 	inline const FVector RoadStubCm(1200.0, 340.0, 5.0);
 	inline const FVector BarrierCm(30.0, 340.0, 100.0);
 
+	/**
+	 * Fence panel (origin at the centre of the footprint, on the ground; panels tile along Y at the 2 m pitch), the frame of the exit gate
+	 * (origin at the centre of the footprint, on the ground; the passage is 340 cm wide) and its barrier arm (origin at the end at the
+	 * hinge, the arm runs towards +Y and the game turns it about the X axis; the box measures the arm itself).
+	 */
+	inline const FVector FenceCm(8.0, 200.0, 180.0);
+	inline const FVector ExitGateFrameCm(40.0, 380.0, 300.0);
+	inline const FVector ExitGateBarrierCm(10.0, 340.0, 12.0);
+
 	/** Thickness of the flat disc that marks the refill zone. */
 	inline constexpr double RefillMarkerThicknessCm = 1.0;
 }

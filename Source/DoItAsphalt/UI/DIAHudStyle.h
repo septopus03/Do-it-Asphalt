@@ -19,6 +19,8 @@ namespace AsphaltHud
 	inline constexpr int32 ViewportZOrder = 10;
 	/** The shop panel lies above the HUD. */
 	inline constexpr int32 ShopZOrder = 11;
+	/** The win screen lies above everything. */
+	inline constexpr int32 WinZOrder = 12;
 
 	// Colours.
 	inline const FLinearColor TextColor{0.97f, 0.97f, 0.97f, 1.f};
@@ -38,6 +40,8 @@ namespace AsphaltHud
 	inline const FLinearColor ButtonHoverColor{1.f, 0.74f, 0.36f, 1.f};
 	inline const FLinearColor ButtonPressedColor{0.82f, 0.46f, 0.08f, 1.f};
 	inline const FLinearColor ButtonDisabledColor{1.f, 1.f, 1.f, 0.10f};
+	inline const FLinearColor WinBackdropColor{0.f, 0.f, 0.f, 0.72f};
+	inline const FLinearColor WinTitleColor{1.f, 0.62f, 0.15f, 1.f};
 	inline const FLinearColor ButtonTextColor{0.08f, 0.06f, 0.03f, 1.f};
 	inline const FLinearColor ButtonTextDisabledColor{0.78f, 0.80f, 0.84f, 0.45f};
 
@@ -61,6 +65,16 @@ namespace AsphaltHud
 	inline constexpr float ShopButtonWidth = 120.f;
 	inline constexpr float ShopRowSpacing = 10.f;
 	inline constexpr float ShopPadding = 26.f;
+	inline constexpr float ButtonCornerRadius = 8.f;
+	/** The win screen: the panel's inner width, the statistics' label column and the two buttons. */
+	inline constexpr float WinPanelWidth = 640.f;
+	inline constexpr float WinLabelWidth = 320.f;
+	inline constexpr float WinTitleSpacing = 28.f;
+	inline constexpr float WinRowSpacing = 8.f;
+	inline constexpr float WinButtonsSpacing = 28.f;
+	inline constexpr float WinButtonWidth = 240.f;
+	inline constexpr float WinButtonPaddingV = 10.f;
+	inline constexpr float WinPanelPadding = 36.f;
 	/** Distance of the toasts from the top edge. */
 	inline constexpr float ToastTop = 110.f;
 }

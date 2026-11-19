@@ -34,6 +34,14 @@ public:
 	void SetShopInput(bool bOpen);
 	bool IsShopInput() const { return bShopInput; }
 
+	/**
+	 * Called by the HUD when the win screen appears: the mouse cursor and the UI take all the input (UI only, so no key reaches the
+	 * game any more), the character stops, pouring stops and the truck lets go of throttle and steering. There is no way back: the game is won;
+	 * New Game loads a fresh level with a fresh controller.
+	 */
+	void SetWinInput();
+	bool IsWinInput() const { return bWinInput; }
+
 	/** What E would use right now (null if nothing is within reach, or the shop is open). */
 	class IDIAInteractable* FindInteractable() const;
 
@@ -61,6 +69,10 @@ private:
 	class ADIACharacter* GetDIACharacter() const;
 	/** The truck while the controller drives it; null otherwise. */
 	class ADIAPaverCar* GetDIACar() const;
+	/** Stops pouring, with the character's spreader or the truck's bar. */
+	void StopPouring();
+	/** The shop or the win screen covers the screen and owns the mouse: nothing behind it can be used. */
+	bool IsUiInput() const { return bShopInput || bWinInput; }
 	/** Sends the prompt of the nearest interactable to the HUD (a no-op for unchanged text). */
 	void UpdatePrompt();
 
@@ -68,4 +80,5 @@ private:
 	FDIAInput Input;
 
 	bool bShopInput = false;
+	bool bWinInput = false;
 };

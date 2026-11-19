@@ -11,11 +11,13 @@
 #include "Player/DIAPlayerController.h"
 #include "UI/DIAHUD.h"
 #include "World/DIAAutoPaver.h"
+#include "World/DIAExitGate.h"
 #include "World/DIAGroundActor.h"
 #include "World/DIAKioskActor.h"
 #include "World/DIAPaverCar.h"
 #include "World/DIAPortableStation.h"
 #include "World/DIARoadActor.h"
+#include "World/DIASiteFence.h"
 #include "World/DIAPlantActor.h"
 
 namespace
@@ -70,6 +72,10 @@ void ADIAGameMode::StartPlay()
 			}
 		}
 	}
+
+	// The exit gate closes the gap of road 5 and the fence the rest of the circle around the site.
+	EnsureExitGate();
+	EnsureSiteFence();
 
 	// The station, the paver and the truck follow the core: a purchase (or the cheat) announces itself here, and ones owned from the start are spawned now.
 	if (UDIAWorldSubsystem* Subsystem = UDIAWorldSubsystem::Get(this))
@@ -141,6 +147,30 @@ void ADIAGameMode::EnsureCar()
 {
 	// The truck's origin is the centre of its collision box, which stands on the ground.
 	EnsureSpecialActor(Car, EAsphaltSpecial::PaverCar, [](const FAsphaltGame& Game) { return Game.World().CarPos; }, DIAPaverCar::OriginHeightCm());
+}
+
+void ADIAGameMode::EnsureExitGate()
+{
+	UWorld* World = GetWorld();
+	if (!World || ExitGate.IsValid())
+	{
+		return;
+	}
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	ExitGate = World->SpawnActor<ADIAExitGate>(ADIAExitGate::StaticClass(), ADIAExitGate::MakeTransform(), Params);
+}
+
+void ADIAGameMode::EnsureSiteFence()
+{
+	UWorld* World = GetWorld();
+	if (!World || SiteFence.IsValid())
+	{
+		return;
+	}
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	SiteFence = World->SpawnActor<ADIASiteFence>(FVector::ZeroVector, FRotator::ZeroRotator, Params);
 }
 
 AActor* ADIAGameMode::ChoosePlayerStart_Implementation(AController* Player)

@@ -288,9 +288,9 @@ bool FPlantPlacedTest::RunTest(const FString& Parameters)
 	}
 	TestTrue(TEXT("plant stands at PlantPos on the ground"), Plant->GetActorLocation().Equals(FVector(AsphaltLayout::PlantPos.X, AsphaltLayout::PlantPos.Y, 0.0), 0.01));
 
-	// The plant is solid: a pawn-channel trace from the west hits it, one across the player's start (the plant body ends at X = -1700) does not.
+	// The plant is solid: a pawn-channel trace from the west (from inside the site fence, which the plant stands close to) hits it, one across the player's start (the plant body ends at X = -1700) does not.
 	FHitResult Hit;
-	const FVector WestOfPlant(AsphaltLayout::PlantPos.X - 1000.0, 0.0, 100.0);
+	const FVector WestOfPlant(AsphaltLayout::PlantPos.X - 450.0, 0.0, 100.0);
 	const FVector Inside(AsphaltLayout::PlantPos.X, 0.0, 100.0);
 	TestTrue(TEXT("the plant blocks pawns"), World->LineTraceSingleByChannel(Hit, WestOfPlant, Inside, ECC_Pawn));
 	TestTrue(TEXT("the trace hits the plant"), Hit.GetActor() == Plant);
