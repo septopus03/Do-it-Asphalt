@@ -304,13 +304,19 @@ bool FPlantPlacedTest::RunTest(const FString& Parameters)
 	const FVector Inside(AsphaltLayout::PlantPos.X, 0.0, 100.0);
 	TestTrue(TEXT("the plant blocks pawns"), World->LineTraceSingleByChannel(Hit, WestOfPlant, Inside, ECC_Pawn));
 	TestTrue(TEXT("the trace hits the plant"), Hit.GetActor() == Plant);
+	// ... but it must not block the camera: the spring arm probes with the camera channel.
+	TestFalse(TEXT("the plant does not block the camera"), World->LineTraceSingleByChannel(Hit, WestOfPlant, Inside, ECC_Camera));
+	TestEqual(TEXT("the plant ignores the camera channel"), static_cast<int32>(Plant->GetCollision()->GetCollisionResponseToChannel(ECC_Camera)), static_cast<int32>(ECR_Ignore));
+	TestEqual(TEXT("the plant still blocks static-world traces"), static_cast<int32>(Plant->GetCollision()->GetCollisionResponseToChannel(ECC_WorldStatic)), static_cast<int32>(ECR_Block));
 	const FVector ZoneA(AsphaltLayout::RefillCenter.X - 50.0, 0.0, 100.0);
 	const FVector ZoneB(AsphaltLayout::RefillCenter.X + 150.0, 0.0, 100.0);
 	TestFalse(TEXT("the refill zone is free to walk"), World->LineTraceSingleByChannel(Hit, ZoneA, ZoneB, ECC_Pawn));
 
-	// Body of the plant: 600 x 400 x 500 cm standing on the ground.
-	const FBoxSphereBounds Body = Plant->GetPlantMesh()->CalcBounds(Plant->GetPlantMesh()->GetComponentTransform());
-	TestTrue(TEXT("plant body envelope"), Body.GetBox().Min.Equals(FVector(-2300.0, -200.0, 0.0), 0.5) && Body.GetBox().Max.Equals(FVector(-1700.0, 200.0, 500.0), 0.5));
+	// Body of the plant: 600 x 400 x 500 cm standing on the ground. The real model also has the outlet, which sticks out
+	// up to 40 cm beyond the body on the +X side; the placeholder box has none.
+	const FBox Body = Plant->GetPlantMesh()->CalcBounds(Plant->GetPlantMesh()->GetComponentTransform()).GetBox();
+	TestTrue(TEXT("plant body envelope"), Body.Min.Equals(FVector(-2300.0, -200.0, 0.0), 0.5) && FMath::IsNearlyEqual(Body.Max.Y, 200.0, 0.5) && FMath::IsNearlyEqual(Body.Max.Z, 500.0, 0.5));
+	TestTrue(TEXT("plant body ends at X = -1700, or at most 40 cm behind it with the outlet"), Body.Max.X >= -1700.5 && Body.Max.X <= -1660.0 + 0.5);
 
 	// The marker: a thin disc of the zone's radius around RefillCenter, without collision.
 	const UStaticMeshComponent* Marker = Plant->GetZoneMarker();

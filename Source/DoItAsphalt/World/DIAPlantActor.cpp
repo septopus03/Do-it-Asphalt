@@ -23,6 +23,9 @@ ADIAPlantActor::ADIAPlantActor()
 	Collision->SetBoxExtent(DIAModelSizes::PlantCm * 0.5);
 	Collision->SetRelativeLocation(FVector(0.0, 0.0, DIAModelSizes::PlantCm.Z * 0.5));
 	Collision->SetCollisionProfileName(UCollisionProfile::BlockAll_ProfileName);
+	// The camera boom must not be crushed against the plant (it stands right behind the player's start); the body still
+	// blocks pawns and everything else.
+	Collision->SetCollisionResponseToChannel(ECC_Camera, ECR_Ignore);
 
 	PlantMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PlantMesh"));
 	PlantMesh->SetupAttachment(Root);
