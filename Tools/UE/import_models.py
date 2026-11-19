@@ -8,7 +8,7 @@ Result per model (see docs/03-3d-modely.md):
   - static mesh /Game/Models/<Name>, 1 unit = 1 cm, game axes (+X forward, +Y right, +Z up);
   - every material slot, named after the GLB material (e.g. DIA_Yellow), assigned to /Game/Materials/MI_<slot name>;
   - simple convex collision (18-DOP), no lightmap UV generation, no Nanite, no extra assets in /Game/Models
-    (the materials and textures Interchange creates are deleted again).
+    (materials/textures Interchange creates are deleted again, last; any other unexpected asset fails the run).
 
 Idempotent: an existing mesh is re-imported in place (same asset path, so references to it survive), the
 slots are assigned again, and stray assets in /Game/Models are removed - a second run gives the same output.
@@ -81,8 +81,13 @@ def import_one(glb_path, pipeline):
     task.set_editor_property("options", override)
     unreal.AssetToolsHelpers.get_asset_tools().import_asset_tasks([task])
 
+    # import_asset_tasks does not raise when Interchange fails to parse a file; on a re-run the OLD mesh would
+    # still sit at the path and pass every later check. So the task itself must report the imported mesh.
     path = "%s/%s" % (MODELS_DIR, name)
-    mesh = asset_lib.load_asset(path) if asset_lib.does_asset_exist(path) else None
+    reported = [str(p).split(".")[0] for p in task.get_editor_property("imported_object_paths")]
+    if path not in reported:
+        raise RuntimeError("import of %s did not report %s (imported: %s)" % (glb_path, path, reported))
+    mesh = asset_lib.load_asset(path)
     if not isinstance(mesh, unreal.StaticMesh):
         raise RuntimeError("import of %s did not create static mesh %s (got %s)" % (glb_path, path, mesh))
     return name, path, mesh
@@ -131,23 +136,36 @@ def signed_volume(mesh):
     return total, count
 
 
-def check_winding(path, mesh):
-    reference, _ = signed_volume(asset_lib.load_asset("/Engine/BasicShapes/Cube"))
+def check_winding(path, mesh, reference):
     volume, triangles = signed_volume(mesh)
     if volume * reference <= 0:
         raise RuntimeError("%s has inside-out faces (signed volume %.0f cm3, engine cube %.0f)" % (path, volume, reference))
     return triangles
 
 
-def remove_strays(keep_paths):
-    """Deletes everything in /Game/Models that is not an imported mesh (Interchange materials, textures)."""
+def plan_cleanup(keep_paths):
+    """Returns the stray assets to delete: only Material*/Texture* assets Interchange may have created.
+    Any other asset in /Game/Models (a mesh without a .glb, another class) raises instead of being deleted."""
+    strays = []
     for asset_path in asset_lib.list_assets(MODELS_DIR, recursive=True, include_folder=False):
         clean = asset_path.split(".")[0]
-        if clean not in keep_paths:
-            if not asset_lib.delete_asset(clean):
-                raise RuntimeError("could not delete stray asset %s" % clean)
-            print("DIA_INFO removed stray asset %s" % clean)
-    # Sub-folders Interchange created (Materials/, Textures/) are empty now; the mesh folder itself stays.
+        if clean in keep_paths:
+            continue
+        asset = asset_lib.load_asset(clean)
+        if isinstance(asset, (unreal.MaterialInterface, unreal.Texture)):
+            strays.append(clean)
+        else:
+            raise RuntimeError("unexpected asset %s (%s) in %s: no matching .glb or not a material/texture; "
+                               "remove or move it by hand" % (clean, type(asset).__name__, MODELS_DIR))
+    return strays
+
+
+def remove_strays(strays):
+    """Deletes the Interchange materials/textures and the sub-folders (Materials/, Textures/) left empty."""
+    for clean in strays:
+        if not asset_lib.delete_asset(clean):
+            raise RuntimeError("could not delete stray asset %s" % clean)
+        print("DIA_INFO removed stray asset %s" % clean)
     for folder in sorted(asset_lib.list_assets(MODELS_DIR, recursive=True, include_folder=True), reverse=True):
         folder = folder.rstrip("/")
         if folder != MODELS_DIR and asset_lib.does_directory_exist(folder) and not asset_lib.does_directory_have_assets(folder, recursive=True):
@@ -162,19 +180,25 @@ def build():
         name, path, mesh = import_one(glb, pipeline)
         meshes.append((name, path, mesh))
 
-    keep = set(path for _, path, _ in meshes)
-    remove_strays(keep)
-
+    # Everything is checked and saved first; the cleanup is last so a failure cannot leave a half-cleaned state.
+    strays = plan_cleanup(set(path for _, path, _ in meshes))
+    reference_volume, _ = signed_volume(asset_lib.load_asset("/Engine/BasicShapes/Cube"))
+    results = []
     for name, path, mesh in meshes:
         assign_palette(path, mesh)
         check_collision(path, mesh)
-        triangles = check_winding(path, mesh)
+        triangles = check_winding(path, mesh, reference_volume)
         if not asset_lib.save_asset(path, only_if_is_dirty=False):
             raise RuntimeError("could not save %s" % path)
         size, box = bounds_cm(mesh)
+        results.append((path, size, box, triangles))
+
+    remove_strays(strays)
+
+    for path, size, box, triangles in results:
         print("DIA_INFO %s bounds min=(%.2f, %.2f, %.2f) max=(%.2f, %.2f, %.2f) triangles=%d" % (
             path, box.min.x, box.min.y, box.min.z, box.max.x, box.max.y, box.max.z, triangles))
-        print("DIA_OK %s %.0f %.0f %.0f" % (path, size.x, size.y, size.z))
+        print("DIA_OK %s %.1f %.1f %.1f" % (path, size.x, size.y, size.z))
 
 
 try:
