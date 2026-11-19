@@ -60,7 +60,7 @@ namespace DIAPaverCar
  * driven the controller sets throttle and steering (WASD) and pouring (left button), exactly like the character's input.
  * The core owns the state (FAsphaltWorldState::CarPos / CarYawDeg / bPlayerInCar, the tank): the truck writes its position
  * into the core every frame, like the character writes the player's, and follows the core when that changes some other
- * way (a loaded save). The game mode spawns it once the special is owned. Movement is kinematic with a sweep: walls stop it,
+ * way (a loaded save, at once when the whole game is replaced). The game mode spawns it once the special is owned. Movement is kinematic with a sweep: walls stop it,
  * it slides along them.
  */
 UCLASS(NotBlueprintable)
@@ -87,6 +87,8 @@ public:
 	void SetSteer(float Value);
 	void SetPouring(bool bPour);
 	bool IsPouring() const { return bPouring; }
+	float GetThrottle() const { return Throttle; }
+	float GetSteer() const { return Steer; }
 	/** Input routing, called by the player controller. */
 	void DoLook(float Yaw, float Pitch);
 
@@ -109,6 +111,10 @@ private:
 	/** Makes the actor match the core: where it stands and (after a loaded save) who is in it. Runs on every state change, so it must return early when nothing differs. */
 	void SyncFromCore();
 	void EnterBy(ADIACharacter* Character);
+	/** The truck stops, the driver (if there is one) is put at Spot facing YawDeg and the controller gets the character back. */
+	void ReleaseDriver(const FVector& Spot, double YawDeg);
+	/** A game was loaded or started: the truck takes the core's position at once (before its own tick writes the old one into the core), and the driver gets in or out as the core says. */
+	void HandleGameReset();
 	/** Moves by the speed and the steering for this frame, sweeping against the world. */
 	void Drive(float DeltaSeconds);
 	/** Lays asphalt behind the bar while pouring. */

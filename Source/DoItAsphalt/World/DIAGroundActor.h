@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "CoverageGrid.h"
+#include "Game/DIAWorldSubsystem.h"
 #include "GameFramework/Actor.h"
 #include "DIAGroundActor.generated.h"
 
@@ -32,7 +33,7 @@ namespace DIAGround
 /**
  * The ground: one 32 x 32 m plane whose material shows soil, the cell outlines (HexLinesTex, generated once) and
  * the asphalt (CoverageTex, mirrored from FCoverageGrid), surrounded by plain soil. The actor listens to the world
- * subsystem and uploads only the changed part of the coverage texture. Texture X follows world X and texture row Y
+ * subsystem and uploads only the changed part of the coverage texture (the whole of it when a game is loaded or restarted). Texture X follows world X and texture row Y
  * follows world Y, exactly like the grid.
  */
 UCLASS(NotBlueprintable)
@@ -52,6 +53,8 @@ public:
 	UTexture2D* GetCoverageTexture() const { return CoverageTexture; }
 	UTexture2D* GetHexLinesTexture() const { return HexLinesTexture; }
 	UMaterialInstanceDynamic* GetGroundMaterial() const { return GroundMaterial; }
+	/** How often the whole texture was uploaded since play began (a loaded or restarted game does that once). */
+	int32 GetNumFullUploads() const { return NumFullUploads; }
 
 protected:
 	virtual void BeginPlay() override;
@@ -59,6 +62,8 @@ protected:
 
 private:
 	void OnStateChanged();
+	/** A game was loaded or started: the texture shows the whole new grid. */
+	void HandleGameReset();
 
 	UPROPERTY()
 	TObjectPtr<UBoxComponent> Collision;
@@ -78,5 +83,7 @@ private:
 	UPROPERTY()
 	TObjectPtr<UMaterialInstanceDynamic> GroundMaterial;
 
-	FDelegateHandle StateHandle;
+	int32 NumFullUploads = 0;
+
+	FDIAStateSubscription StateSub;
 };

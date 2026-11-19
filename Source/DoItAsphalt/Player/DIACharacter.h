@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Game/DIAWorldSubsystem.h"
 #include "GameFramework/Character.h"
 #include "DIACharacter.generated.h"
 
@@ -10,7 +11,6 @@ class UCameraComponent;
 class USceneComponent;
 class USpringArmComponent;
 class UStaticMeshComponent;
-class UDIAWorldSubsystem;
 
 /** Visual and handling constants of the character (game numbers live in AsphaltBalance / AsphaltLayout). */
 namespace DIACharacter
@@ -91,6 +91,8 @@ private:
 	/** Walk / pour / sprint speed and the facing mode follow the current state. */
 	void UpdateMovementSettings();
 	void OnStateChanged();
+	/** A game was loaded or started: stands where the core says (a driver is placed by the truck instead), without pouring or sprinting. */
+	void HandleGameReset();
 	void BuildHelmet();
 
 	UPROPERTY()
@@ -125,5 +127,5 @@ private:
 	int32 ShownToolLevel = INDEX_NONE;
 	bool bShownTwoHands = false;
 
-	FDelegateHandle StateHandle;
+	FDIAStateSubscription StateSub;
 };

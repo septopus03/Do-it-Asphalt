@@ -219,14 +219,19 @@ void ADIAPlayerController::OnShop()
 
 void ADIAPlayerController::OnPause()
 {
-	// Esc closes the shop; the pause menu comes in a later task.
+	ADIAHUD* Hud = Cast<ADIAHUD>(GetHUD());
+	// The win screen has its own buttons; nothing else answers to Esc there.
+	if (!Hud || bWinInput)
+	{
+		return;
+	}
+	// Esc closes the shop first; with nothing open it opens or closes the pause menu.
 	if (bShopInput)
 	{
-		if (ADIAHUD* Hud = Cast<ADIAHUD>(GetHUD()))
-		{
-			Hud->SetShopOpen(false);
-		}
+		Hud->SetShopOpen(false);
+		return;
 	}
+	Hud->TogglePause();
 }
 
 void ADIAPlayerController::SetShopInput(bool bOpen)
@@ -241,17 +246,48 @@ void ADIAPlayerController::SetShopInput(bool bOpen)
 	SetIgnoreLookInput(bOpen);
 	if (bOpen)
 	{
-		StopPouring();
+		ReleaseControls();
 	}
+	ApplyInputMode();
+}
 
+void ADIAPlayerController::SetMenuInput(bool bOpen)
+{
+	if (bMenuInput == bOpen)
+	{
+		return;
+	}
+	bMenuInput = bOpen;
+
+	SetIgnoreLookInput(bOpen);
+	if (bOpen)
+	{
+		ReleaseControls();
+	}
+	// The game waits behind the menu.
+	SetPause(bOpen);
+	ApplyInputMode();
+}
+
+void ADIAPlayerController::ApplyInputMode()
+{
 	// Without a window (tests, servers) there is no cursor or input mode to change.
 	if (!IsLocalPlayerController() || !FApp::CanEverRender() || !FSlateApplication::IsInitialized())
 	{
 		return;
 	}
-	SetShowMouseCursor(bOpen);
-	if (bOpen)
+	const bool bUi = IsUiInput();
+	SetShowMouseCursor(bUi);
+	if (bWinInput)
 	{
+		// UI only: not a key reaches the game any more.
+		FInputModeUIOnly Mode;
+		Mode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+		SetInputMode(Mode);
+	}
+	else if (bUi)
+	{
+		// The shop and the menu are also left with a key (Tab, Esc), which the game has to hear.
 		FInputModeGameAndUI Mode;
 		Mode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
 		Mode.SetHideCursorDuringCapture(false);
@@ -275,30 +311,29 @@ void ADIAPlayerController::StopPouring()
 	}
 }
 
-void ADIAPlayerController::SetWinInput()
+void ADIAPlayerController::ReleaseControls()
 {
-	if (bWinInput)
-	{
-		return;
-	}
-	bWinInput = true;
-	SetIgnoreLookInput(true);
-	SetIgnoreMoveInput(true);
 	StopPouring();
-	// UI-only input swallows the key releases, so the truck must not keep the throttle of the moment.
+	// Releasing a key while a UI is up does not reach the game, so the truck must not keep the throttle and steering of the moment.
 	if (ADIAPaverCar* Car = GetDIACar())
 	{
 		Car->SetThrottle(0.f);
 		Car->SetSteer(0.f);
 	}
+}
 
-	// Without a window (tests, servers) there is no cursor or input mode to change.
-	if (!IsLocalPlayerController() || !FApp::CanEverRender() || !FSlateApplication::IsInitialized())
+void ADIAPlayerController::SetWinInput(bool bOn)
+{
+	if (bWinInput == bOn)
 	{
 		return;
 	}
-	SetShowMouseCursor(true);
-	FInputModeUIOnly Mode;
-	Mode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
-	SetInputMode(Mode);
+	bWinInput = bOn;
+	SetIgnoreLookInput(bOn);
+	SetIgnoreMoveInput(bOn);
+	if (bOn)
+	{
+		ReleaseControls();
+	}
+	ApplyInputMode();
 }

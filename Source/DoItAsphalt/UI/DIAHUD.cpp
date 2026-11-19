@@ -6,13 +6,13 @@
 #include "Engine/GameViewportClient.h"
 #include "Engine/World.h"
 #include "Framework/Application/SlateApplication.h"
-#include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "Game/DIAWorldSubsystem.h"
 #include "Misc/App.h"
 #include "UI/DIAHudStyle.h"
 #include "Player/DIAPlayerController.h"
 #include "UI/SDIAHudOverlay.h"
+#include "UI/SDIAMenu.h"
 #include "UI/SDIAShopPanel.h"
 #include "UI/SDIAWinScreen.h"
 
@@ -44,8 +44,8 @@ void ADIAHUD::ToggleShop()
 
 void ADIAHUD::SetShopOpen(bool bOpen)
 {
-	// The win screen owns the screen for good.
-	if (bShopOpen == bOpen || (bOpen && bWinShown))
+	// The win screen and the menu own the screen.
+	if (bShopOpen == bOpen || (bOpen && (bWinShown || IsMenuOpen())))
 	{
 		return;
 	}
@@ -82,13 +82,115 @@ void ADIAHUD::ShowWinScreen()
 	}
 }
 
+void ADIAHUD::HideWinScreen()
+{
+	if (!bWinShown)
+	{
+		return;
+	}
+	bWinShown = false;
+	if (WinScreen.IsValid())
+	{
+		WinScreen->Hide();
+	}
+	if (ADIAPlayerController* Controller = Cast<ADIAPlayerController>(GetOwningPlayerController()))
+	{
+		Controller->SetWinInput(false);
+	}
+}
+
 void ADIAHUD::NewGame()
 {
-	// Task 18 starts a new game in the same world; until then the level is loaded again, which gives a fresh game.
-	if (UWorld* World = GetWorld())
+	// A fresh game in the same world: the subsystem resets the core and every actor follows (this also takes the win screen away).
+	if (UDIAWorldSubsystem* Subsystem = BoundSubsystem.Get())
 	{
-		UGameplayStatics::OpenLevel(World, FName(*UGameplayStatics::GetCurrentLevelName(World, true)));
+		Subsystem->NewGame();
 	}
+	CloseMenu();
+}
+
+void ADIAHUD::ContinueGame()
+{
+	UDIAWorldSubsystem* Subsystem = BoundSubsystem.Get();
+	if (!Subsystem)
+	{
+		return;
+	}
+	if (Subsystem->LoadGame())
+	{
+		CloseMenu();
+	}
+	else if (Menu.IsValid())
+	{
+		// The save turned out to be unusable: the menu now offers only a new game.
+		Menu->Open(MenuMode, Subsystem->HasSave());
+	}
+}
+
+void ADIAHUD::OpenMenu(EDIAMenuMode Mode)
+{
+	if (Mode == EDIAMenuMode::None || IsMenuOpen() || bWinShown)
+	{
+		return;
+	}
+	SetShopOpen(false);
+	MenuMode = Mode;
+	if (Menu.IsValid())
+	{
+		const UDIAWorldSubsystem* Subsystem = BoundSubsystem.Get();
+		Menu->Open(Mode, Mode == EDIAMenuMode::Main && Subsystem && Subsystem->HasSave());
+	}
+	if (ADIAPlayerController* Controller = Cast<ADIAPlayerController>(GetOwningPlayerController()))
+	{
+		Controller->SetMenuInput(true);
+	}
+}
+
+void ADIAHUD::DismissMenu()
+{
+	if (!IsMenuOpen())
+	{
+		return;
+	}
+	MenuMode = EDIAMenuMode::None;
+	if (Menu.IsValid())
+	{
+		Menu->Close();
+	}
+	if (ADIAPlayerController* Controller = Cast<ADIAPlayerController>(GetOwningPlayerController()))
+	{
+		Controller->SetMenuInput(false);
+	}
+}
+
+void ADIAHUD::CloseMenu()
+{
+	const bool bWasMain = MenuMode == EDIAMenuMode::Main;
+	DismissMenu();
+	if (bWasMain)
+	{
+		if (UDIAWorldSubsystem* Subsystem = BoundSubsystem.Get())
+		{
+			Subsystem->SetAutosaveEnabled(true);
+		}
+	}
+}
+
+void ADIAHUD::TogglePause()
+{
+	if (MenuMode == EDIAMenuMode::Pause)
+	{
+		CloseMenu();
+	}
+	else if (MenuMode == EDIAMenuMode::None)
+	{
+		OpenMenu(EDIAMenuMode::Pause);
+	}
+}
+
+void ADIAHUD::SkipMenu()
+{
+	CloseMenu();
 }
 
 void ADIAHUD::QuitGame()
@@ -109,6 +211,7 @@ void ADIAHUD::BeginPlay()
 		SpecialHandle = Subsystem->OnSpecialBought.AddUObject(this, &ADIAHUD::HandleSpecialBought);
 		ExitHandle = Subsystem->OnExitOpened.AddUObject(this, &ADIAHUD::HandleExitOpened);
 		WonHandle = Subsystem->OnWon.AddUObject(this, &ADIAHUD::HandleWon);
+		ResetHandle = Subsystem->OnGameReset.AddUObject(this, &ADIAHUD::HandleGameReset);
 		CreateOverlay(Subsystem);
 	}
 }
@@ -122,7 +225,11 @@ void ADIAHUD::EndPlay(const EEndPlayReason::Type Reason)
 		Subsystem->OnSpecialBought.Remove(SpecialHandle);
 		Subsystem->OnExitOpened.Remove(ExitHandle);
 		Subsystem->OnWon.Remove(WonHandle);
+		Subsystem->OnGameReset.Remove(ResetHandle);
 	}
+	// The controller outlives the HUD's panels: give back what they took (the cursor, the input mode, the pause).
+	SetShopOpen(false);
+	DismissMenu();
 	DestroyOverlay();
 	Super::EndPlay(Reason);
 }
@@ -151,10 +258,28 @@ void ADIAHUD::CreateOverlay(UDIAWorldSubsystem* Subsystem)
 		.OnNewGame(FSimpleDelegate::CreateUObject(this, &ADIAHUD::NewGame))
 		.OnQuit(FSimpleDelegate::CreateUObject(this, &ADIAHUD::QuitGame));
 	GEngine->GameViewport->AddViewportWidgetContent(WinScreen.ToSharedRef(), AsphaltHud::WinZOrder);
+
+	Menu = SNew(SDIAMenu)
+		.OnContinue(FSimpleDelegate::CreateUObject(this, &ADIAHUD::ContinueGame))
+		.OnResume(FSimpleDelegate::CreateUObject(this, &ADIAHUD::CloseMenu))
+		.OnNewGame(FSimpleDelegate::CreateUObject(this, &ADIAHUD::NewGame))
+		.OnQuit(FSimpleDelegate::CreateUObject(this, &ADIAHUD::QuitGame));
+	GEngine->GameViewport->AddViewportWidgetContent(Menu.ToSharedRef(), AsphaltHud::MenuZOrder);
+
+	// The game starts in the main menu, paused (without a window there is no menu and nothing waits).
+	OpenMenu(EDIAMenuMode::Main);
 }
 
 void ADIAHUD::DestroyOverlay()
 {
+	if (Menu.IsValid())
+	{
+		if (GEngine && GEngine->GameViewport)
+		{
+			GEngine->GameViewport->RemoveViewportWidgetContent(Menu.ToSharedRef());
+		}
+		Menu.Reset();
+	}
 	if (WinScreen.IsValid())
 	{
 		if (GEngine && GEngine->GameViewport)
@@ -206,4 +331,18 @@ void ADIAHUD::HandleExitOpened()
 void ADIAHUD::HandleWon()
 {
 	ShowWinScreen();
+}
+
+void ADIAHUD::HandleGameReset()
+{
+	// A won game that is loaded shows its win screen again; any other game takes it away.
+	const UDIAWorldSubsystem* Subsystem = BoundSubsystem.Get();
+	if (Subsystem && Subsystem->GetGame().HasWon())
+	{
+		ShowWinScreen();
+	}
+	else
+	{
+		HideWinScreen();
+	}
 }

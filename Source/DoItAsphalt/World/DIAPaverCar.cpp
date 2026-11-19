@@ -77,7 +77,7 @@ void ADIAPaverCar::BeginPlay()
 	{
 		Subsystem->RegisterInteractable(this, this);
 		// Fires every tick; SyncFromCore returns at once unless the core and the actor differ.
-		StateSub.Bind(Subsystem, this, &ADIAPaverCar::SyncFromCore);
+		StateSub.Bind(Subsystem, this, &ADIAPaverCar::SyncFromCore, &ADIAPaverCar::HandleGameReset);
 	}
 	SyncFromCore();
 }
@@ -86,6 +86,12 @@ void ADIAPaverCar::EndPlay(const EEndPlayReason::Type Reason)
 {
 	if (UDIAWorldSubsystem* Subsystem = UDIAWorldSubsystem::Get(this))
 	{
+		// A truck that is taken away (a new game) never takes its driver with it.
+		if (Reason == EEndPlayReason::Destroyed && HasDriver())
+		{
+			const FAsphaltWorldState& State = Subsystem->GetGame().World();
+			ReleaseDriver(FVector(State.PlayerPos.X, State.PlayerPos.Y, DIACharacter::CapsuleHalfHeightCm), State.PlayerYawDeg);
+		}
 		StateSub.Unbind(Subsystem);
 		Subsystem->UnregisterInteractable(this);
 	}
@@ -241,6 +247,16 @@ FVector ADIAPaverCar::FindExitSpot(const ADIACharacter* Character) const
 
 void ADIAPaverCar::ExitCar()
 {
+	ADIACharacter* Character = Driver;
+	if (!Character || !UDIAWorldSubsystem::Get(this))
+	{
+		return;
+	}
+	ReleaseDriver(FindExitSpot(Character), GetActorRotation().Yaw);
+}
+
+void ADIAPaverCar::ReleaseDriver(const FVector& Spot, double YawDeg)
+{
 	UDIAWorldSubsystem* Subsystem = UDIAWorldSubsystem::Get(this);
 	ADIACharacter* Character = Driver;
 	if (!Character || !Subsystem)
@@ -257,9 +273,8 @@ void ADIAPaverCar::ExitCar()
 	Subsystem->GetGame().World().bPlayerInCar = false;
 
 	APlayerController* PlayerController = Cast<APlayerController>(GetController());
-	const FVector Spot = FindExitSpot(Character);
 	Character->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
-	Character->SetActorLocationAndRotation(Spot, FRotator(0.0, GetActorRotation().Yaw, 0.0), false, nullptr, ETeleportType::TeleportPhysics);
+	Character->SetActorLocationAndRotation(Spot, FRotator(0.0, YawDeg, 0.0), false, nullptr, ETeleportType::TeleportPhysics);
 	Character->SetActorEnableCollision(true);
 	Character->SetActorHiddenInGame(false);
 	Character->GetCharacterMovement()->SetMovementMode(DriverMovementMode);
@@ -268,8 +283,30 @@ void ADIAPaverCar::ExitCar()
 	{
 		PlayerController->Possess(Character);
 		PlayerController->SetViewTarget(Character);
-		PlayerController->SetControlRotation(FRotator(0.0, GetActorRotation().Yaw, 0.0));
+		PlayerController->SetControlRotation(FRotator(0.0, YawDeg, 0.0));
 	}
+}
+
+void ADIAPaverCar::HandleGameReset()
+{
+	const UDIAWorldSubsystem* Subsystem = UDIAWorldSubsystem::Get(this);
+	if (!Subsystem)
+	{
+		return;
+	}
+	const FAsphaltWorldState& State = Subsystem->GetGame().World();
+
+	// Whoever drives gets out where the core says the player is, if the game they are in now has them on foot.
+	if (HasDriver() && !State.bPlayerInCar)
+	{
+		ReleaseDriver(FVector(State.PlayerPos.X, State.PlayerPos.Y, DIACharacter::CapsuleHalfHeightCm), State.PlayerYawDeg);
+	}
+	SetThrottle(0.f);
+	SetSteer(0.f);
+	SetPouring(false);
+	Speed = 0.0;
+	// Moves the truck to the core's position and lets the player in if the save says so.
+	SyncFromCore();
 }
 
 void ADIAPaverCar::Drive(float DeltaSeconds)

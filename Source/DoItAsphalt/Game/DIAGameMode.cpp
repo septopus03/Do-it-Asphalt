@@ -81,6 +81,7 @@ void ADIAGameMode::StartPlay()
 	if (UDIAWorldSubsystem* Subsystem = UDIAWorldSubsystem::Get(this))
 	{
 		SpecialHandle = Subsystem->OnSpecialBought.AddUObject(this, &ADIAGameMode::OnSpecialBought);
+		ResetHandle = Subsystem->OnGameReset.AddUObject(this, &ADIAGameMode::OnGameReset);
 	}
 	EnsureStation();
 	EnsureAutoPaver();
@@ -90,15 +91,60 @@ void ADIAGameMode::StartPlay()
 
 void ADIAGameMode::EndPlay(const EEndPlayReason::Type Reason)
 {
-	if (SpecialHandle.IsValid())
+	if (UDIAWorldSubsystem* Subsystem = UDIAWorldSubsystem::Get(this))
 	{
-		if (UDIAWorldSubsystem* Subsystem = UDIAWorldSubsystem::Get(this))
-		{
-			Subsystem->OnSpecialBought.Remove(SpecialHandle);
-		}
-		SpecialHandle.Reset();
+		// The last save of a session: the actors are all still there to say where the player stands.
+		Subsystem->Autosave();
+		Subsystem->OnSpecialBought.Remove(SpecialHandle);
+		Subsystem->OnGameReset.Remove(ResetHandle);
 	}
+	SpecialHandle.Reset();
+	ResetHandle.Reset();
 	Super::EndPlay(Reason);
+}
+
+void ADIAGameMode::OnGameReset()
+{
+	const UDIAWorldSubsystem* Subsystem = UDIAWorldSubsystem::Get(this);
+	if (!Subsystem)
+	{
+		return;
+	}
+	const FAsphaltGame& Game = Subsystem->GetGame();
+	if (Game.HasSpecial(EAsphaltSpecial::PortableStation))
+	{
+		EnsureStation();
+	}
+	else
+	{
+		RemoveSpecialActor(Station);
+	}
+	if (Game.HasSpecial(EAsphaltSpecial::AutoPaver))
+	{
+		EnsureAutoPaver();
+	}
+	else
+	{
+		RemoveSpecialActor(AutoPaver);
+	}
+	if (Game.HasSpecial(EAsphaltSpecial::PaverCar))
+	{
+		EnsureCar();
+	}
+	else
+	{
+		RemoveSpecialActor(Car);
+	}
+}
+
+template <typename ActorType>
+void ADIAGameMode::RemoveSpecialActor(TWeakObjectPtr<ActorType>& Slot)
+{
+	if (ActorType* Actor = Slot.Get())
+	{
+		Actor->Destroy();
+	}
+	Slot.Reset();
 }
 
 void ADIAGameMode::OnSpecialBought(EAsphaltSpecial Special)

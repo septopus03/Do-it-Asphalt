@@ -152,28 +152,23 @@ void ADIAGroundActor::BeginPlay()
 		UE_LOG(LogDoItAsphalt, Error, TEXT("Ground: /Game/Materials/M_Ground is missing"));
 	}
 
-	StateHandle = Subsystem->OnStateChanged.AddUObject(this, &ADIAGroundActor::OnStateChanged);
+	StateSub.Bind(Subsystem, this, &ADIAGroundActor::OnStateChanged, &ADIAGroundActor::HandleGameReset);
 }
 
 void ADIAGroundActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-	if (StateHandle.IsValid())
-	{
-		if (UWorld* World = GetWorld())
-		{
-			if (UDIAWorldSubsystem* Subsystem = World->GetSubsystem<UDIAWorldSubsystem>())
-			{
-				Subsystem->OnStateChanged.Remove(StateHandle);
-			}
-		}
-		StateHandle.Reset();
-	}
+	StateSub.Unbind(UDIAWorldSubsystem::Get(this));
 	Super::EndPlay(EndPlayReason);
 }
 
 void ADIAGroundActor::OnStateChanged()
 {
 	SyncCoverage();
+}
+
+void ADIAGroundActor::HandleGameReset()
+{
+	SyncCoverage(/*bFull*/ true);
 }
 
 void ADIAGroundActor::SyncCoverage(bool bFull)
@@ -190,6 +185,7 @@ void ADIAGroundActor::SyncCoverage(bool bFull)
 	if (bFull)
 	{
 		Rect = FIntRect(0, 0, FCoverageGrid::Size, FCoverageGrid::Size);
+		++NumFullUploads;
 	}
 	else if (!bDirty)
 	{

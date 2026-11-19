@@ -83,6 +83,11 @@ void SDIAWinScreen::Show(const FAsphaltGame& Game)
 	SetVisibility(EVisibility::Visible);
 }
 
+void SDIAWinScreen::Hide()
+{
+	SetVisibility(EVisibility::Collapsed);
+}
+
 FReply SDIAWinScreen::HandleNewGame()
 {
 	OnNewGame.ExecuteIfBound();

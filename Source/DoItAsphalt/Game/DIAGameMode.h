@@ -15,8 +15,8 @@ class ADIASiteFence;
 
 /**
  * Builds the scene when play starts: the ground, the plant, the six old road ends with their barriers and the five kiosks;
- * the player is an ADIACharacter. The portable station and the automated paver appear as soon as the player owns them
- * (at the start if already owned, or when they are bought). The exit gate and the fence around the site stand from the start.
+ * the player is an ADIACharacter. The portable station, the automated paver and the truck appear as soon as the player owns them
+ * (at the start if already owned, when they are bought, or when a saved game that owns them is loaded) and go when a game without them starts. The exit gate and the fence around the site stand from the start.
  */
 UCLASS(NotBlueprintable)
 class DOITASPHALT_API ADIAGameMode : public AGameModeBase
@@ -49,6 +49,12 @@ public:
 
 private:
 	void OnSpecialBought(EAsphaltSpecial Special);
+	/** A game was loaded or started: the specials of that game stand, the others are taken away. */
+	void OnGameReset();
+
+	/** Takes the special's actor out of the world (when it is not owned any more) and forgets it. */
+	template <typename ActorType>
+	void RemoveSpecialActor(TWeakObjectPtr<ActorType>& Slot);
 
 	/**
 	 * The one way a special's actor comes into the world: nothing happens while the slot still holds a live actor or the
@@ -67,4 +73,5 @@ private:
 	TWeakObjectPtr<ADIAExitGate> ExitGate;
 	TWeakObjectPtr<ADIASiteFence> SiteFence;
 	FDelegateHandle SpecialHandle;
+	FDelegateHandle ResetHandle;
 };

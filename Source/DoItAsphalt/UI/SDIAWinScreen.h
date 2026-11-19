@@ -29,6 +29,8 @@ public:
 
 	/** Reads the statistics from the game and shows the screen. */
 	void Show(const FAsphaltGame& Game);
+	/** Hides the screen again (a new game was started from it, or a game that is not won was loaded). */
+	void Hide();
 
 	const FDIAWinModel& GetModel() const { return Model; }
 

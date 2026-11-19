@@ -101,20 +101,25 @@ void ADIAExitGate::BeginPlay()
 		FVector(0.0, DIAModelSizes::ExitGateBarrierCm.Y * 0.5, 0.0), TEXT("DIA_Red"));
 
 	UDIAWorldSubsystem* Subsystem = UDIAWorldSubsystem::Get(this);
-	// A game that is loaded with the exit open starts with the gate open.
-	if (Subsystem && Subsystem->GetGame().IsExitOpen())
-	{
-		OpenElapsed = DIAExitGate::OpenSeconds;
-	}
-	ApplyArm();
+	HandleGameReset();
 	// Fires every tick; SyncFromCore returns at once unless the exit opened or closed.
-	StateSub.Bind(Subsystem, this, &ADIAExitGate::SyncFromCore);
+	StateSub.Bind(Subsystem, this, &ADIAExitGate::SyncFromCore, &ADIAExitGate::HandleGameReset);
 }
 
 void ADIAExitGate::EndPlay(const EEndPlayReason::Type Reason)
 {
 	StateSub.Unbind(UDIAWorldSubsystem::Get(this));
 	Super::EndPlay(Reason);
+}
+
+void ADIAExitGate::HandleGameReset()
+{
+	// A game that is loaded with the exit open starts with the gate open.
+	const UDIAWorldSubsystem* Subsystem = UDIAWorldSubsystem::Get(this);
+	const bool bExitOpen = Subsystem && Subsystem->GetGame().IsExitOpen();
+	OpenElapsed = bExitOpen ? DIAExitGate::OpenSeconds : 0.0;
+	SetActorTickEnabled(false);
+	ApplyArm();
 }
 
 void ADIAExitGate::SyncFromCore()

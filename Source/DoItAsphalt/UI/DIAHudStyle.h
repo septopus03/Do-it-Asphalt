@@ -21,6 +21,8 @@ namespace AsphaltHud
 	inline constexpr int32 ShopZOrder = 11;
 	/** The win screen lies above everything. */
 	inline constexpr int32 WinZOrder = 12;
+	/** The main and pause menu lie above everything. */
+	inline constexpr int32 MenuZOrder = 13;
 
 	// Colours.
 	inline const FLinearColor TextColor{0.97f, 0.97f, 0.97f, 1.f};
@@ -82,6 +84,12 @@ namespace AsphaltHud
 	inline constexpr float WinButtonWidth = 240.f;
 	inline constexpr float WinButtonPaddingV = 10.f;
 	inline constexpr float WinPanelPadding = 36.f;
+	/** The menu: the panel's inner width, the title's distance to the buttons, the gap between buttons, and the width of a button. */
+	inline constexpr float MenuPanelWidth = 520.f;
+	inline constexpr float MenuTitleSpacing = 30.f;
+	inline constexpr float MenuButtonSpacing = 14.f;
+	inline constexpr float MenuButtonWidth = 300.f;
+	inline constexpr float MenuQuestionButtonWidth = 140.f;
 	/** Distance of the toasts from the top edge. */
 	inline constexpr float ToastTop = 110.f;
 }

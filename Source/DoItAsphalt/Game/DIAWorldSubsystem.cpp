@@ -1,13 +1,179 @@
 // Copyright Do it Asphalt. All Rights Reserved.
 
 #include "Game/DIAWorldSubsystem.h"
+#include "DoItAsphalt.h"
+#include "EngineUtils.h"
+#include "Game/DIASaveGame.h"
 #include "GameFramework/Actor.h"
+#include "Kismet/GameplayStatics.h"
+#include "Misc/CommandLine.h"
+#include "PlatformFeatures.h"
+#include "SaveGameSystem.h"
 #include "Player/DIACharacter.h"
+#include "World/DIAPaverCar.h"
 
 namespace
 {
 	/** Longest slice of real time given to the core at once, so that a hitch or a pause cannot cause a jump. */
 	constexpr double MaxTickSeconds = 1.0;
+}
+
+namespace
+{
+	/** The slot name set from code (tests); empty while there is none. */
+	FString& SlotOverride()
+	{
+		static FString Name;
+		return Name;
+	}
+
+	/** The command line switch -DIASlot=<name> (screenshots), read once; empty if absent. */
+	const FString& SlotFromCommandLine()
+	{
+		static const FString Name = []()
+		{
+			FString Value;
+			FParse::Value(FCommandLine::Get(), TEXT("-DIASlot="), Value);
+			return Value;
+		}();
+		return Name;
+	}
+
+	/** Every engine save file starts with these four bytes; anything else is not one. */
+	constexpr uint8 SaveFileMagic[] = {'G', 'V', 'A', 'S'};
+
+	/** The core's blob inside the slot; false (and an empty array) if the slot is missing or holds something else. */
+	bool ReadSlotBlob(TArray<uint8>& OutBlob)
+	{
+		OutBlob.Reset();
+		ISaveGameSystem* SaveSystem = IPlatformFeaturesModule::Get().GetSaveGameSystem();
+		if (!SaveSystem)
+		{
+			return false;
+		}
+		// The engine reads a file without the magic as an old format and can bring the whole game down on rubbish,
+		// so the file is checked here first.
+		// No file at all is the usual case (a first start) and is not worth a warning in the log.
+		if (!SaveSystem->DoesSaveGameExist(*UDIAWorldSubsystem::SlotName(), DIASave::UserIndex))
+		{
+			return false;
+		}
+		TArray<uint8> File;
+		if (!SaveSystem->LoadGame(false, *UDIAWorldSubsystem::SlotName(), DIASave::UserIndex, File)
+			|| File.Num() < UE_ARRAY_COUNT(SaveFileMagic)
+			|| FMemory::Memcmp(File.GetData(), SaveFileMagic, sizeof(SaveFileMagic)) != 0)
+		{
+			return false;
+		}
+		const UDIASaveGame* Save = Cast<UDIASaveGame>(UGameplayStatics::LoadGameFromMemory(File));
+		if (!Save)
+		{
+			return false;
+		}
+		OutBlob = Save->Blob;
+		return true;
+	}
+}
+
+FString UDIAWorldSubsystem::SlotName()
+{
+	if (!SlotOverride().IsEmpty())
+	{
+		return SlotOverride();
+	}
+	return SlotFromCommandLine().IsEmpty() ? FString(DIASave::DefaultSlotName) : SlotFromCommandLine();
+}
+
+void UDIAWorldSubsystem::SetSlotNameOverride(const FString& Name)
+{
+	SlotOverride() = Name;
+}
+
+bool UDIAWorldSubsystem::HasSave() const
+{
+	TArray<uint8> Blob;
+	if (!ReadSlotBlob(Blob))
+	{
+		return false;
+	}
+	// A scratch game decides: the file existing proves nothing.
+	FAsphaltGame Scratch;
+	return Scratch.LoadFromBytes(Blob);
+}
+
+bool UDIAWorldSubsystem::LoadGame()
+{
+	TArray<uint8> Blob;
+	// LoadFromBytes checks everything before it changes anything, so a failure leaves the game as it is.
+	if (!ReadSlotBlob(Blob) || !Game.LoadFromBytes(Blob))
+	{
+		return false;
+	}
+	AutosaveTimer = 0.0;
+	// The actors take their positions from the core first; the state broadcast that follows then finds nothing left to do.
+	OnGameReset.Broadcast();
+	OnStateChanged.Broadcast();
+	return true;
+}
+
+void UDIAWorldSubsystem::WritePlayerPositions()
+{
+	const UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+	FAsphaltWorldState& State = Game.World();
+	// Driving, the truck is the player: its position is the player's too.
+	for (TActorIterator<ADIAPaverCar> It(World); It; ++It)
+	{
+		if (It->HasDriver())
+		{
+			const FVector Location = It->GetActorLocation();
+			State.CarPos = FVector2D(Location.X, Location.Y);
+			State.CarYawDeg = It->GetActorRotation().Yaw;
+			State.PlayerPos = State.CarPos;
+			State.PlayerYawDeg = State.CarYawDeg;
+			return;
+		}
+	}
+	TActorIterator<ADIACharacter> Character(World);
+	if (Character)
+	{
+		const FVector Location = Character->GetActorLocation();
+		State.PlayerPos = FVector2D(Location.X, Location.Y);
+		State.PlayerYawDeg = Character->GetActorRotation().Yaw;
+	}
+}
+
+void UDIAWorldSubsystem::SaveGame()
+{
+	// Any save starts the countdown to the next autosave again.
+	AutosaveTimer = 0.0;
+	WritePlayerPositions();
+	UDIASaveGame* Save = NewObject<UDIASaveGame>(GetTransientPackage());
+	Save->Blob = Game.SaveToBytes();
+	if (!UGameplayStatics::SaveGameToSlot(Save, SlotName(), DIASave::UserIndex))
+	{
+		UE_LOG(LogDoItAsphalt, Warning, TEXT("The game could not be saved to the slot %s"), *SlotName());
+	}
+}
+
+void UDIAWorldSubsystem::NewGame()
+{
+	Game = FAsphaltGame();
+	UGameplayStatics::DeleteGameInSlot(SlotName(), DIASave::UserIndex);
+	AutosaveTimer = 0.0;
+	OnGameReset.Broadcast();
+	OnStateChanged.Broadcast();
+}
+
+void UDIAWorldSubsystem::Autosave()
+{
+	if (bAutosaveEnabled)
+	{
+		SaveGame();
+	}
 }
 
 void UDIAWorldSubsystem::Pour(FVector2D A, FVector2D B, bool bFromCar)
@@ -39,6 +205,7 @@ bool UDIAWorldSubsystem::Buy(EAsphaltUpgrade U)
 		return false;
 	}
 	OnStateChanged.Broadcast();
+	Autosave();
 	return true;
 }
 
@@ -50,6 +217,7 @@ bool UDIAWorldSubsystem::BuySpecial(EAsphaltSpecial S)
 	}
 	OnSpecialBought.Broadcast(S);
 	OnStateChanged.Broadcast();
+	Autosave();
 	return true;
 }
 
@@ -66,6 +234,7 @@ void UDIAWorldSubsystem::Win()
 	}
 	OnWon.Broadcast();
 	OnStateChanged.Broadcast();
+	Autosave();
 }
 
 void UDIAWorldSubsystem::RegisterInteractable(AActor* Actor, IDIAInteractable* Interactable)
@@ -131,7 +300,16 @@ IDIAInteractable* UDIAWorldSubsystem::FindInteractable(const ADIACharacter* Who,
 void UDIAWorldSubsystem::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
-	Dispatch(Game.Tick(FMath::Min(static_cast<double>(DeltaTime), MaxTickSeconds)));
+	const double Seconds = FMath::Min(static_cast<double>(DeltaTime), MaxTickSeconds);
+	Dispatch(Game.Tick(Seconds));
+
+	// The game time of an autosave: a paused game (the menu) does not tick, so it never counts.
+	AutosaveTimer += Seconds;
+	if (AutosaveTimer >= DIASave::AutosaveIntervalSeconds)
+	{
+		AutosaveTimer = 0.0;
+		Autosave();
+	}
 }
 
 TStatId UDIAWorldSubsystem::GetStatId() const

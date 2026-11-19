@@ -47,6 +47,9 @@ FDIAInput FDIAInput::Create(UObject* Outer)
 	Input.Shop = MakeAction(Outer, TEXT("IA_DIA_Shop"), EInputActionValueType::Boolean);
 	Input.Pause = MakeAction(Outer, TEXT("IA_DIA_Pause"), EInputActionValueType::Boolean);
 
+	// Esc has to close the pause menu while the game is paused.
+	Input.Pause->bTriggerWhenPaused = true;
+
 	UInputMappingContext* Context = Input.Context;
 
 	// Move: X = right, Y = forward.

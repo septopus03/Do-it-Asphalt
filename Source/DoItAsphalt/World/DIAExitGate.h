@@ -64,6 +64,8 @@ protected:
 private:
 	/** Follows the core: starts the rise when the exit opened, closes the arm again if it is no longer open. Runs on every state change, so it returns early when nothing differs. */
 	void SyncFromCore();
+	/** A game was loaded or started: the arm is up at once if the exit is open in it (no rise), down otherwise. */
+	void HandleGameReset();
 	/** Turns the arm to the open fraction and lets it block only while it is not up. */
 	void ApplyArm();
 	UFUNCTION()

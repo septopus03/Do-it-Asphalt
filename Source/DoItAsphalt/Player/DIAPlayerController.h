@@ -11,9 +11,10 @@ struct FInputActionValue;
 
 /**
  * Creates the input assets, adds the mapping context to the local player and routes the actions to the character.
- * Shop (Tab) toggles the shop panel of the HUD and Pause (Esc) closes it. Every frame it looks for the nearest interactable
+ * Shop (Tab) toggles the shop panel of the HUD; Pause (Esc) closes the shop if it is open, otherwise it opens and closes the pause
+ * menu (the pause action also fires while the game is paused, so that Esc can close the menu). Every frame it looks for the nearest interactable
  * (kiosk, ...) within reach and shows its prompt; Interact (E) uses it. While the shop is open there is no prompt and E
- * does nothing. The rest of Pause is bound but does nothing yet (a later task fills it in).
+ * does nothing.
  *
  * The same actions drive whatever the controller possesses: the character, or the paver truck (move = throttle and steering,
  * left button = pour, E = get out; the look input turns the camera).
@@ -35,11 +36,19 @@ public:
 	bool IsShopInput() const { return bShopInput; }
 
 	/**
-	 * Called by the HUD when the win screen appears: the mouse cursor and the UI take all the input (UI only, so no key reaches the
-	 * game any more), the character stops, pouring stops and the truck lets go of throttle and steering. There is no way back: the game is won;
-	 * New Game loads a fresh level with a fresh controller.
+	 * Called by the HUD when the main or pause menu opens or closes: like the shop, the cursor and the mouse go to the menu (the
+	 * camera stops following the mouse, pouring stops and cannot start, the truck lets go of throttle and steering), and the game is
+	 * paused while it is open; closing it gives everything back.
 	 */
-	void SetWinInput();
+	void SetMenuInput(bool bOpen);
+	bool IsMenuInput() const { return bMenuInput; }
+
+	/**
+	 * Called by the HUD when the win screen appears (bOn) or goes (a new game started from it, or a game that is not won was loaded):
+	 * the mouse cursor and the UI take all the input (UI only, so no key reaches the game any more), the character stops, pouring
+	 * stops and the truck lets go of throttle and steering.
+	 */
+	void SetWinInput(bool bOn = true);
 	bool IsWinInput() const { return bWinInput; }
 
 	/** What E would use right now (null if nothing is within reach, or the shop is open). */
@@ -54,6 +63,8 @@ public:
 	void OnPourCompleted();
 	/** E: gets out of the truck while driving it, otherwise uses what is within reach. */
 	void OnInteract();
+	/** Esc: closes the shop if it is open, otherwise opens or closes the pause menu (nothing on the win screen). */
+	void OnPause();
 
 protected:
 	virtual void InitInputSystem() override;
@@ -64,15 +75,18 @@ private:
 	void OnSprintStarted();
 	void OnSprintCompleted();
 	void OnShop();
-	void OnPause();
 
 	class ADIACharacter* GetDIACharacter() const;
 	/** The truck while the controller drives it; null otherwise. */
 	class ADIAPaverCar* GetDIACar() const;
 	/** Stops pouring, with the character's spreader or the truck's bar. */
 	void StopPouring();
-	/** The shop or the win screen covers the screen and owns the mouse: nothing behind it can be used. */
-	bool IsUiInput() const { return bShopInput || bWinInput; }
+	/** Lets go of everything a UI that takes over the screen must not leave running: pouring, the truck's throttle and steering. */
+	void ReleaseControls();
+	/** The shop, the menu or the win screen covers the screen and owns the mouse: nothing behind it can be used. */
+	bool IsUiInput() const { return bShopInput || bMenuInput || bWinInput; }
+	/** The mouse cursor and the input mode that go with the UI that is up now (nothing to do without a window). */
+	void ApplyInputMode();
 	/** Sends the prompt of the nearest interactable to the HUD (a no-op for unchanged text). */
 	void UpdatePrompt();
 
@@ -80,5 +94,6 @@ private:
 	FDIAInput Input;
 
 	bool bShopInput = false;
+	bool bMenuInput = false;
 	bool bWinInput = false;
 };

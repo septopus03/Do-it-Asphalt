@@ -162,22 +162,12 @@ void ADIACharacter::BeginPlay()
 	BuildHelmet();
 	RefreshEquipment();
 	UpdateMovementSettings();
-	if (UDIAWorldSubsystem* Subsystem = GetSubsystem())
-	{
-		StateHandle = Subsystem->OnStateChanged.AddUObject(this, &ADIACharacter::OnStateChanged);
-	}
+	StateSub.Bind(GetSubsystem(), this, &ADIACharacter::OnStateChanged, &ADIACharacter::HandleGameReset);
 }
 
 void ADIACharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-	if (StateHandle.IsValid())
-	{
-		if (UDIAWorldSubsystem* Subsystem = GetSubsystem())
-		{
-			Subsystem->OnStateChanged.Remove(StateHandle);
-		}
-		StateHandle.Reset();
-	}
+	StateSub.Unbind(GetSubsystem());
 	Super::EndPlay(EndPlayReason);
 }
 
@@ -186,6 +176,29 @@ void ADIACharacter::OnStateChanged()
 	// Fires every tick; both calls return at once unless a level or a special changed.
 	RefreshEquipment();
 	UpdateMovementSettings();
+}
+
+void ADIACharacter::HandleGameReset()
+{
+	SetPouring(false);
+	SetSprinting(false);
+	RefreshEquipment();
+	UpdateMovementSettings();
+
+	// Riding in the truck the character is carried along: the truck puts it where the core says if it has to get out.
+	const UDIAWorldSubsystem* Subsystem = GetSubsystem();
+	if (!Subsystem || GetAttachParentActor())
+	{
+		return;
+	}
+	const FAsphaltWorldState& State = Subsystem->GetGame().World();
+	SetActorLocationAndRotation(FVector(State.PlayerPos.X, State.PlayerPos.Y, GetActorLocation().Z), FRotator(0.0, State.PlayerYawDeg, 0.0), false, nullptr, ETeleportType::TeleportPhysics);
+	GetCharacterMovement()->StopMovementImmediately();
+	if (Controller)
+	{
+		// The camera goes behind the character again.
+		Controller->SetControlRotation(FRotator(0.0, State.PlayerYawDeg, 0.0));
+	}
 }
 
 void ADIACharacter::SetPouring(bool bPour)
