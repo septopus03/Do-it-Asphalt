@@ -225,6 +225,43 @@ def beam(p0, p1, radius, mat, segments=8, radius_end=None, cap_start=True, cap_e
     return _object_from_bmesh(bm, "beam", mat)
 
 
+def bar(p0, p1, width, height, mat, cap_start=True, cap_end=True):
+    """Rectangular bar from point p0 to point p1 (any direction): conveyors, ducts,
+    slanted legs, braces, drawbars. `width` is measured horizontally across the bar,
+    `height` in the vertical plane that contains it (so a sloping conveyor keeps
+    its belt side up). For a vertical bar `width` runs along Y and `height` along X.
+    12 triangles (2 less per switched-off end cap)."""
+    p0, p1 = Vector(p0), Vector(p1)
+    d = p1 - p0
+    if d.length < 1e-9:
+        raise ValueError("bar: p0 and p1 coincide")
+    length = d.length
+    d = d.normalized()
+    up = Vector((0.0, 0.0, 1.0))
+    if abs(d.dot(up)) > 0.999999:
+        up = Vector((1.0, 0.0, 0.0))
+    side = up.cross(d).normalized()
+    top = d.cross(side)
+    bm = bmesh.new()
+    _box_into(bm, (width, height, length), (0.0, 0.0, 0.0))
+    drop = [f for f in bm.faces
+            if max(v.co.z for v in f.verts) - min(v.co.z for v in f.verts) < 1e-9
+            and ((f.verts[0].co.z < 0 and not cap_start) or (f.verts[0].co.z > 0 and not cap_end))]
+    if drop:
+        bmesh.ops.delete(bm, geom=drop, context="FACES_ONLY")
+    rot = Matrix((side, top, d)).transposed().to_4x4()
+    bm.transform(Matrix.Translation((p0 + p1) / 2.0) @ rot)
+    return _object_from_bmesh(bm, "bar", mat)
+
+
+def ring(r_inner, r_outer, h0, h1, center_xyz, axis, mat, segments=12):
+    """Closed band of rectangular section around `axis` through `center_xyz`, from
+    h0 to h1 along the axis (relative to the centre): tyre rings on a drum, hoops,
+    flanges, railings. Visible from inside and outside. 8 * segments triangles."""
+    return lathe([(r_inner, h0), (r_outer, h0), (r_outer, h1), (r_inner, h1), (r_inner, h0)],
+                 center_xyz, axis, mat, segments, cap_start=False, cap_end=False)
+
+
 def mesh(verts, faces, mat):
     """Arbitrary polygons: verts = [(x, y, z), ...], faces = [(i, j, k, ...), ...],
     counter-clockwise seen from outside (see the module docstring)."""
