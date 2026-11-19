@@ -39,6 +39,9 @@ namespace DIAModelSizes
 	/** Portable station (tank on two wheels, origin at the centre of the footprint, on the ground). */
 	inline const FVector StationCm(120.0, 80.0, 130.0);
 
+	/** Automated paver (low tracked robot, front +X with the spreader bar; origin at the centre of the footprint, on the ground). */
+	inline const FVector AutoPaverCm(100.0, 80.0, 60.0);
+
 	/** Old road behind the end of a road (origin at the centre of the near edge, runs towards +X) and the barrier that closes it (origin at the centre of the footprint). */
 	inline const FVector RoadStubCm(1200.0, 340.0, 5.0);
 	inline const FVector BarrierCm(30.0, 340.0, 100.0);
