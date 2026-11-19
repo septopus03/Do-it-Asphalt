@@ -6,3 +6,4 @@ Saved/
 DerivedDataCache/
 Builds/
 .superpowers/
+__pycache__/

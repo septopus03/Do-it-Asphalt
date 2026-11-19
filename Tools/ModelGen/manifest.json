@@ -1,0 +1,4 @@
+[
+  {"name": "SM_AxisTest", "min": [0, 0, 0], "max": [1.0, 0.5, 0.25], "max_tris": 12, "tolerance": 0.02},
+  {"name": "SM_Cone", "min": [-0.15, -0.15, 0], "max": [0.15, 0.15, 0.5], "max_tris": 150, "tolerance": 0.02}
+]
