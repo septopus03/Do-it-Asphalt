@@ -23,20 +23,6 @@ namespace
 {
 	constexpr float TickSeconds = 0.1f;
 
-	/** Spawns a character standing on the ground at the given spot. Walking is switched off: the tests move it by hand. */
-	ADIACharacter* SpawnCharacter(UWorld* World, FVector2D Where)
-	{
-		FActorSpawnParameters Params;
-		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-		ADIACharacter* Character = World->SpawnActor<ADIACharacter>(FVector(Where.X, Where.Y, DIACharacter::CapsuleHalfHeightCm), FRotator::ZeroRotator, Params);
-		if (Character)
-		{
-			// Without a controller nothing drives the movement component; MOVE_None also keeps gravity from touching the tests.
-			Character->GetCharacterMovement()->SetMovementMode(MOVE_None);
-		}
-		return Character;
-	}
-
 	void Move(ADIACharacter* Character, FVector2D Delta)
 	{
 		Character->SetActorLocation(Character->GetActorLocation() + FVector(Delta.X, Delta.Y, 0.0));
@@ -66,7 +52,7 @@ bool FCharacterPoursTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("backpack holds 5 l"), Game.GetBackpackLitres(), 5.0);
 
 	const FVector2D Cell0 = AsphaltHex::ToWorld(Game.GetMap().GetCell(0).Coord);
-	ADIACharacter* Character = SpawnCharacter(World, Cell0);
+	ADIACharacter* Character = DIATest::SpawnCharacter(World, Cell0);
 	if (!TestNotNull(TEXT("character"), Character))
 	{
 		return false;
@@ -132,7 +118,7 @@ bool FCharacterRefillsInZoneTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("backpack starts empty"), Game.GetBackpackLitres(), 0.0);
 
 	// 300 cm from the centre is outside the 200 cm zone: nothing is refilled in 2 s.
-	ADIACharacter* Character = SpawnCharacter(World, AsphaltLayout::RefillCenter + FVector2D(300.0, 0.0));
+	ADIACharacter* Character = DIATest::SpawnCharacter(World, AsphaltLayout::RefillCenter + FVector2D(300.0, 0.0));
 	if (!TestNotNull(TEXT("character"), Character))
 	{
 		return false;
@@ -170,7 +156,7 @@ bool FCharacterEquipmentTest::RunTest(const FString& Parameters)
 		return false;
 	}
 	FAsphaltGame& Game = Subsystem->GetGame();
-	ADIACharacter* Character = SpawnCharacter(World, FVector2D(-1200.0, 0.0));
+	ADIACharacter* Character = DIATest::SpawnCharacter(World, FVector2D(-1200.0, 0.0));
 	if (!TestNotNull(TEXT("character"), Character))
 	{
 		return false;

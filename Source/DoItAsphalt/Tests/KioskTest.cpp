@@ -21,18 +21,6 @@
 
 namespace
 {
-	ADIACharacter* SpawnCharacter(UWorld* World, FVector2D Where)
-	{
-		FActorSpawnParameters Params;
-		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-		ADIACharacter* Character = World->SpawnActor<ADIACharacter>(FVector(Where.X, Where.Y, DIACharacter::CapsuleHalfHeightCm), FRotator::ZeroRotator, Params);
-		if (Character)
-		{
-			Character->GetCharacterMovement()->SetMovementMode(MOVE_None);
-		}
-		return Character;
-	}
-
 	ADIAKioskActor* FindKiosk(UWorld* World, EAsphaltSpecial Special)
 	{
 		for (TActorIterator<ADIAKioskActor> It(World); It; ++It)
@@ -231,7 +219,7 @@ bool FInteractionSearchTest::RunTest(const FString& Parameters)
 
 	// Near the screen (about 100 cm in front of it) the kiosk is found; at the end of its road, 220 cm from the kiosk's
 	// centre but still 150 cm from its collision, it is found only just; far away it is not.
-	ADIACharacter* Character = SpawnCharacter(World, KioskPos + ToRoad * 100.0);
+	ADIACharacter* Character = DIATest::SpawnCharacter(World, KioskPos + ToRoad * 100.0);
 	if (!TestNotNull(TEXT("character"), Character) || !TestNotNull(TEXT("kiosk"), Kiosk))
 	{
 		return false;
@@ -284,7 +272,7 @@ bool FSprintSpeedTest::RunTest(const FString& Parameters)
 	{
 		return false;
 	}
-	ADIACharacter* Character = SpawnCharacter(World, FVector2D(-1200.0, 0.0));
+	ADIACharacter* Character = DIATest::SpawnCharacter(World, FVector2D(-1200.0, 0.0));
 	if (!TestNotNull(TEXT("character"), Character))
 	{
 		return false;
@@ -324,7 +312,7 @@ bool FTwoHandsTest::RunTest(const FString& Parameters)
 		return false;
 	}
 	FAsphaltGame& Game = Subsystem->GetGame();
-	ADIACharacter* Character = SpawnCharacter(World, FVector2D(-1200.0, 0.0));
+	ADIACharacter* Character = DIATest::SpawnCharacter(World, FVector2D(-1200.0, 0.0));
 	if (!TestNotNull(TEXT("character"), Character))
 	{
 		return false;

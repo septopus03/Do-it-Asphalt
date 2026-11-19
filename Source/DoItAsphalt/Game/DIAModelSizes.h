@@ -36,6 +36,9 @@ namespace DIAModelSizes
 	inline const FVector KioskCm(60.0, 80.0, 220.0);
 	inline const FVector LockCm(10.0, 30.0, 40.0);
 
+	/** Portable station (tank on two wheels, origin at the centre of the footprint, on the ground). */
+	inline const FVector StationCm(120.0, 80.0, 130.0);
+
 	/** Old road behind the end of a road (origin at the centre of the near edge, runs towards +X) and the barrier that closes it (origin at the centre of the footprint). */
 	inline const FVector RoadStubCm(1200.0, 340.0, 5.0);
 	inline const FVector BarrierCm(30.0, 340.0, 100.0);

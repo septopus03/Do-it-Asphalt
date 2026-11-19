@@ -41,7 +41,7 @@ namespace DIACharacter
 
 /**
  * The player: third-person movement and camera as in the engine template, pouring (the nozzle sweeps coverage while
- * the left button is held), refilling in the plant's zone and the visible equipment (spreader, backpack, helmet).
+ * the left button is held), refilling in the plant's zone or at the placed portable station and the visible equipment (spreader, backpack, helmet).
  * The state of the game lives in the world subsystem; the character only reads it and acts on it.
  */
 UCLASS(NotBlueprintable)

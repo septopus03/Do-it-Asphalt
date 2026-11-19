@@ -37,6 +37,11 @@ namespace DIAFormat
 	 * "Sprint – need 100" when the money does not suffice, and "Sprint – owned" afterwards.
 	 */
 	DOITASPHALT_API FText KioskPrompt(const FAsphaltGame& Game, EAsphaltSpecial Special);
+
+	/** The prompt at the portable station: "E – Pick up" while it stands, "E – Put down" while it is carried. */
+	DOITASPHALT_API FText StationPrompt(bool bCarried);
+	/** Shown when the station cannot be put down because something is in the way. */
+	DOITASPHALT_API FText StationNoRoomToast();
 }
 
 /** What the HUD shows, already formatted. */

@@ -4,6 +4,7 @@
 #include "AsphaltBalance.h"
 #include "AsphaltLayout.h"
 #include "Engine/World.h"
+#include "Game/DIAWorldSubsystem.h"
 #include "EngineUtils.h"
 #include "GameFramework/PlayerStart.h"
 #include "Player/DIACharacter.h"
@@ -11,6 +12,7 @@
 #include "UI/DIAHUD.h"
 #include "World/DIAGroundActor.h"
 #include "World/DIAKioskActor.h"
+#include "World/DIAPortableStation.h"
 #include "World/DIARoadActor.h"
 #include "World/DIAPlantActor.h"
 
@@ -66,7 +68,50 @@ void ADIAGameMode::StartPlay()
 			}
 		}
 	}
+
+	// The station follows the core: a purchase (or the cheat) announces itself here, and one owned from the start is spawned now.
+	if (UDIAWorldSubsystem* Subsystem = GetWorld() ? GetWorld()->GetSubsystem<UDIAWorldSubsystem>() : nullptr)
+	{
+		SpecialHandle = Subsystem->OnSpecialBought.AddUObject(this, &ADIAGameMode::OnSpecialBought);
+	}
+	EnsureStation();
 	Super::StartPlay();
+}
+
+void ADIAGameMode::EndPlay(const EEndPlayReason::Type Reason)
+{
+	if (SpecialHandle.IsValid())
+	{
+		if (UDIAWorldSubsystem* Subsystem = GetWorld() ? GetWorld()->GetSubsystem<UDIAWorldSubsystem>() : nullptr)
+		{
+			Subsystem->OnSpecialBought.Remove(SpecialHandle);
+		}
+		SpecialHandle.Reset();
+	}
+	Super::EndPlay(Reason);
+}
+
+void ADIAGameMode::OnSpecialBought(EAsphaltSpecial Special)
+{
+	if (Special == EAsphaltSpecial::PortableStation)
+	{
+		EnsureStation();
+	}
+}
+
+void ADIAGameMode::EnsureStation()
+{
+	UWorld* World = GetWorld();
+	UDIAWorldSubsystem* Subsystem = World ? World->GetSubsystem<UDIAWorldSubsystem>() : nullptr;
+	if (!Subsystem || Station.IsValid() || !Subsystem->GetGame().HasSpecial(EAsphaltSpecial::PortableStation))
+	{
+		return;
+	}
+	// It stands where the core says (SpecialSpawn of its road after a purchase); the actor then keeps itself in line with the core.
+	const FVector2D Where = Subsystem->GetGame().World().StationPos;
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	Station = World->SpawnActor<ADIAPortableStation>(FVector(Where.X, Where.Y, 0.0), FRotator::ZeroRotator, Params);
 }
 
 AActor* ADIAGameMode::ChoosePlayerStart_Implementation(AController* Player)

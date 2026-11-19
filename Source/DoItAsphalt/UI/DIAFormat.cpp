@@ -159,6 +159,16 @@ FText DIAFormat::KioskPrompt(const FAsphaltGame& Game, EAsphaltSpecial Special)
 	return FText::Format(LOCTEXT("PromptNeed", "{0} \u2013 need {1}"), Name, Price);
 }
 
+FText DIAFormat::StationPrompt(bool bCarried)
+{
+	return bCarried ? LOCTEXT("PromptStationPutDown", "E \u2013 Put down") : LOCTEXT("PromptStationPickUp", "E \u2013 Pick up");
+}
+
+FText DIAFormat::StationNoRoomToast()
+{
+	return LOCTEXT("ToastStationNoRoom", "No room here");
+}
+
 FText DIAFormat::ExitToast()
 {
 	return LOCTEXT("ToastExit", "The exit is open!");
