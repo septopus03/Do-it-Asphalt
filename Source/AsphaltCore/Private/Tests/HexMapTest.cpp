@@ -5,6 +5,7 @@
 #include "HexMap.h"
 
 DIA_TEST(FMapCellsTest, "DoItAsphalt.Core.Map.Cells")
+DIA_TEST(FMapCellOrderTest, "DoItAsphalt.Core.Map.CellOrder")
 DIA_TEST(FMapLookupTest, "DoItAsphalt.Core.Map.Lookup")
 DIA_TEST(FMapRoadsTest, "DoItAsphalt.Core.Map.Roads")
 DIA_TEST(FMapLayoutTest, "DoItAsphalt.Core.Map.Layout")
@@ -38,6 +39,23 @@ bool FMapCellsTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("bad lot cells"), BadLots, 0);
 	TestEqual(TEXT("bad road cells"), BadRoads, 0);
 	TestEqual(TEXT("unique coords"), Seen.Num(), 499);
+	return true;
+}
+
+bool FMapCellOrderTest::RunTest(const FString& Parameters)
+{
+	// Saved games store cell indices, so the order of the cells is part of the file format.
+	FHexMap Map;
+	TestTrue(TEXT("cell 0"), Map.GetCell(0).Coord == FHexCoord{0, 0});
+	TestTrue(TEXT("cell 1 is Directions[4]"), Map.GetCell(1).Coord == AsphaltHex::Directions[4]);
+	TestTrue(TEXT("cell 1 literal"), Map.GetCell(1).Coord == FHexCoord{-1, 1});
+	// Ring 1 walks Directions[4] -> +Directions[0] -> ... and ends one step before its start.
+	TestTrue(TEXT("cell 2"), Map.GetCell(2).Coord == FHexCoord{0, 1});
+	TestTrue(TEXT("cell 6 is the last of ring 1"), Map.GetCell(6).Coord == FHexCoord{-1, 0});
+	TestTrue(TEXT("cell 7 starts ring 2"), Map.GetCell(7).Coord == FHexCoord{-2, 2});
+	TestTrue(TEXT("cell 468 is the last lot cell"), Map.GetCell(468).Coord == FHexCoord{-12, 11});
+	TestTrue(TEXT("cell 469 is the first road cell"), Map.GetCell(469).Coord == FHexCoord{13, -6});
+	TestTrue(TEXT("cell 498 is the last road cell"), Map.GetCell(498).Kind == EAsphaltCellKind::Road && Map.GetCell(498).RoadIndex == 5);
 	return true;
 }
 

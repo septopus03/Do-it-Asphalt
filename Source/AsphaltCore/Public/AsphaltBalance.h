@@ -25,6 +25,9 @@ namespace AsphaltBalance
 	inline constexpr double PlantRateLPerMin[13] = {15, 20, 25, 35, 50, 80, 100, 125, 180, 300, 500, 750, 1000};
 	inline constexpr double PlantPriceMoney[12] = {15, 25, 40, 60, 90, 130, 180, 240, 310, 390, 480, 580};
 
+	/** The TwoHands special multiplies the width of the pouring bar by this factor. */
+	inline constexpr double TwoHandsWidthMultiplier = 2.0;
+
 	// Specials: Sprint, TwoHands, PortableStation, AutoPaver, PaverCar.
 	inline constexpr double SpecialPriceMoney[5] = {100, 200, 300, 450, 800};
 	/** Index of the road on which each special is sold. */

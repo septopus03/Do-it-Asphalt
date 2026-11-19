@@ -61,6 +61,10 @@ struct FAsphaltEvents
 class ASPHALTCORE_API FAsphaltGame
 {
 public:
+	/** First four bytes of every save: "DIA1" in little-endian order. */
+	static constexpr uint32 SaveMagic = 0x31414944;
+	static constexpr int32 SaveVersion = 1;
+
 	FAsphaltGame();
 
 	const FHexMap& GetMap() const;
@@ -138,6 +142,19 @@ public:
 
 	FAsphaltWorldState& World();
 	const FAsphaltWorldState& World() const;
+
+	/**
+	 * Serialises the whole game state (little-endian): header (magic, version, cell count, grid size), economy,
+	 * levels, specials, containers, auto paver, world state and the packed coverage mask. Road progress and the
+	 * exit are derived from the coverage mask and therefore not stored.
+	 */
+	TArray<uint8> SaveToBytes() const;
+	/**
+	 * Restores a state written by SaveToBytes. Every value is range checked (known magic and version, matching map and
+	 * grid size, levels within their maximum, litres within their capacities, finite non-negative numbers, auto paver
+	 * target INDEX_NONE or a valid cell, exact length). On any failure it returns false and *this is left untouched.
+	 */
+	bool LoadFromBytes(TConstArrayView<uint8> Bytes);
 
 	void DebugGive(double Money, int32 Shards);
 	/** Gives the special for free (the station and the car are placed like after a purchase). */
