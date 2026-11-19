@@ -9,6 +9,7 @@
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "GameFramework/PlayerStart.h"
 #include "Game/DIAGameMode.h"
 #include "Game/DIAModelSizes.h"
 #include "Player/DIACharacter.h"
@@ -22,6 +23,7 @@ namespace
 {
 	constexpr double DressTestToleranceCm = 0.5;
 	constexpr double DressTestYawToleranceDeg = 0.5;
+	constexpr double DressTestLevelStartZCm = 100.0;
 }
 
 DIA_TEST(FSiteDressingBuildsTest, "DoItAsphalt.Game.SiteDressingBuilds")
@@ -164,13 +166,22 @@ bool FSpawnFacingTest::RunTest(const FString& Parameters)
 		return false;
 	}
 
-	// A new player, whatever the level's PlayerStart looks like, stands at the layout's start with body and camera turned to the plant.
+	// The real level's PlayerStart sits at the layout's start but looks along +X (yaw 0). A new player must still end up facing the plant.
+	FActorSpawnParameters StartParams;
+	StartParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	APlayerStart* LevelStart = World->SpawnActor<APlayerStart>(FVector(AsphaltLayout::PlayerStart.X, AsphaltLayout::PlayerStart.Y, DressTestLevelStartZCm), FRotator::ZeroRotator, StartParams);
+	if (!TestNotNull(TEXT("level player start"), LevelStart))
+	{
+		return false;
+	}
 	APlayerController* Controller = World->SpawnActor<ADIAPlayerController>();
 	AActor* Start = Mode->ChoosePlayerStart(Controller);
 	if (!TestNotNull(TEXT("controller"), Controller) || !TestNotNull(TEXT("start"), Start))
 	{
 		return false;
 	}
+	TestTrue(TEXT("the level's start is the one used"), Start == LevelStart);
+	TestEqual(TEXT("the level's start looks along +X"), FMath::Abs(FMath::FindDeltaAngleDegrees(Start->GetActorRotation().Yaw, 0.0)), 0.0, DressTestYawToleranceDeg);
 	Mode->RestartPlayer(Controller);
 	const APawn* Pawn = Controller->GetPawn();
 	if (!TestNotNull(TEXT("the player has a pawn"), Pawn))
