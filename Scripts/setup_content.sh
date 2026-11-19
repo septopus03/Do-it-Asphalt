@@ -8,12 +8,13 @@ SRC="$UE_ROOT/Templates/TemplateResources/High/Characters/Content/Mannequins"
 DST="$PROJECT_ROOT/Content/Characters/Mannequins"
 
 if [[ -e "$DST" ]]; then
-	echo "Mannequins already present: $DST"
+	echo "Mannequins already present: $DST (if a copy was interrupted, delete this directory and re-run)"
 else
 	if [[ ! -d "$SRC" ]]; then
 		echo "Template content not found: $SRC" >&2
 		exit 1
 	fi
+	# A copy interrupted half-way leaves $DST behind and is then skipped: delete it and re-run.
 	mkdir -p "$(dirname "$DST")"
 	cp -R "$SRC" "$DST"
 	echo "Copied Mannequins to $DST"

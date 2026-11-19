@@ -8,8 +8,11 @@ The palette must match docs/03-3d-modely.md chapter 3 and Tools/ModelGen/common.
 (duplicated here on purpose: this script runs inside Unreal and must not import Blender code).
 """
 import os
+import struct
 import sys
+import tempfile
 import traceback
+import zlib
 
 import unreal
 
@@ -86,21 +89,90 @@ def custom(material, x, y, description, code, input_names):
     return expr
 
 
+def ensure_black_mask():
+    """Tiny black linear mask texture used as the default of CoverageTex / HexLinesTex.
+
+    Saved as /Game/Materials/T_Mask_Black (a support asset: reported as DIA_AUX, not DIA_OK, so the
+    script keeps its 14 DIA_OK lines = 2 materials + 12 instances).
+    """
+    name = "T_Mask_Black"
+    path = "%s/%s" % (MATERIAL_DIR, name)
+    if not unreal.EditorAssetLibrary.does_asset_exist(path):
+        size = 4
+        raw = b"".join(b"\x00" + b"\x00" * size for _ in range(size))  # filter byte + gray row
+        def chunk(tag, data):
+            body = tag + data
+            return struct.pack(">I", len(data)) + body + struct.pack(">I", zlib.crc32(body) & 0xFFFFFFFF)
+        png = (b"\x89PNG\r\n\x1a\n"
+               + chunk(b"IHDR", struct.pack(">IIBBBBB", size, size, 8, 0, 0, 0, 0))
+               + chunk(b"IDAT", zlib.compress(raw))
+               + chunk(b"IEND", b""))
+        tmp_dir = tempfile.mkdtemp(prefix="dia_tex_")
+        png_path = os.path.join(tmp_dir, name + ".png")
+        with open(png_path, "wb") as f:
+            f.write(png)
+        task = unreal.AssetImportTask()
+        task.set_editor_property("filename", png_path)
+        task.set_editor_property("destination_path", MATERIAL_DIR)
+        task.set_editor_property("destination_name", name)
+        task.set_editor_property("replace_existing", True)
+        task.set_editor_property("automated", True)
+        task.set_editor_property("save", False)
+        task.set_editor_property("factory", unreal.TextureFactory())
+        asset_tools.import_asset_tasks([task])
+    tex = unreal.EditorAssetLibrary.load_asset(path)
+    if tex is None:
+        raise RuntimeError("could not import %s" % path)
+    # (Re)apply the contract every run so a re-run also repairs a hand-edited texture.
+    tex.set_editor_property("srgb", False)
+    tex.set_editor_property("compression_settings", unreal.TextureCompressionSettings.TC_MASKS)
+    tex.set_editor_property("mip_gen_settings", unreal.TextureMipGenSettings.TMGS_NO_MIPMAPS)
+    tex.set_editor_property("address_x", unreal.TextureAddress.TA_CLAMP)
+    tex.set_editor_property("address_y", unreal.TextureAddress.TA_CLAMP)
+    if not unreal.EditorAssetLibrary.save_asset(path, only_if_is_dirty=False):
+        raise RuntimeError("could not save %s" % path)
+    print("DIA_AUX %s" % path)
+    return tex
+
+
+def expect_nodes(material, count):
+    got = mel.get_num_material_expressions(material)
+    if got != count:
+        raise RuntimeError("%s has %d expressions, expected %d" % (material.get_name(), got, count))
+
+
+def clear_expressions(material):
+    """Remove every node so a re-run rebuilds the graph from scratch.
+
+    delete_all_material_expressions alone left stale nodes behind across runs (28 nodes after a few
+    runs instead of 15), so delete them explicitly and check that nothing is left.
+    """
+    mel.delete_all_material_expressions(material)
+    for expr in list(mel.get_material_expressions(material)):
+        mel.delete_material_expression(material, expr)
+    left = mel.get_num_material_expressions(material)
+    if left:
+        raise RuntimeError("%s still has %d expressions after clearing" % (material.get_name(), left))
+
+
 def build_ground():
     path, mat = get_or_create("M_Ground", unreal.Material, unreal.MaterialFactoryNew())
-    mel.delete_all_material_expressions(mat)
+    clear_expressions(mat)
 
-    # Engine black texture as default: no coverage, no lines (plain dirt). It is sRGB, so the
-    # sampler type must be Color or the material fails to compile; the textures that replace it
-    # at runtime are plain mask data and are sampled by their own (non-sRGB) resource format.
-    black = unreal.EditorAssetLibrary.load_asset("/Engine/EngineResources/Black")
+    # TEXTURE CONTRACT (Task 9): CoverageTex and HexLinesTex are plain linear mask data read from
+    # the R channel, so any texture assigned to them must be SRGB=false (otherwise the sRGB curve
+    # turns coverage 0.5 into ~0.21 and shifts the smoothstep centre and the > 0.5 hex threshold),
+    # compression TC_Masks / linear, and clamp addressing (so the 0..1 UV edges do not wrap).
+    # Sampler type is Masks to match; the defaults are a generated black non-sRGB mask texture
+    # (the engine's own Black texture is sRGB and fails the sampler check).
+    black = ensure_black_mask()
 
     coverage = node(mat, unreal.MaterialExpressionTextureSampleParameter2D, -1400, 0,
                     parameter_name="CoverageTex", texture=black,
-                    sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_COLOR)
+                    sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_MASKS)
     hexlines = node(mat, unreal.MaterialExpressionTextureSampleParameter2D, -1400, -400,
                     parameter_name="HexLinesTex", texture=black,
-                    sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_COLOR)
+                    sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_MASKS)
     softness = node(mat, unreal.MaterialExpressionScalarParameter, -1400, 400,
                     parameter_name="EdgeSoftness", default_value=0.1)
 
@@ -143,13 +215,14 @@ def build_ground():
     link(weight, rough, "Alpha")
     mel.connect_material_property(rough, "", unreal.MaterialProperty.MP_ROUGHNESS)
 
+    expect_nodes(mat, 15)
     mel.recompile_material(mat)
     save(path)
 
 
 def build_flat():
     path, mat = get_or_create("M_DIA_Flat", unreal.Material, unreal.MaterialFactoryNew())
-    mel.delete_all_material_expressions(mat)
+    clear_expressions(mat)
 
     colour = node(mat, unreal.MaterialExpressionVectorParameter, -600, 0,
                   parameter_name="BaseColor", default_value=unreal.LinearColor(0.5, 0.5, 0.5, 1.0))
@@ -161,6 +234,7 @@ def build_flat():
     mel.connect_material_property(metallic, "", unreal.MaterialProperty.MP_METALLIC)
     mel.connect_material_property(roughness, "", unreal.MaterialProperty.MP_ROUGHNESS)
 
+    expect_nodes(mat, 3)
     mel.recompile_material(mat)
     save(path)
     return mat
