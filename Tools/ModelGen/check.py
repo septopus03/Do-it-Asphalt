@@ -11,6 +11,7 @@ Checked per model, in game axes (+X forward, +Y right, +Z up, metres):
   - triangle count <= max_tris
   - exactly one mesh, on a node without any transform
   - only palette materials, at most MAX_MATERIALS, with the palette's values
+  - positive signed volume (faces wound outward; Unreal's import rejects inside-out meshes)
 """
 import json
 import os
@@ -42,7 +43,8 @@ def gltf_to_game(v):
     return (v[0], v[2], v[1])
 
 
-def read_glb_json(path):
+def read_glb(path):
+    """Return (json dict, binary chunk bytes or b'')."""
     with open(path, "rb") as f:
         data = f.read()
     if len(data) < 20 or data[:4] != b"glTF":
@@ -53,12 +55,58 @@ def read_glb_json(path):
     if length != len(data):
         raise CheckError("GLB length field %d does not match file size %d" % (length, len(data)))
     offset = 12
+    gltf, binary = None, b""
     while offset + 8 <= len(data):
         chunk_len, chunk_type = struct.unpack_from("<II", data, offset)
-        if chunk_type == 0x4E4F534A:  # 'JSON'
-            return json.loads(data[offset + 8:offset + 8 + chunk_len].decode("utf-8"))
+        body = data[offset + 8:offset + 8 + chunk_len]
+        if chunk_type == 0x4E4F534A and gltf is None:  # 'JSON'
+            gltf = json.loads(body.decode("utf-8"))
+        elif chunk_type == 0x004E4942 and not binary:  # 'BIN'
+            binary = body
         offset += 8 + chunk_len
-    raise CheckError("GLB has no JSON chunk")
+    if gltf is None:
+        raise CheckError("GLB has no JSON chunk")
+    return gltf, binary
+
+
+def read_glb_json(path):
+    return read_glb(path)[0]
+
+
+_COMPONENT = {5121: "B", 5123: "H", 5125: "I", 5126: "f"}
+_WIDTH = {"SCALAR": 1, "VEC3": 3}
+
+
+def read_accessor(gltf, binary, index):
+    """Accessor -> list of tuples (VEC3) or plain numbers (SCALAR)."""
+    acc = gltf["accessors"][index]
+    view = gltf["bufferViews"][acc["bufferView"]]
+    fmt = _COMPONENT[acc["componentType"]]
+    width = _WIDTH[acc["type"]]
+    size = struct.calcsize("<" + fmt * width)
+    stride = view.get("byteStride", size)
+    start = view.get("byteOffset", 0) + acc.get("byteOffset", 0)
+    out = []
+    for i in range(acc["count"]):
+        item = struct.unpack_from("<" + fmt * width, binary, start + i * stride)
+        out.append(item if width > 1 else item[0])
+    return out
+
+
+def signed_volume(gltf, binary):
+    """Signed volume of the mesh in m^3 (glTF is right-handed, front faces counter-clockwise):
+    positive when the faces point outward."""
+    total = 0.0
+    for prim in gltf["meshes"][0].get("primitives", []):
+        pos = read_accessor(gltf, binary, prim["attributes"]["POSITION"])
+        idx = read_accessor(gltf, binary, prim["indices"]) if "indices" in prim else range(len(pos))
+        idx = list(idx)
+        for t in range(0, len(idx) - 2, 3):
+            a, b, c = pos[idx[t]], pos[idx[t + 1]], pos[idx[t + 2]]
+            total += (a[0] * (b[1] * c[2] - b[2] * c[1])
+                      - a[1] * (b[0] * c[2] - b[2] * c[0])
+                      + a[2] * (b[0] * c[1] - b[1] * c[0]))
+    return total / 6.0
 
 
 def check_model(entry):
@@ -67,7 +115,7 @@ def check_model(entry):
     if not os.path.isfile(path):
         return ["file missing"]
     try:
-        gltf = read_glb_json(path)
+        gltf, binary = read_glb(path)
     except (CheckError, ValueError, struct.error) as e:
         return [str(e)]
 
@@ -118,6 +166,13 @@ def check_model(entry):
 
     if tris > entry["max_tris"]:
         problems.append("%d triangles, limit %d" % (tris, entry["max_tris"]))
+
+    try:
+        volume = signed_volume(gltf, binary)
+    except (KeyError, IndexError, struct.error) as e:
+        return problems + ["cannot read the geometry (%s)" % e]
+    if volume <= 0.0:
+        problems.append("signed volume %.6f m3 is not positive (faces wound inside-out)" % volume)
 
     # Materials.
     if len(materials) > MAX_MATERIALS:

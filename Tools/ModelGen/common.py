@@ -235,6 +235,159 @@ def mesh(verts, faces, mat):
     return _object_from_bmesh(bm, "mesh", mat)
 
 
+def lathe(profile, center_xyz, axis, mat, segments=12, cap_start=True, cap_end=True):
+    """Solid of revolution around `axis` through `center_xyz`.
+
+    `profile` = [(radius, h), ...]: h is the position along the axis relative to
+    the centre, listed from the start (bottom) end to the end (top) end with the
+    OUTSIDE ON THE RIGHT of the direction of travel (radius to the right, h up) -
+    i.e. a plain bottom-to-top outline; a bulge may go out and come back in.
+    A point with radius 0 becomes a single apex vertex (pointed end / dome top).
+    `cap_start` / `cap_end` close an end ring whose radius is not 0.
+    Triangles: 2 * segments per band (segments next to an apex), segments - 2 per cap.
+    Ring vertices sit on the perpendicular axes when `segments` is a multiple of 4,
+    so the envelope is exactly 2 * radius. Use scale() afterwards for oval sections.
+    """
+    if len(profile) < 2:
+        raise ValueError("lathe: profile needs at least 2 points")
+    bm = bmesh.new()
+    rings = []
+    for r, h in profile:
+        if r < 0:
+            raise ValueError("lathe: negative radius")
+        if r < 1e-9:
+            rings.append([bm.verts.new((0.0, 0.0, h))])
+        else:
+            rings.append([bm.verts.new((r * math.cos(2 * math.pi * k / segments),
+                                        r * math.sin(2 * math.pi * k / segments), h))
+                          for k in range(segments)])
+    for lo, hi in zip(rings, rings[1:]):
+        for k in range(segments):
+            k1 = (k + 1) % segments
+            if len(lo) == 1 and len(hi) == 1:
+                continue
+            if len(lo) == 1:
+                bm.faces.new((lo[0], hi[k1], hi[k]))
+            elif len(hi) == 1:
+                bm.faces.new((lo[k], lo[k1], hi[0]))
+            else:
+                bm.faces.new((lo[k], lo[k1], hi[k1], hi[k]))
+    if cap_start and len(rings[0]) > 1:
+        bm.faces.new(list(reversed(rings[0])))
+    if cap_end and len(rings[-1]) > 1:
+        bm.faces.new(rings[-1])
+    bm.transform(Matrix.Translation(Vector(center_xyz)) @ _axis_matrix(axis))
+    return _object_from_bmesh(bm, "lathe", mat)
+
+
+def dome(radius, height, center_xyz, axis, mat, segments=12, rings=3, cap=True):
+    """Half ellipsoid: base circle of `radius` at `center_xyz`, apex `height` along
+    `axis`. `rings` bands of faces (the last one is a triangle fan); `cap` closes
+    the flat base. Triangles: segments * (2 * rings - 1) (+ segments - 2)."""
+    profile = [(radius * math.cos(math.pi / 2 * i / rings), height * math.sin(math.pi / 2 * i / rings))
+               for i in range(rings)] + [(0.0, height)]
+    return lathe(profile, center_xyz, axis, mat, segments, cap_start=cap)
+
+
+def extrude(outline, lo, hi, axis, mat, cap_lo=True, cap_hi=True):
+    """Prism: a flat polygon swept along a principal axis ('X', 'Y' or 'Z') from
+    coordinate `lo` to `hi` - wedges, hoods, visors, brackets, plates.
+
+    `outline` = [(u, v), ...] in the plane across the axis, in the cyclic order of
+    the axes:  axis 'X' -> (u, v) = (y, z),  'Y' -> (z, x),  'Z' -> (x, y),
+    listed counter-clockwise in that (u, v) plane (clockwise input is detected
+    and reversed). It may be concave but must not cross itself.
+    Triangles: 2 * n for the sides, n - 2 per cap.
+    """
+    a = str(axis).upper()
+    if a not in ("X", "Y", "Z"):
+        raise ValueError("extrude: axis must be 'X', 'Y' or 'Z'")
+    if hi < lo:
+        lo, hi = hi, lo
+    pts = [tuple(p) for p in outline]
+    area = sum(pts[i][0] * pts[(i + 1) % len(pts)][1] - pts[(i + 1) % len(pts)][0] * pts[i][1]
+               for i in range(len(pts)))
+    if area < 0:
+        pts.reverse()
+    place = {"X": lambda u, v, w: (w, u, v),
+             "Y": lambda u, v, w: (v, w, u),
+             "Z": lambda u, v, w: (u, v, w)}[a]
+    bm = bmesh.new()
+    bottom = [bm.verts.new(place(u, v, lo)) for u, v in pts]
+    top = [bm.verts.new(place(u, v, hi)) for u, v in pts]
+    n = len(pts)
+    for i in range(n):
+        j = (i + 1) % n
+        bm.faces.new((bottom[i], bottom[j], top[j], top[i]))
+    if cap_lo:
+        bm.faces.new(list(reversed(bottom)))
+    if cap_hi:
+        bm.faces.new(top)
+    return _object_from_bmesh(bm, "extrude", mat)
+
+
+def scale(obj, factors_xyz, pivot=(0.0, 0.0, 0.0)):
+    """Scale a part about `pivot` (round -> oval tanks, domes -> helmet shells).
+    Factors must be positive; use mirror() to flip. Baked into the vertices. Returns obj."""
+    if min(factors_xyz) <= 0:
+        raise ValueError("scale: factors must be positive (use mirror() to flip)")
+    p = Vector(pivot)
+    obj.data.transform(Matrix.Translation(p) @ Matrix.Diagonal((*factors_xyz, 1.0))
+                       @ Matrix.Translation(-p))
+    return obj
+
+
+def copy(obj):
+    """Independent duplicate of a part (same material)."""
+    twin = bpy.data.objects.new(obj.name, obj.data.copy())
+    twin.matrix_world = obj.matrix_world.copy()
+    bpy.context.scene.collection.objects.link(twin)
+    return twin
+
+
+def mirror(obj, axis, at=0.0):
+    """NEW part: `obj` reflected in the plane  axis = at  ('X', 'Y' or 'Z'), with the
+    winding flipped back so the faces still point outward. `obj` itself is kept:
+        parts += [strap, c.mirror(strap, "Y")]"""
+    i = "XYZ".index(str(axis).upper())
+    twin = copy(obj)
+    factors = [1.0, 1.0, 1.0, 1.0]
+    factors[i] = -1.0
+    offset = [0.0, 0.0, 0.0]
+    offset[i] = 2.0 * at
+    twin.data.transform(Matrix.Translation(Vector(offset)) @ Matrix.Diagonal(factors))
+    twin.data.flip_normals()
+    return twin
+
+
+def assert_outward(parts):
+    """Raise if any part (nested lists allowed) is wound inside-out. Measured about
+    the part's own centre, so it also works for parts with their caps switched off.
+    Call it on the part list just before join()."""
+    for part in _flatten(parts):
+        mn, mx = bounds(part)
+        centre = Vector([(mn[i] + mx[i]) / 2.0 for i in range(3)])
+        bm = bmesh.new()
+        bm.from_mesh(part.data)
+        bmesh.ops.translate(bm, verts=bm.verts[:], vec=-centre)
+        v = bm.calc_volume(signed=True)
+        bm.free()
+        if v <= 0.0:
+            raise ValueError("part '%s' at %s is wound inside-out (signed volume %g)"
+                             % (part.name, tuple(round(x, 3) for x in centre), v))
+    return parts
+
+
+def signed_volume(obj):
+    """Signed volume in m^3. Positive when the faces point outward (what Unreal's
+    import requires); for a closed part it is its real volume."""
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+    v = bm.calc_volume(signed=True)
+    bm.free()
+    return v
+
+
 def rotate(obj, axis, degrees, pivot=(0.0, 0.0, 0.0)):
     """Rotate a part about a line through `pivot` parallel to 'X', 'Y' or 'Z'.
     +90 deg about Z takes +X to +Y, about X takes +Y to +Z, about Y takes +Z to +X.

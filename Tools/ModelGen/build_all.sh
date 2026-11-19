@@ -11,7 +11,7 @@ command -v "$BLENDER" >/dev/null || { echo "build_all: '$BLENDER' not found (bre
 
 for script in "$HERE"/*.py; do
     case "$(basename "$script")" in
-        common.py|check.py) continue ;;
+        common.py|check.py|_*) continue ;;  # helpers and shared _modules are not models
     esac
     echo "== $(basename "$script")"
     log="$(mktemp)"

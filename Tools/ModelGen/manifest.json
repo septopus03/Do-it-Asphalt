@@ -1,4 +1,16 @@
 [
   {"name": "SM_AxisTest", "min": [0, 0, 0], "max": [1.0, 0.5, 0.25], "max_tris": 12, "tolerance": 0.02},
-  {"name": "SM_Cone", "min": [-0.15, -0.15, 0], "max": [0.15, 0.15, 0.5], "max_tris": 150, "tolerance": 0.02}
+  {"name": "SM_Cone", "min": [-0.15, -0.15, 0], "max": [0.15, 0.15, 0.5], "max_tris": 150, "tolerance": 0.02},
+  {"name": "SM_Spreader_020", "min": [-0.50, -0.15, 0], "max": [0.08, 0.15, 1.0], "max_tris": 600, "tolerance": 0.02},
+  {"name": "SM_Spreader_030", "min": [-0.50, -0.2, 0], "max": [0.08, 0.2, 1.0], "max_tris": 600, "tolerance": 0.02},
+  {"name": "SM_Spreader_050", "min": [-0.50, -0.3, 0], "max": [0.08, 0.3, 1.0], "max_tris": 600, "tolerance": 0.02},
+  {"name": "SM_Spreader_080", "min": [-0.50, -0.45, 0], "max": [0.08, 0.45, 1.0], "max_tris": 600, "tolerance": 0.02},
+  {"name": "SM_Spreader_100", "min": [-0.50, -0.55, 0], "max": [0.08, 0.55, 1.0], "max_tris": 600, "tolerance": 0.02},
+  {"name": "SM_Spreader_150", "min": [-0.50, -0.8, 0], "max": [0.08, 0.8, 1.0], "max_tris": 600, "tolerance": 0.02},
+  {"name": "SM_Spreader_200", "min": [-0.50, -1.05, 0], "max": [0.08, 1.05, 1.0], "max_tris": 600, "tolerance": 0.02},
+  {"name": "SM_Backpack_S", "min": [-0.16, -0.13, -0.16], "max": [0, 0.13, 0.16], "max_tris": 800, "tolerance": 0.02},
+  {"name": "SM_Backpack_M", "min": [-0.22, -0.16, -0.21], "max": [0, 0.16, 0.21], "max_tris": 800, "tolerance": 0.02},
+  {"name": "SM_Backpack_L", "min": [-0.28, -0.19, -0.26], "max": [0, 0.19, 0.26], "max_tris": 800, "tolerance": 0.02},
+  {"name": "SM_Backpack_XL", "min": [-0.34, -0.22, -0.31], "max": [0, 0.22, 0.31], "max_tris": 800, "tolerance": 0.02},
+  {"name": "SM_Helmet", "min": [-0.12, -0.12, 0], "max": [0.16, 0.12, 0.16], "max_tris": 300, "tolerance": 0.02}
 ]
