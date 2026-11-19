@@ -198,7 +198,7 @@ namespace DIACheats
 
 	void Teleport(const TArray<FString>& Args, UWorld* World)
 	{
-		if (!Usage(Args.Num() == 2 || Args.Num() == 3, TEXT("dia.Teleport <x> <y> [yaw]")))
+		if (!Usage(Args.Num() >= 2 && Args.Num() <= 4, TEXT("dia.Teleport <x> <y> [yaw] [pitch]")))
 		{
 			return;
 		}
@@ -211,12 +211,13 @@ namespace DIACheats
 		}
 		const double X = FCString::Atod(*Args[0]);
 		const double Y = FCString::Atod(*Args[1]);
-		const double Yaw = Args.Num() == 3 ? FCString::Atod(*Args[2]) : 0.0;
-		const FRotator Rotation(0.0, Yaw, 0.0);
+		const double Yaw = Args.Num() >= 3 ? FCString::Atod(*Args[2]) : 0.0;
+		const double Pitch = Args.Num() >= 4 ? FCString::Atod(*Args[3]) : 0.0;
 
-		// Keep the pawn's height: whatever stands on the ground already has the right one.
-		Pawn->TeleportTo(FVector(X, Y, Pawn->GetActorLocation().Z), Rotation);
-		PC->SetControlRotation(Rotation);
+		// Keep the pawn's height: whatever stands on the ground already has the right one. The pawn turns by yaw
+		// only; the camera (control rotation) also gets the pitch.
+		Pawn->TeleportTo(FVector(X, Y, Pawn->GetActorLocation().Z), FRotator(0.0, Yaw, 0.0));
+		PC->SetControlRotation(FRotator(Pitch, Yaw, 0.0));
 		PC->SetViewTarget(Pawn);
 
 		if (UDIAWorldSubsystem* S = GetSubsystem(World))
@@ -266,6 +267,11 @@ namespace DIACheats
 			return;
 		}
 		const double Delay = FMath::Max(0.0, FCString::Atod(*Args[0]));
+		// Mouse movement while the window opens would turn the camera and spoil the picture; a shot run ignores look input.
+		if (APlayerController* PC = GetPlayerController(World))
+		{
+			PC->SetIgnoreLookInput(true);
+		}
 		const FString Path = FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir() / TEXT("Screenshots") / (Args[1] + TEXT(".png")));
 
 		struct FState
@@ -323,7 +329,7 @@ namespace DIACheats
 	FAutoConsoleCommandWithWorldAndArgs CompleteRoadCommand(TEXT("dia.CompleteRoad"), TEXT("dia.CompleteRoad <0..5>"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&CompleteRoad));
 	FAutoConsoleCommandWithWorldAndArgs SetLevelsCommand(TEXT("dia.SetLevels"), TEXT("dia.SetLevels <backpack> <tool> <plant>"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&SetLevels));
 	FAutoConsoleCommandWithWorldAndArgs SpecialCommand(TEXT("dia.Special"), TEXT("dia.Special <Sprint|TwoHands|PortableStation|AutoPaver|PaverCar>"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Special));
-	FAutoConsoleCommandWithWorldAndArgs TeleportCommand(TEXT("dia.Teleport"), TEXT("dia.Teleport <x> <y> [yaw]"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Teleport));
+	FAutoConsoleCommandWithWorldAndArgs TeleportCommand(TEXT("dia.Teleport"), TEXT("dia.Teleport <x> <y> [yaw] [pitch]"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Teleport));
 	FAutoConsoleCommandWithWorldAndArgs TopViewCommand(TEXT("dia.TopView"), TEXT("dia.TopView: camera 45 m above the centre, looking straight down"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&TopView));
 	FAutoConsoleCommandWithWorldAndArgs ShotAndQuitCommand(TEXT("dia.ShotAndQuit"), TEXT("dia.ShotAndQuit <seconds> <name>: saves Saved/Screenshots/<name>.png and quits"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&ShotAndQuit));
 }

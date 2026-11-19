@@ -6,12 +6,17 @@
 #include "GameFramework/GameModeBase.h"
 #include "DIAGameMode.generated.h"
 
-/** Builds the scene when play starts. Later tasks add the plant, kiosks, gate, fence and the character. */
+/** Builds the scene when play starts: the ground and the plant; the player is an ADIACharacter. Later tasks add kiosks, gate and fence. */
 UCLASS(NotBlueprintable)
 class DOITASPHALT_API ADIAGameMode : public AGameModeBase
 {
 	GENERATED_BODY()
 
 public:
+	ADIAGameMode();
+
 	virtual void StartPlay() override;
+
+	/** The player starts at AsphaltLayout::PlayerStart facing the lot (+X), whatever PlayerStart actors the level has. */
+	virtual AActor* ChoosePlayerStart_Implementation(AController* Player) override;
 };

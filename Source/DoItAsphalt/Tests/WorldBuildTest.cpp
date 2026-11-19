@@ -10,8 +10,8 @@
 #include "Engine/World.h"
 #include "Game/DIAAssets.h"
 #include "Game/DIAGameMode.h"
+#include "Tests/DIATestWorld.h"
 #include "Game/DIAWorldSubsystem.h"
-#include "GameFramework/WorldSettings.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "Tests/AutomationCommon.h"
@@ -19,28 +19,6 @@
 
 namespace
 {
-	/** Creates a game world that uses ADIAGameMode regardless of the project config and starts play in it. */
-	bool StartGameWorld(FTestWorldWrapper& Wrapper, FAutomationTestBase& Test)
-	{
-		if (!Wrapper.CreateTestWorld(EWorldType::Game))
-		{
-			Wrapper.ForwardErrorMessages(&Test);
-			return false;
-		}
-		AWorldSettings* Settings = Wrapper.GetTestWorld()->GetWorldSettings();
-		if (!Test.TestNotNull(TEXT("world settings"), Settings))
-		{
-			return false;
-		}
-		Settings->DefaultGameMode = ADIAGameMode::StaticClass();
-		if (!Wrapper.BeginPlayInTestWorld())
-		{
-			Wrapper.ForwardErrorMessages(&Test);
-			return false;
-		}
-		return true;
-	}
-
 	/** Texel of a texture that spans the plot containing the world coordinate. */
 	int32 TexelIndex(double WorldX, double WorldY, int32 Size)
 	{
@@ -58,7 +36,7 @@ bool FWorldBuildsTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("project default game mode"), UGameMapsSettings::GetGlobalDefaultGameMode(), FString(TEXT("/Script/DoItAsphalt.DIAGameMode")));
 
 	FTestWorldWrapper Wrapper;
-	if (!StartGameWorld(Wrapper, *this))
+	if (!DIATest::StartGameWorld(Wrapper, *this))
 	{
 		return false;
 	}
@@ -114,7 +92,7 @@ DIA_TEST(FSubsystemDispatchTest, "DoItAsphalt.Game.SubsystemDispatch")
 bool FSubsystemDispatchTest::RunTest(const FString& Parameters)
 {
 	FTestWorldWrapper Wrapper;
-	if (!StartGameWorld(Wrapper, *this))
+	if (!DIATest::StartGameWorld(Wrapper, *this))
 	{
 		return false;
 	}
@@ -194,7 +172,7 @@ bool FGroundTexturesTest::RunTest(const FString& Parameters)
 
 	// The ground follows the grid: a changed area is consumed (uploaded) when the state changes.
 	FTestWorldWrapper Wrapper;
-	if (!StartGameWorld(Wrapper, *this))
+	if (!DIATest::StartGameWorld(Wrapper, *this))
 	{
 		return false;
 	}
