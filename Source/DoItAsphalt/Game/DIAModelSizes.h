@@ -32,6 +32,14 @@ namespace DIAModelSizes
 	inline const FVector PlantAddonACm(160.0, 160.0, 550.0);
 	inline const FVector PlantAddonBCm(240.0, 180.0, 300.0);
 
+	/** Kiosk (origin at the centre of the footprint, on the ground) and the padlock shown on a locked one (origin at its centre). */
+	inline const FVector KioskCm(60.0, 80.0, 220.0);
+	inline const FVector LockCm(10.0, 30.0, 40.0);
+
+	/** Old road behind the end of a road (origin at the centre of the near edge, runs towards +X) and the barrier that closes it (origin at the centre of the footprint). */
+	inline const FVector RoadStubCm(1200.0, 340.0, 5.0);
+	inline const FVector BarrierCm(30.0, 340.0, 100.0);
+
 	/** Thickness of the flat disc that marks the refill zone. */
 	inline constexpr double RefillMarkerThicknessCm = 1.0;
 }

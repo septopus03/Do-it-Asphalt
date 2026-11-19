@@ -14,7 +14,7 @@
 
 namespace
 {
-	TSharedRef<STextBlock> MakeText(TAttribute<FText> Text, int32 Size, const FLinearColor& Color)
+	TSharedRef<STextBlock> MakeShopText(TAttribute<FText> Text, int32 Size, const FLinearColor& Color)
 	{
 		return SNew(STextBlock)
 			.Text(Text)
@@ -70,7 +70,7 @@ void SDIAShopPanel::Construct(const FArguments& InArgs)
 					SNew(SHorizontalBox)
 					+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
 					[
-						MakeText(NSLOCTEXT("DIAHud", "ShopTitle", "SHOP"), AsphaltHud::BigFontSize, AsphaltHud::TextColor)
+						MakeShopText(NSLOCTEXT("DIAHud", "ShopTitle", "SHOP"), AsphaltHud::BigFontSize, AsphaltHud::TextColor)
 					]
 					+ SHorizontalBox::Slot().FillWidth(1.f)
 					[
@@ -78,7 +78,7 @@ void SDIAShopPanel::Construct(const FArguments& InArgs)
 					]
 					+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Bottom).Padding(24.f, 0.f, 0.f, 4.f)
 					[
-						MakeText(NSLOCTEXT("DIAHud", "ShopHint", "Tab - close"), AsphaltHud::CaptionFontSize, AsphaltHud::CaptionColor)
+						MakeShopText(NSLOCTEXT("DIAHud", "ShopHint", "Tab - close"), AsphaltHud::CaptionFontSize, AsphaltHud::CaptionColor)
 					]
 				]
 				+ SVerticalBox::Slot().AutoHeight()
@@ -132,21 +132,21 @@ TSharedRef<SWidget> SDIAShopPanel::BuildRow(int32 Row)
 			[
 				SNew(SBox).WidthOverride(AsphaltHud::ShopNameWidth)
 				[
-					MakeText(TAttribute<FText>::CreateLambda([this, Index]() { return Model.GetRow(Index).Name; }), AsphaltHud::MediumFontSize, AsphaltHud::TextColor)
+					MakeShopText(TAttribute<FText>::CreateLambda([this, Index]() { return Model.GetRow(Index).Name; }), AsphaltHud::MediumFontSize, AsphaltHud::TextColor)
 				]
 			]
 			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
 			[
 				SNew(SBox).WidthOverride(AsphaltHud::ShopChangeWidth)
 				[
-					MakeText(TAttribute<FText>::CreateLambda([this, Index]() { return Model.GetRow(Index).Change; }), AsphaltHud::MediumFontSize, AsphaltHud::CaptionColor)
+					MakeShopText(TAttribute<FText>::CreateLambda([this, Index]() { return Model.GetRow(Index).Change; }), AsphaltHud::MediumFontSize, AsphaltHud::CaptionColor)
 				]
 			]
 			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
 			[
 				SNew(SBox).WidthOverride(AsphaltHud::ShopPriceWidth)
 				[
-					MakeText(TAttribute<FText>::CreateLambda([this, Index]() { return Model.GetRow(Index).Price; }), AsphaltHud::MediumFontSize,
+					MakeShopText(TAttribute<FText>::CreateLambda([this, Index]() { return Model.GetRow(Index).Price; }), AsphaltHud::MediumFontSize,
 						bShards ? AsphaltHud::ShardColor : AsphaltHud::MoneyColor)
 				]
 			]

@@ -217,7 +217,10 @@ namespace DIACheats
 
 		// Keep the pawn's height: whatever stands on the ground already has the right one. The pawn turns by yaw
 		// only; the camera (control rotation) also gets the pitch.
-		Pawn->TeleportTo(FVector(X, Y, Pawn->GetActorLocation().Z), FRotator(0.0, Yaw, 0.0));
+		if (!Pawn->TeleportTo(FVector(X, Y, Pawn->GetActorLocation().Z), FRotator(0.0, Yaw, 0.0)))
+		{
+			UE_LOG(LogDoItAsphalt, Warning, TEXT("dia.Teleport: the spot (%.0f, %.0f) is blocked, the player stays where it is"), X, Y);
+		}
 		PC->SetControlRotation(FRotator(Pitch, Yaw, 0.0));
 		PC->SetViewTarget(Pawn);
 

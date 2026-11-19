@@ -52,7 +52,7 @@ bool FFormatTest::RunTest(const FString& Parameters)
 	Is(TEXT("toast 137 shards"), DIAFormat::ShardsToast(137), TEXT("+137 shards"));
 	Is(TEXT("toast road"), DIAFormat::RoadToast(2), TEXT("Road 3 complete"));
 	Is(TEXT("toast exit"), DIAFormat::ExitToast(), TEXT("The exit is open!"));
-	Is(TEXT("special name"), DIAFormat::SpecialName(EAsphaltSpecial::PortableStation), TEXT("Portable station"));
+	Is(TEXT("special name"), DIAFormat::SpecialName(EAsphaltSpecial::PortableStation), TEXT("Portable Station"));
 	Is(TEXT("special toast"), DIAFormat::SpecialToast(EAsphaltSpecial::Sprint), TEXT("Sprint unlocked"));
 	return true;
 }

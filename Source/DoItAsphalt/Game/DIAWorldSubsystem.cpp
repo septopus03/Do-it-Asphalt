@@ -1,6 +1,8 @@
 // Copyright Do it Asphalt. All Rights Reserved.
 
 #include "Game/DIAWorldSubsystem.h"
+#include "GameFramework/Actor.h"
+#include "Player/DIACharacter.h"
 
 namespace
 {
@@ -49,6 +51,66 @@ bool UDIAWorldSubsystem::BuySpecial(EAsphaltSpecial S)
 	OnSpecialBought.Broadcast(S);
 	OnStateChanged.Broadcast();
 	return true;
+}
+
+void UDIAWorldSubsystem::RegisterInteractable(AActor* Actor, IDIAInteractable* Interactable)
+{
+	if (!Actor || !Interactable)
+	{
+		return;
+	}
+	UnregisterInteractable(Actor);
+	Interactables.Add({Actor, Interactable});
+}
+
+void UDIAWorldSubsystem::UnregisterInteractable(const AActor* Actor)
+{
+	Interactables.RemoveAll([Actor](const FInteractableEntry& Entry) { return !Entry.Actor.IsValid() || Entry.Actor.Get() == Actor; });
+}
+
+IDIAInteractable* UDIAWorldSubsystem::FindInteractable(const ADIACharacter* Who, AActor** OutActor) const
+{
+	if (OutActor)
+	{
+		*OutActor = nullptr;
+	}
+	if (!Who)
+	{
+		return nullptr;
+	}
+	const FVector Point = Who->GetActorLocation();
+	IDIAInteractable* Best = nullptr;
+	double BestDistance = DIAInteraction::RangeCm;
+	for (const FInteractableEntry& Entry : Interactables)
+	{
+		AActor* Actor = Entry.Actor.Get();
+		if (!Actor)
+		{
+			continue;
+		}
+		// Distance to the collision envelope; an actor without collision is measured to its origin.
+		FVector Closest;
+		double Distance = Actor->ActorGetDistanceToCollision(Point, ECC_Pawn, Closest);
+		if (Distance < 0.0)
+		{
+			Distance = FVector::Dist(Point, Actor->GetActorLocation());
+		}
+		if (Distance > BestDistance)
+		{
+			continue;
+		}
+		if (Entry.Interactable->GetPrompt(Who).IsEmpty())
+		{
+			continue;
+		}
+		Best = Entry.Interactable;
+		BestDistance = Distance;
+		if (OutActor)
+		{
+			*OutActor = Actor;
+		}
+	}
+	return Best;
 }
 
 void UDIAWorldSubsystem::Tick(float DeltaTime)

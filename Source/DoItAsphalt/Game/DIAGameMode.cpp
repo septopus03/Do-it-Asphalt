@@ -1,6 +1,7 @@
 // Copyright Do it Asphalt. All Rights Reserved.
 
 #include "Game/DIAGameMode.h"
+#include "AsphaltBalance.h"
 #include "AsphaltLayout.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
@@ -9,6 +10,8 @@
 #include "Player/DIAPlayerController.h"
 #include "UI/DIAHUD.h"
 #include "World/DIAGroundActor.h"
+#include "World/DIAKioskActor.h"
+#include "World/DIARoadActor.h"
 #include "World/DIAPlantActor.h"
 
 namespace
@@ -33,6 +36,35 @@ void ADIAGameMode::StartPlay()
 		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 		World->SpawnActor<ADIAGroundActor>(FVector::ZeroVector, FRotator::ZeroRotator, Params);
 		World->SpawnActor<ADIAPlantActor>(FVector(AsphaltLayout::PlantPos.X, AsphaltLayout::PlantPos.Y, 0.0), FRotator::ZeroRotator, Params);
+
+		// The old road behind the end of each of the six roads, closed by a barrier on the five that are not the exit.
+		for (int32 Road = 0; Road < FHexMap::NumRoads; ++Road)
+		{
+			ADIARoadActor* RoadActor = World->SpawnActorDeferred<ADIARoadActor>(ADIARoadActor::StaticClass(), ADIARoadActor::MakeTransform(Road), nullptr, nullptr,
+				ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+			if (RoadActor)
+			{
+				RoadActor->Road = Road;
+				RoadActor->FinishSpawning(ADIARoadActor::MakeTransform(Road));
+			}
+		}
+
+		// One kiosk per special, beside the end of the road that unlocks it, with the screen towards the road.
+		for (int32 Index = 0; Index < static_cast<int32>(EAsphaltSpecial::Count); ++Index)
+		{
+			const EAsphaltSpecial Special = static_cast<EAsphaltSpecial>(Index);
+			const int32 Road = AsphaltBalance::SpecialRoad[Index];
+			const FVector2D Where = AsphaltLayout::KioskPos(Road);
+			const FVector2D ToRoad = AsphaltLayout::RoadEnd(Road) - Where;
+			const FTransform Transform(FRotator(0.0, FMath::RadiansToDegrees(FMath::Atan2(ToRoad.Y, ToRoad.X)), 0.0), FVector(Where.X, Where.Y, 0.0));
+			ADIAKioskActor* Kiosk = World->SpawnActorDeferred<ADIAKioskActor>(ADIAKioskActor::StaticClass(), Transform, nullptr, nullptr,
+				ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+			if (Kiosk)
+			{
+				Kiosk->Special = Special;
+				Kiosk->FinishSpawning(Transform);
+			}
+		}
 	}
 	Super::StartPlay();
 }

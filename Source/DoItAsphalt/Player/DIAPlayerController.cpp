@@ -10,8 +10,10 @@
 #include "InputActionValue.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Misc/App.h"
+#include "Game/DIAWorldSubsystem.h"
 #include "Player/DIACharacter.h"
 #include "UI/DIAHUD.h"
+#include "World/DIAInteractable.h"
 
 void ADIAPlayerController::InitInputSystem()
 {
@@ -116,9 +118,44 @@ void ADIAPlayerController::OnSprintCompleted()
 	}
 }
 
+IDIAInteractable* ADIAPlayerController::FindInteractable() const
+{
+	// The shop covers the screen and the mouse belongs to it: nothing can be used behind it.
+	if (bShopInput)
+	{
+		return nullptr;
+	}
+	const ADIACharacter* Character = GetDIACharacter();
+	UWorld* World = GetWorld();
+	UDIAWorldSubsystem* Subsystem = World ? World->GetSubsystem<UDIAWorldSubsystem>() : nullptr;
+	return Character && Subsystem ? Subsystem->FindInteractable(Character) : nullptr;
+}
+
+void ADIAPlayerController::PlayerTick(float DeltaTime)
+{
+	Super::PlayerTick(DeltaTime);
+	UpdatePrompt();
+}
+
+void ADIAPlayerController::UpdatePrompt()
+{
+	ADIAHUD* Hud = Cast<ADIAHUD>(GetHUD());
+	if (!Hud)
+	{
+		return;
+	}
+	const ADIACharacter* Character = GetDIACharacter();
+	const IDIAInteractable* Interactable = FindInteractable();
+	Hud->SetPrompt(Interactable ? Interactable->GetPrompt(Character) : FText::GetEmpty());
+}
+
 void ADIAPlayerController::OnInteract()
 {
-	// Later tasks: kiosks, station, car.
+	// The search is repeated here instead of trusting the last frame's, so E always acts on what is in front of the player now.
+	if (IDIAInteractable* Interactable = FindInteractable())
+	{
+		Interactable->Interact(GetDIACharacter());
+	}
 }
 
 void ADIAPlayerController::OnShop()

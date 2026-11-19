@@ -35,10 +35,11 @@ namespace
 	/**
 	 * Adds a static mesh below Pivot. The real model (/Game/Models/<MeshName>) sits at the pivot as it is, scaled in Y by
 	 * RealYScale; if it does not exist an engine shape of SizeCm is used instead, moved by FallbackOffsetCm (in the
-	 * pivot's axes) so that it occupies the place the real model would, and painted with the palette material.
+	 * pivot's axes) so that it occupies the place the real model would, and painted with the palette material. SideCm moves
+	 * either of them sideways (along the pivot's Y) as a whole.
 	 */
 	UStaticMeshComponent* AddPart(AActor* Owner, USceneComponent* Pivot, FName MeshName, DIAAssets::EFallback Shape, const FVector& SizeCm,
-		const FVector& FallbackOffsetCm, FName PaletteName, double RealYScale)
+		const FVector& FallbackOffsetCm, FName PaletteName, double RealYScale, double SideCm = 0.0)
 	{
 		FVector Scale = FVector::OneVector;
 		UStaticMesh* Mesh = DIAAssets::LoadMeshOrFallback(MeshName, Shape, SizeCm, Scale);
@@ -53,7 +54,7 @@ namespace
 		Component->SetupAttachment(Pivot);
 		if (IsEngineShape(Mesh))
 		{
-			Component->SetRelativeLocation(FallbackOffsetCm);
+			Component->SetRelativeLocation(FallbackOffsetCm + FVector(0.0, SideCm, 0.0));
 			Component->SetRelativeScale3D(Scale);
 			if (UMaterialInterface* Material = DIAAssets::Palette(PaletteName))
 			{
@@ -62,6 +63,7 @@ namespace
 		}
 		else
 		{
+			Component->SetRelativeLocation(FVector(0.0, SideCm, 0.0));
 			Component->SetRelativeScale3D(FVector(1.0, RealYScale, 1.0));
 		}
 		Component->RegisterComponent();
@@ -314,13 +316,21 @@ void ADIACharacter::RefreshEquipment()
 		ShownToolLevel = ToolLevel;
 		bShownTwoHands = bTwoHands;
 		DestroyPart(SpreaderMesh);
+		DestroyPart(SecondSpreaderMesh);
+		// W is the width of one spreader. With TwoHands there are two of them side by side at Y = -W/2 and +W/2, together
+		// 2 W wide, which is what GetToolWidthCm() reports (and what pouring uses).
 		const double LevelWidthCm = AsphaltBalance::ToolWidthM[ToolLevel] * 100.0;
-		const double WidthCm = Game.GetToolWidthCm();
 		const FString Name = FString::Printf(TEXT("SM_Spreader_%03d"), FMath::RoundToInt(LevelWidthCm));
-		// The placeholder is as wide as the bar and rests on the ground; the real model of a level is scaled up
-		// when TwoHands doubles the width.
-		SpreaderMesh = AddPart(this, SpreaderPivot, FName(*Name), DIAAssets::EFallback::Cube,
-			FVector(DIAModelSizes::SpreaderDepthCm, WidthCm, DIAModelSizes::SpreaderHeightCm),
-			FVector(0.0, 0.0, DIAModelSizes::SpreaderHeightCm * 0.5), TEXT("DIA_Yellow"), WidthCm / LevelWidthCm);
+		const FVector PlaceholderSizeCm(DIAModelSizes::SpreaderDepthCm, LevelWidthCm, DIAModelSizes::SpreaderHeightCm);
+		const FVector PlaceholderOffsetCm(0.0, 0.0, DIAModelSizes::SpreaderHeightCm * 0.5);
+		const double SideCm = bTwoHands ? LevelWidthCm * 0.5 : 0.0;
+		// The placeholder is as wide as the bar and rests on the ground.
+		SpreaderMesh = AddPart(this, SpreaderPivot, FName(*Name), DIAAssets::EFallback::Cube, PlaceholderSizeCm, PlaceholderOffsetCm,
+			TEXT("DIA_Yellow"), 1.0, -SideCm);
+		if (bTwoHands)
+		{
+			SecondSpreaderMesh = AddPart(this, SpreaderPivot, FName(*Name), DIAAssets::EFallback::Cube, PlaceholderSizeCm, PlaceholderOffsetCm,
+				TEXT("DIA_Yellow"), 1.0, SideCm);
+		}
 	}
 }

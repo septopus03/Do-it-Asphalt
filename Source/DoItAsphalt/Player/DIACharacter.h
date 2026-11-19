@@ -70,7 +70,9 @@ public:
 	void DoMove(float Right, float Forward);
 	void DoLook(float Yaw, float Pitch);
 
+	/** The spreader (the left one with TwoHands); the second one only exists with the TwoHands special. */
 	UStaticMeshComponent* GetSpreaderMesh() const { return SpreaderMesh; }
+	UStaticMeshComponent* GetSecondSpreaderMesh() const { return SecondSpreaderMesh; }
 	UStaticMeshComponent* GetBackpackMesh() const { return BackpackMesh; }
 	UStaticMeshComponent* GetHelmetMesh() const { return HelmetMesh; }
 	USceneComponent* GetBackpackPivot() const { return BackpackPivot; }
@@ -104,6 +106,8 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UStaticMeshComponent> SpreaderMesh;
+	UPROPERTY()
+	TObjectPtr<UStaticMeshComponent> SecondSpreaderMesh;
 	UPROPERTY()
 	TObjectPtr<UStaticMeshComponent> BackpackMesh;
 	UPROPERTY()

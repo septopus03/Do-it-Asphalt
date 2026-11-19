@@ -21,6 +21,11 @@ ADIAHUD::ADIAHUD()
 
 void ADIAHUD::SetPrompt(const FText& Text)
 {
+	// Called every frame by the player controller: unchanged text must cost nothing.
+	if (Prompt.IdenticalTo(Text) || Prompt.ToString().Equals(Text.ToString()))
+	{
+		return;
+	}
 	Prompt = Text;
 }
 

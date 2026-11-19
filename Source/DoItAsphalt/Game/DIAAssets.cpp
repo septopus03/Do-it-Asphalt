@@ -2,6 +2,7 @@
 
 #include "Game/DIAAssets.h"
 #include "DoItAsphalt.h"
+#include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Materials/MaterialInterface.h"
 #include "Misc/PackageName.h"
@@ -53,5 +54,27 @@ namespace DIAAssets
 		}
 		const FString ObjectPath = FString::Printf(TEXT("%s.MI_%s"), *Package, *Name.ToString());
 		return LoadObject<UMaterialInterface>(nullptr, *ObjectPath, nullptr, LOAD_Quiet | LOAD_NoWarn);
+	}
+}
+
+namespace DIAAssets
+{
+	bool SetModelOrFallback(UStaticMeshComponent* Component, FName Name, EFallback Shape, const FVector& SizeCm,
+		const FVector& FallbackOffsetCm, FName PaletteName)
+	{
+		FVector Scale = FVector::OneVector;
+		UStaticMesh* Mesh = LoadMeshOrFallback(Name, Shape, SizeCm, Scale);
+		Component->SetStaticMesh(Mesh);
+		const bool bFallback = Mesh && Mesh->GetPathName().StartsWith(TEXT("/Engine/BasicShapes/"));
+		if (bFallback)
+		{
+			Component->SetRelativeScale3D(Scale);
+			Component->AddRelativeLocation(FallbackOffsetCm);
+			if (UMaterialInterface* Material = Palette(PaletteName))
+			{
+				Component->SetMaterial(0, Material);
+			}
+		}
+		return !bFallback;
 	}
 }

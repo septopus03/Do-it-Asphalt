@@ -241,9 +241,13 @@ bool FCharacterEquipmentTest::RunTest(const FString& Parameters)
 	}
 	Game.DebugGrantSpecial(EAsphaltSpecial::TwoHands);
 	Wrapper.TickTestWorld(TickSeconds);
-	if (TestNotNull(TEXT("spreader after TwoHands"), Character->GetSpreaderMesh()) && bPlaceholder)
+	// TwoHands: two spreaders of the level's width side by side (Y = -W/2 and +W/2), each 2 m wide here.
+	if (TestNotNull(TEXT("spreader after TwoHands"), Character->GetSpreaderMesh()) && TestNotNull(TEXT("second spreader after TwoHands"), Character->GetSecondSpreaderMesh()) && bPlaceholder)
 	{
-		TestTrue(TEXT("TwoHands doubles the strip"), Character->GetSpreaderMesh()->GetRelativeScale3D().Equals(FVector(0.08, 4.0, 0.08), 0.001));
+		TestTrue(TEXT("each of the two spreaders is 200 cm wide"), Character->GetSpreaderMesh()->GetRelativeScale3D().Equals(FVector(0.08, 2.0, 0.08), 0.001)
+			&& Character->GetSecondSpreaderMesh()->GetRelativeScale3D().Equals(FVector(0.08, 2.0, 0.08), 0.001));
+		TestTrue(TEXT("they sit at Y = -100 and +100"), FMath::IsNearlyEqual(Character->GetSpreaderMesh()->GetRelativeLocation().Y, -100.0, 0.01)
+			&& FMath::IsNearlyEqual(Character->GetSecondSpreaderMesh()->GetRelativeLocation().Y, 100.0, 0.01));
 	}
 
 	// Speed: walking, pouring (slower) and sprinting (only with the special).

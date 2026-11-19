@@ -6,7 +6,7 @@
 #include "GameFramework/GameModeBase.h"
 #include "DIAGameMode.generated.h"
 
-/** Builds the scene when play starts: the ground and the plant; the player is an ADIACharacter. Later tasks add kiosks, gate and fence. */
+/** Builds the scene when play starts: the ground, the plant, the six old road ends with their barriers and the five kiosks; the player is an ADIACharacter. Later tasks add the gate and the fence. */
 UCLASS(NotBlueprintable)
 class DOITASPHALT_API ADIAGameMode : public AGameModeBase
 {

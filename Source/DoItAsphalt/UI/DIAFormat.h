@@ -31,6 +31,12 @@ namespace DIAFormat
 	DOITASPHALT_API FText SpecialName(EAsphaltSpecial Special);
 	DOITASPHALT_API FText SpecialToast(EAsphaltSpecial Special);
 	DOITASPHALT_API FText ExitToast();
+
+	/**
+	 * The prompt at the kiosk of a special: "Finish the road (3 / 5)" until its road is complete, then "E – Buy Sprint (100)",
+	 * "Sprint – need 100" when the money does not suffice, and "Sprint – owned" afterwards.
+	 */
+	DOITASPHALT_API FText KioskPrompt(const FAsphaltGame& Game, EAsphaltSpecial Special);
 }
 
 /** What the HUD shows, already formatted. */

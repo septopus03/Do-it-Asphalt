@@ -126,10 +126,10 @@ FText DIAFormat::SpecialName(EAsphaltSpecial Special)
 	switch (Special)
 	{
 	case EAsphaltSpecial::Sprint: return LOCTEXT("SpecialSprint", "Sprint");
-	case EAsphaltSpecial::TwoHands: return LOCTEXT("SpecialTwoHands", "Two hands");
-	case EAsphaltSpecial::PortableStation: return LOCTEXT("SpecialStation", "Portable station");
-	case EAsphaltSpecial::AutoPaver: return LOCTEXT("SpecialAutoPaver", "Auto paver");
-	case EAsphaltSpecial::PaverCar: return LOCTEXT("SpecialPaverCar", "Paver car");
+	case EAsphaltSpecial::TwoHands: return LOCTEXT("SpecialTwoHands", "Two Hands");
+	case EAsphaltSpecial::PortableStation: return LOCTEXT("SpecialStation", "Portable Station");
+	case EAsphaltSpecial::AutoPaver: return LOCTEXT("SpecialAutoPaver", "Auto Paver");
+	case EAsphaltSpecial::PaverCar: return LOCTEXT("SpecialPaverCar", "Paver Truck");
 	default: return FText::GetEmpty();
 	}
 }
@@ -137,6 +137,26 @@ FText DIAFormat::SpecialName(EAsphaltSpecial Special)
 FText DIAFormat::SpecialToast(EAsphaltSpecial Special)
 {
 	return FText::Format(LOCTEXT("ToastSpecial", "{0} unlocked"), SpecialName(Special));
+}
+
+FText DIAFormat::KioskPrompt(const FAsphaltGame& Game, EAsphaltSpecial Special)
+{
+	const FText Name = SpecialName(Special);
+	const int32 Road = Game.GetSpecialRoad(Special);
+	if (!Game.IsRoadComplete(Road))
+	{
+		return FText::Format(LOCTEXT("PromptRoad", "Finish the road ({0} / {1})"), Count(Game.GetRoadProgress(Road)), Count(FHexMap::CellsPerRoad));
+	}
+	if (Game.HasSpecial(Special))
+	{
+		return FText::Format(LOCTEXT("PromptOwned", "{0} \u2013 owned"), Name);
+	}
+	const FText Price = Count(FMath::RoundToInt64(Game.GetSpecialPrice(Special)));
+	if (Game.CanBuySpecial(Special))
+	{
+		return FText::Format(LOCTEXT("PromptBuy", "E \u2013 Buy {0} ({1})"), Name, Price);
+	}
+	return FText::Format(LOCTEXT("PromptNeed", "{0} \u2013 need {1}"), Name, Price);
 }
 
 FText DIAFormat::ExitToast()

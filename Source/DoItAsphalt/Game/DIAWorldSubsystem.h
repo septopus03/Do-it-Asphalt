@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "AsphaltGame.h"
 #include "Subsystems/WorldSubsystem.h"
+#include "World/DIAInteractable.h"
 #include "DIAWorldSubsystem.generated.h"
 
 /**
@@ -39,6 +40,15 @@ public:
 	/** Buys a special; broadcasts OnSpecialBought and OnStateChanged on success. */
 	bool BuySpecial(EAsphaltSpecial S);
 
+	/** Interactables (kiosks, later the station and the car) register themselves while they are in the world. */
+	void RegisterInteractable(AActor* Actor, IDIAInteractable* Interactable);
+	void UnregisterInteractable(const AActor* Actor);
+	/**
+	 * The nearest registered interactable whose collision envelope is within DIAInteraction::RangeCm of the character and whose
+	 * prompt is not empty; null if there is none. Runs every frame: no allocation, a handful of distance queries.
+	 */
+	IDIAInteractable* FindInteractable(const ADIACharacter* Who, AActor** OutActor = nullptr) const;
+
 	/** Anything the HUD shows changed. */
 	FSimpleMulticastDelegate OnStateChanged;
 	FOnCells OnCellsCompleted;
@@ -52,5 +62,12 @@ public:
 	virtual bool DoesSupportWorldType(const EWorldType::Type WorldType) const override;
 
 private:
+	struct FInteractableEntry
+	{
+		TWeakObjectPtr<AActor> Actor;
+		IDIAInteractable* Interactable = nullptr;
+	};
+	TArray<FInteractableEntry> Interactables;
+
 	FAsphaltGame Game;
 };

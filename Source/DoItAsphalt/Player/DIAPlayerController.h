@@ -11,8 +11,9 @@ struct FInputActionValue;
 
 /**
  * Creates the input assets, adds the mapping context to the local player and routes the actions to the character.
- * Shop (Tab) toggles the shop panel of the HUD and Pause (Esc) closes it; Interact and the rest of Pause are bound but do
- * nothing yet (later tasks fill them in).
+ * Shop (Tab) toggles the shop panel of the HUD and Pause (Esc) closes it. Every frame it looks for the nearest interactable
+ * (kiosk, ...) within reach and shows its prompt; Interact (E) uses it. While the shop is open there is no prompt and E
+ * does nothing. The rest of Pause is bound but does nothing yet (a later task fills it in).
  */
 UCLASS(NotBlueprintable)
 class DOITASPHALT_API ADIAPlayerController : public APlayerController
@@ -30,6 +31,11 @@ public:
 	void SetShopInput(bool bOpen);
 	bool IsShopInput() const { return bShopInput; }
 
+	/** What E would use right now (null if nothing is within reach, or the shop is open). */
+	class IDIAInteractable* FindInteractable() const;
+
+	virtual void PlayerTick(float DeltaTime) override;
+
 protected:
 	virtual void InitInputSystem() override;
 	virtual void SetupInputComponent() override;
@@ -46,6 +52,8 @@ private:
 	void OnPause();
 
 	class ADIACharacter* GetDIACharacter() const;
+	/** Sends the prompt of the nearest interactable to the HUD (a no-op for unchanged text). */
+	void UpdatePrompt();
 
 	UPROPERTY()
 	FDIAInput Input;

@@ -1,0 +1,37 @@
+// Copyright Do it Asphalt. All Rights Reserved.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "UObject/Interface.h"
+#include "DIAInteractable.generated.h"
+
+class ADIACharacter;
+
+/** How the player finds things to interact with. */
+namespace DIAInteraction
+{
+	/** An interactable counts as near when its collision envelope is at most this far from the character (cm). */
+	inline constexpr double RangeCm = 150.0;
+}
+
+UINTERFACE(MinimalAPI, NotBlueprintable)
+class UDIAInteractable : public UInterface
+{
+	GENERATED_BODY()
+};
+
+/**
+ * Something the player can use with E: a kiosk now, later the portable station and the paver car. The player controller
+ * searches the registered interactables every frame, so both functions have to be cheap (no allocation, no work that is
+ * not needed when nothing changed).
+ */
+class DOITASPHALT_API IDIAInteractable
+{
+	GENERATED_BODY()
+
+public:
+	/** The prompt for the HUD; empty text = nothing to do here right now. */
+	virtual FText GetPrompt(const ADIACharacter* By) const = 0;
+	virtual void Interact(ADIACharacter* By) = 0;
+};
