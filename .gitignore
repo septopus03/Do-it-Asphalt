@@ -1,0 +1,8 @@
+.DS_Store
+~$*
+Binaries/
+Intermediate/
+Saved/
+DerivedDataCache/
+Builds/
+.superpowers/
