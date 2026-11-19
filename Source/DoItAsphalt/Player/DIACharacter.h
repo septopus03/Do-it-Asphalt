@@ -52,6 +52,9 @@ class DOITASPHALT_API ADIACharacter : public ACharacter
 public:
 	ADIACharacter();
 
+	/** The character the first local player controls; null while there is none (or while the player drives the truck). The one lookup the world actors share. */
+	static ADIACharacter* GetLocal(const UObject* WorldContext);
+
 	/** Starts or stops pouring; pouring slows the character down and turns it to face the camera direction. */
 	void SetPouring(bool bPour);
 	bool IsPouring() const { return bPouring; }

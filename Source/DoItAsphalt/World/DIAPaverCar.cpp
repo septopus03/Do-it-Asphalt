@@ -92,13 +92,6 @@ void ADIAPaverCar::EndPlay(const EEndPlayReason::Type Reason)
 	Super::EndPlay(Reason);
 }
 
-ADIACharacter* ADIAPaverCar::GetLocalCharacter() const
-{
-	const UWorld* World = GetWorld();
-	const APlayerController* Controller = World ? World->GetFirstPlayerController() : nullptr;
-	return Controller ? Cast<ADIACharacter>(Controller->GetPawn()) : nullptr;
-}
-
 FText ADIAPaverCar::GetPrompt(const ADIACharacter* By) const
 {
 	const UDIAWorldSubsystem* Subsystem = UDIAWorldSubsystem::Get(this);
@@ -178,7 +171,7 @@ void ADIAPaverCar::SyncFromCore()
 	// A save can say "in the truck" before the character exists; the next state change tries again.
 	if (State.bPlayerInCar && !HasDriver())
 	{
-		if (ADIACharacter* Character = GetLocalCharacter())
+		if (ADIACharacter* Character = ADIACharacter::GetLocal(this))
 		{
 			EnterBy(Character);
 		}

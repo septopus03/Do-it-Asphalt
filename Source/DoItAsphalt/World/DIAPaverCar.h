@@ -115,8 +115,6 @@ private:
 	void Pour(UDIAWorldSubsystem& Subsystem);
 	/** Where the driver can stand beside the truck; the left side if nothing is free. */
 	FVector FindExitSpot(const ADIACharacter* Character) const;
-	/** The character of the first local player; null while there is none or while the truck is driven. */
-	ADIACharacter* GetLocalCharacter() const;
 
 	UPROPERTY()
 	TObjectPtr<UBoxComponent> Collision;

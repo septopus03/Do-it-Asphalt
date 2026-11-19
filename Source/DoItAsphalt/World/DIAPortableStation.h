@@ -56,8 +56,6 @@ protected:
 	virtual void EndPlay(const EEndPlayReason::Type Reason) override;
 
 private:
-	/** The character of the first local player; null while there is none. */
-	ADIACharacter* GetLocalCharacter() const;
 	/** Makes the actor match the core: carried or standing at StationPos. Runs on every state change, so it must return early when nothing differs. */
 	void SyncFromCore();
 	void CarryBy(ADIACharacter* Carrier);

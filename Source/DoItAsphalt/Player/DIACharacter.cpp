@@ -18,6 +18,7 @@
 #include "Game/DIAWorldSubsystem.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/Controller.h"
+#include "GameFramework/PlayerController.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Materials/MaterialInterface.h"
 #include "UObject/ConstructorHelpers.h"
@@ -139,6 +140,13 @@ ADIACharacter::ADIACharacter()
 	HelmetPivot = CreateDefaultSubobject<USceneComponent>(TEXT("HelmetPivot"));
 	HelmetPivot->SetupAttachment(BodyMesh, HelmetBone);
 	HelmetPivot->SetRelativeLocationAndRotation(DIACharacter::HelmetBoneOffsetCm, DIACharacter::BoneToCharacter);
+}
+
+ADIACharacter* ADIACharacter::GetLocal(const UObject* WorldContext)
+{
+	const UWorld* World = WorldContext ? WorldContext->GetWorld() : nullptr;
+	const APlayerController* Controller = World ? World->GetFirstPlayerController() : nullptr;
+	return Controller ? Cast<ADIACharacter>(Controller->GetPawn()) : nullptr;
 }
 
 UDIAWorldSubsystem* ADIACharacter::GetSubsystem() const

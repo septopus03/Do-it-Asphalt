@@ -61,7 +61,7 @@ namespace
 		Car->SetActorLocationAndRotation(FVector(Where.X, Where.Y, DIAPaverCar::OriginHeightCm()), FRotator(0.0, YawDeg, 0.0));
 	}
 
-	void TickSeconds(FTestWorldWrapper& Wrapper, double Seconds)
+	void CarTickFor(FTestWorldWrapper& Wrapper, double Seconds)
 	{
 		const int32 Ticks = FMath::RoundToInt(Seconds * CarTicksPerSecond);
 		for (int32 I = 0; I < Ticks; ++I)
@@ -163,7 +163,7 @@ bool FCarDrivesTest::RunTest(const FString& Parameters)
 	// Forward: it reaches 600 cm/s and writes where it is into the core every frame.
 	PlaceCar(Car, FVector2D(0.0, 0.0), 0.0);
 	Car->SetThrottle(1.f);
-	TickSeconds(Wrapper, 3.0);
+	CarTickFor(Wrapper, 3.0);
 	TestEqual(TEXT("full speed forward"), Car->GetSpeed(), AsphaltBalance::CarSpeedCmS, CarToleranceCm);
 	TestTrue(TEXT("it drove along +X"), Car->GetActorLocation().X > AsphaltBalance::CarSpeedCmS);
 	TestEqual(TEXT("and stayed on its line"), Car->GetActorLocation().Y, 0.0, CarToleranceCm);
@@ -172,26 +172,26 @@ bool FCarDrivesTest::RunTest(const FString& Parameters)
 
 	// Reversing is half as fast.
 	Car->SetThrottle(-1.f);
-	TickSeconds(Wrapper, 3.0);
+	CarTickFor(Wrapper, 3.0);
 	TestEqual(TEXT("reverse is half the speed"), Car->GetSpeed(), -AsphaltBalance::CarSpeedCmS * DIAPaverCar::ReverseSpeedFactor, CarToleranceCm);
 
 	// Without throttle it stops; a standing truck does not turn even with the wheel over.
 	Car->SetThrottle(0.f);
 	Car->SetSteer(1.f);
-	TickSeconds(Wrapper, 2.0);
+	CarTickFor(Wrapper, 2.0);
 	TestEqual(TEXT("it stopped"), Car->GetSpeed(), 0.0, CarToleranceCm);
 	const double YawStanding = Car->GetActorRotation().Yaw;
-	TickSeconds(Wrapper, 1.0);
+	CarTickFor(Wrapper, 1.0);
 	TestEqual(TEXT("standing it does not turn"), Car->GetActorRotation().Yaw, YawStanding, 0.01);
 
 	// Steering right at full speed turns it at 90 degrees per second (it is at full speed after 3 s).
 	PlaceCar(Car, FVector2D(0.0, 0.0), 0.0);
 	Car->SetThrottle(1.f);
 	Car->SetSteer(0.f);
-	TickSeconds(Wrapper, 1.0);
+	CarTickFor(Wrapper, 1.0);
 	const double YawBefore = Car->GetActorRotation().Yaw;
 	Car->SetSteer(1.f);
-	TickSeconds(Wrapper, 0.1);
+	CarTickFor(Wrapper, 0.1);
 	TestTrue(TEXT("steering right turns it clockwise"), FMath::FindDeltaAngleDegrees(YawBefore, Car->GetActorRotation().Yaw) > 0.0);
 	TestTrue(TEXT("by at most 90 degrees per second"), FMath::FindDeltaAngleDegrees(YawBefore, Car->GetActorRotation().Yaw) <= DIAPaverCar::TurnRateDegPerSec * CarTickSeconds + 0.01);
 
@@ -199,7 +199,7 @@ bool FCarDrivesTest::RunTest(const FString& Parameters)
 	PlaceCar(Car, FVector2D(-1000.0, 0.0), 180.0);
 	Car->SetSteer(0.f);
 	Car->SetThrottle(1.f);
-	TickSeconds(Wrapper, 4.0);
+	CarTickFor(Wrapper, 4.0);
 	TestTrue(TEXT("it moved towards the plant"), Car->GetActorLocation().X < -1000.0 - CarToleranceCm);
 	TestTrue(TEXT("but not into it"), Car->GetActorLocation().X >= CarPlantFaceX + Car->GetCollision()->GetUnscaledBoxExtent().X - CarToleranceCm);
 	return true;
@@ -236,12 +236,12 @@ bool FCarPoursWideTest::RunTest(const FString& Parameters)
 
 	// Too far from the refill point: nothing is taken from the plant.
 	PlaceCar(Car, AsphaltLayout::RefillCenter + FVector2D(CarOutsideRefillCm, 0.0), 0.0);
-	TickSeconds(Wrapper, 3.0);
+	CarTickFor(Wrapper, 3.0);
 	TestEqual(TEXT("outside the zone the tank stays empty"), Game.GetCarLitres(), 0.0);
 
 	// 350 cm from the refill point is within 200 + 200: 3 s fill the 500 l tank (the backpack is not the character's here, nobody is in it).
 	PlaceCar(Car, AsphaltLayout::RefillCenter + FVector2D(CarAtPlantCm, 0.0), 0.0);
-	TickSeconds(Wrapper, 3.0);
+	CarTickFor(Wrapper, 3.0);
 	TestEqual(TEXT("the tank is full"), Game.GetCarLitres(), AsphaltBalance::CarTankL, CarToleranceCm);
 
 	// Pouring while driving across the middle of the lot: 300 cm wide, from the tank.
@@ -249,20 +249,20 @@ bool FCarPoursWideTest::RunTest(const FString& Parameters)
 	const double PouredBefore = Game.GetTotalLitresPoured();
 	Car->SetPouring(true);
 	Car->SetThrottle(1.f);
-	TickSeconds(Wrapper, 2.0);
+	CarTickFor(Wrapper, 2.0);
 	TestTrue(TEXT("it poured more than 100 l"), Game.GetTotalLitresPoured() - PouredBefore > 100.0);
 	TestTrue(TEXT("from the car tank"), Game.GetCarLitres() < AsphaltBalance::CarTankL);
 	TestTrue(TEXT("the core's position is the actor's"), Game.World().CarPos.Equals(CarWhere(Car), CarToleranceCm));
 
 	// Standing still it lays nothing (the stamp needs a direction), and with the button up nothing either.
 	Car->SetThrottle(0.f);
-	TickSeconds(Wrapper, 1.0);
+	CarTickFor(Wrapper, 1.0);
 	const double LitresStanding = Game.GetCarLitres();
-	TickSeconds(Wrapper, 1.0);
+	CarTickFor(Wrapper, 1.0);
 	TestEqual(TEXT("a standing truck pours nothing"), Game.GetCarLitres(), LitresStanding);
 	Car->SetPouring(false);
 	Car->SetThrottle(1.f);
-	TickSeconds(Wrapper, 1.0);
+	CarTickFor(Wrapper, 1.0);
 	TestEqual(TEXT("without the button nothing is poured"), Game.GetCarLitres(), LitresStanding);
 	return true;
 }
@@ -326,12 +326,12 @@ bool FCarEnterExitTest::RunTest(const FString& Parameters)
 	Controller->OnMove(FInputActionValue(FVector2D(0.0, 1.0)));
 	Controller->OnPourStarted();
 	TestTrue(TEXT("the button pours the truck"), Car->IsPouring());
-	TickSeconds(Wrapper, 1.0);
+	CarTickFor(Wrapper, 1.0);
 	TestTrue(TEXT("W drives it forward"), Car->GetActorLocation().X > 0.0);
 	TestTrue(TEXT("the character moved with it"), CarWhere(Character).Equals(CarWhere(Car), CarNextToCm));
 	Controller->OnMoveStopped();
 	Controller->OnPourCompleted();
-	TickSeconds(Wrapper, 2.0);
+	CarTickFor(Wrapper, 2.0);
 	TestEqual(TEXT("without the keys it stands"), Car->GetSpeed(), 0.0, CarToleranceCm);
 	TestFalse(TEXT("and does not pour"), Car->IsPouring());
 
@@ -355,7 +355,7 @@ bool FCarEnterExitTest::RunTest(const FString& Parameters)
 
 	// The truck keeps its place (the throttle it had when the player got out is gone) and the next E at it gets the player in again.
 	const FVector2D Left = CarWhere(Car);
-	TickSeconds(Wrapper, 1.0);
+	CarTickFor(Wrapper, 1.0);
 	TestTrue(TEXT("the truck stayed where it was left"), CarWhere(Car).Equals(Left, CarToleranceCm));
 	TestTrue(TEXT("and the core agrees"), Game.World().CarPos.Equals(Left, CarToleranceCm));
 	TestTrue(TEXT("it can be entered again"), Controller->FindInteractable() == Cast<IDIAInteractable>(Car));

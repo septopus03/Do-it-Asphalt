@@ -41,13 +41,6 @@ ADIAPortableStation::ADIAPortableStation()
 	BodyMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 }
 
-ADIACharacter* ADIAPortableStation::GetLocalCharacter() const
-{
-	const UWorld* World = GetWorld();
-	const APlayerController* Controller = World ? World->GetFirstPlayerController() : nullptr;
-	return Controller ? Cast<ADIACharacter>(Controller->GetPawn()) : nullptr;
-}
-
 bool ADIAPortableStation::IsCarried() const
 {
 	return GetAttachParentActor() != nullptr;
@@ -93,7 +86,7 @@ void ADIAPortableStation::SyncFromCore()
 		if (!IsCarried())
 		{
 			// A save can say "carried" before the character exists; the next state change tries again.
-			if (ADIACharacter* Carrier = GetLocalCharacter())
+			if (ADIACharacter* Carrier = ADIACharacter::GetLocal(this))
 			{
 				CarryBy(Carrier);
 			}
