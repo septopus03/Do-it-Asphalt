@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "AsphaltGame.h"
+#include "Game/DIAWorldSubsystem.h"
 #include "GameFramework/Actor.h"
 #include "World/DIAInteractable.h"
 #include "DIAPortableStation.generated.h"
@@ -55,7 +56,6 @@ protected:
 	virtual void EndPlay(const EEndPlayReason::Type Reason) override;
 
 private:
-	UDIAWorldSubsystem* GetSubsystem() const;
 	/** The character of the first local player; null while there is none. */
 	ADIACharacter* GetLocalCharacter() const;
 	/** Makes the actor match the core: carried or standing at StationPos. Runs on every state change, so it must return early when nothing differs. */
@@ -75,5 +75,5 @@ private:
 	mutable bool bPromptCarried = false;
 	mutable FText CachedPrompt;
 
-	FDelegateHandle StateHandle;
+	FDIAStateSubscription StateSub;
 };

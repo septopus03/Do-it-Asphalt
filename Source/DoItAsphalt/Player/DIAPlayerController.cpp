@@ -14,6 +14,7 @@
 #include "Player/DIACharacter.h"
 #include "UI/DIAHUD.h"
 #include "World/DIAInteractable.h"
+#include "World/DIAPaverCar.h"
 
 void ADIAPlayerController::InitInputSystem()
 {
@@ -46,6 +47,8 @@ void ADIAPlayerController::SetupInputComponent()
 	}
 
 	Enhanced->BindAction(Input.Move, ETriggerEvent::Triggered, this, &ADIAPlayerController::OnMove);
+	Enhanced->BindAction(Input.Move, ETriggerEvent::Completed, this, &ADIAPlayerController::OnMoveStopped);
+	Enhanced->BindAction(Input.Move, ETriggerEvent::Canceled, this, &ADIAPlayerController::OnMoveStopped);
 	Enhanced->BindAction(Input.Look, ETriggerEvent::Triggered, this, &ADIAPlayerController::OnLook);
 	Enhanced->BindAction(Input.Pour, ETriggerEvent::Started, this, &ADIAPlayerController::OnPourStarted);
 	Enhanced->BindAction(Input.Pour, ETriggerEvent::Completed, this, &ADIAPlayerController::OnPourCompleted);
@@ -63,20 +66,46 @@ ADIACharacter* ADIAPlayerController::GetDIACharacter() const
 	return Cast<ADIACharacter>(GetPawn());
 }
 
+ADIAPaverCar* ADIAPlayerController::GetDIACar() const
+{
+	return Cast<ADIAPaverCar>(GetPawn());
+}
+
 void ADIAPlayerController::OnMove(const FInputActionValue& Value)
 {
+	const FVector2D Axis = Value.Get<FVector2D>();
+	if (ADIAPaverCar* Car = GetDIACar())
+	{
+		// X = right (steering), Y = forward (throttle).
+		Car->SetSteer(Axis.X);
+		Car->SetThrottle(Axis.Y);
+		return;
+	}
 	if (ADIACharacter* Character = GetDIACharacter())
 	{
-		const FVector2D Axis = Value.Get<FVector2D>();
 		Character->DoMove(Axis.X, Axis.Y);
+	}
+}
+
+void ADIAPlayerController::OnMoveStopped()
+{
+	// The truck keeps its throttle until told otherwise (the character's movement input is consumed every frame).
+	if (ADIAPaverCar* Car = GetDIACar())
+	{
+		Car->SetSteer(0.f);
+		Car->SetThrottle(0.f);
 	}
 }
 
 void ADIAPlayerController::OnLook(const FInputActionValue& Value)
 {
-	if (ADIACharacter* Character = GetDIACharacter())
+	const FVector2D Axis = Value.Get<FVector2D>();
+	if (ADIAPaverCar* Car = GetDIACar())
 	{
-		const FVector2D Axis = Value.Get<FVector2D>();
+		Car->DoLook(Axis.X, Axis.Y);
+	}
+	else if (ADIACharacter* Character = GetDIACharacter())
+	{
 		Character->DoLook(Axis.X, Axis.Y);
 	}
 }
@@ -88,7 +117,11 @@ void ADIAPlayerController::OnPourStarted()
 	{
 		return;
 	}
-	if (ADIACharacter* Character = GetDIACharacter())
+	if (ADIAPaverCar* Car = GetDIACar())
+	{
+		Car->SetPouring(true);
+	}
+	else if (ADIACharacter* Character = GetDIACharacter())
 	{
 		Character->SetPouring(true);
 	}
@@ -96,7 +129,11 @@ void ADIAPlayerController::OnPourStarted()
 
 void ADIAPlayerController::OnPourCompleted()
 {
-	if (ADIACharacter* Character = GetDIACharacter())
+	if (ADIAPaverCar* Car = GetDIACar())
+	{
+		Car->SetPouring(false);
+	}
+	else if (ADIACharacter* Character = GetDIACharacter())
 	{
 		Character->SetPouring(false);
 	}
@@ -144,6 +181,12 @@ void ADIAPlayerController::UpdatePrompt()
 	{
 		return;
 	}
+	// Driving the truck there is only one thing to use: the way out (the shop covers the screen and the mouse, as on foot).
+	if (const ADIAPaverCar* Car = GetDIACar())
+	{
+		Hud->SetPrompt(bShopInput ? FText::GetEmpty() : Car->GetPrompt(nullptr));
+		return;
+	}
 	const ADIACharacter* Character = GetDIACharacter();
 	const IDIAInteractable* Interactable = FindInteractable();
 	Hud->SetPrompt(Interactable ? Interactable->GetPrompt(Character) : FText::GetEmpty());
@@ -151,6 +194,14 @@ void ADIAPlayerController::UpdatePrompt()
 
 void ADIAPlayerController::OnInteract()
 {
+	if (ADIAPaverCar* Car = GetDIACar())
+	{
+		if (!bShopInput)
+		{
+			Car->ExitCar();
+		}
+		return;
+	}
 	// The search is repeated here instead of trusting the last frame's, so E always acts on what is in front of the player now.
 	if (IDIAInteractable* Interactable = FindInteractable())
 	{
@@ -190,7 +241,11 @@ void ADIAPlayerController::SetShopInput(bool bOpen)
 	SetIgnoreLookInput(bOpen);
 	if (bOpen)
 	{
-		if (ADIACharacter* Character = GetDIACharacter())
+		if (ADIAPaverCar* Car = GetDIACar())
+		{
+			Car->SetPouring(false);
+		}
+		else if (ADIACharacter* Character = GetDIACharacter())
 		{
 			Character->SetPouring(false);
 		}

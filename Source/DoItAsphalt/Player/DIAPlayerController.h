@@ -14,6 +14,9 @@ struct FInputActionValue;
  * Shop (Tab) toggles the shop panel of the HUD and Pause (Esc) closes it. Every frame it looks for the nearest interactable
  * (kiosk, ...) within reach and shows its prompt; Interact (E) uses it. While the shop is open there is no prompt and E
  * does nothing. The rest of Pause is bound but does nothing yet (a later task fills it in).
+ *
+ * The same actions drive whatever the controller possesses: the character, or the paver truck (move = throttle and steering,
+ * left button = pour, E = get out; the look input turns the camera).
  */
 UCLASS(NotBlueprintable)
 class DOITASPHALT_API ADIAPlayerController : public APlayerController
@@ -36,22 +39,28 @@ public:
 
 	virtual void PlayerTick(float DeltaTime) override;
 
+	/** The input handlers, bound to the actions; public so that tests can drive them without a keyboard. */
+	void OnMove(const FInputActionValue& Value);
+	void OnMoveStopped();
+	void OnPourStarted();
+	void OnPourCompleted();
+	/** E: gets out of the truck while driving it, otherwise uses what is within reach. */
+	void OnInteract();
+
 protected:
 	virtual void InitInputSystem() override;
 	virtual void SetupInputComponent() override;
 
 private:
-	void OnMove(const FInputActionValue& Value);
 	void OnLook(const FInputActionValue& Value);
-	void OnPourStarted();
-	void OnPourCompleted();
 	void OnSprintStarted();
 	void OnSprintCompleted();
-	void OnInteract();
 	void OnShop();
 	void OnPause();
 
 	class ADIACharacter* GetDIACharacter() const;
+	/** The truck while the controller drives it; null otherwise. */
+	class ADIAPaverCar* GetDIACar() const;
 	/** Sends the prompt of the nearest interactable to the HUD (a no-op for unchanged text). */
 	void UpdatePrompt();
 

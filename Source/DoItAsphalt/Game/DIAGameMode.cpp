@@ -13,6 +13,7 @@
 #include "World/DIAAutoPaver.h"
 #include "World/DIAGroundActor.h"
 #include "World/DIAKioskActor.h"
+#include "World/DIAPaverCar.h"
 #include "World/DIAPortableStation.h"
 #include "World/DIARoadActor.h"
 #include "World/DIAPlantActor.h"
@@ -70,13 +71,14 @@ void ADIAGameMode::StartPlay()
 		}
 	}
 
-	// The station and the paver follow the core: a purchase (or the cheat) announces itself here, and ones owned from the start are spawned now.
-	if (UDIAWorldSubsystem* Subsystem = GetWorld() ? GetWorld()->GetSubsystem<UDIAWorldSubsystem>() : nullptr)
+	// The station, the paver and the truck follow the core: a purchase (or the cheat) announces itself here, and ones owned from the start are spawned now.
+	if (UDIAWorldSubsystem* Subsystem = UDIAWorldSubsystem::Get(this))
 	{
 		SpecialHandle = Subsystem->OnSpecialBought.AddUObject(this, &ADIAGameMode::OnSpecialBought);
 	}
 	EnsureStation();
 	EnsureAutoPaver();
+	EnsureCar();
 	Super::StartPlay();
 }
 
@@ -84,7 +86,7 @@ void ADIAGameMode::EndPlay(const EEndPlayReason::Type Reason)
 {
 	if (SpecialHandle.IsValid())
 	{
-		if (UDIAWorldSubsystem* Subsystem = GetWorld() ? GetWorld()->GetSubsystem<UDIAWorldSubsystem>() : nullptr)
+		if (UDIAWorldSubsystem* Subsystem = UDIAWorldSubsystem::Get(this))
 		{
 			Subsystem->OnSpecialBought.Remove(SpecialHandle);
 		}
@@ -103,36 +105,42 @@ void ADIAGameMode::OnSpecialBought(EAsphaltSpecial Special)
 	{
 		EnsureAutoPaver();
 	}
+	else if (Special == EAsphaltSpecial::PaverCar)
+	{
+		EnsureCar();
+	}
+}
+
+template <typename ActorType>
+void ADIAGameMode::EnsureSpecialActor(TWeakObjectPtr<ActorType>& Slot, EAsphaltSpecial Special, TFunctionRef<FVector2D(const FAsphaltGame&)> WhereInCore, double HeightCm)
+{
+	UWorld* World = GetWorld();
+	UDIAWorldSubsystem* Subsystem = UDIAWorldSubsystem::Get(this);
+	if (!World || !Subsystem || Slot.IsValid() || !Subsystem->GetGame().HasSpecial(Special))
+	{
+		return;
+	}
+	// It starts where the core says (SpecialSpawn of its road after a purchase); the actor then keeps itself in line with the core.
+	const FVector2D Where = WhereInCore(Subsystem->GetGame());
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	Slot = World->SpawnActor<ActorType>(FVector(Where.X, Where.Y, HeightCm), FRotator::ZeroRotator, Params);
 }
 
 void ADIAGameMode::EnsureStation()
 {
-	UWorld* World = GetWorld();
-	UDIAWorldSubsystem* Subsystem = World ? World->GetSubsystem<UDIAWorldSubsystem>() : nullptr;
-	if (!Subsystem || Station.IsValid() || !Subsystem->GetGame().HasSpecial(EAsphaltSpecial::PortableStation))
-	{
-		return;
-	}
-	// It stands where the core says (SpecialSpawn of its road after a purchase); the actor then keeps itself in line with the core.
-	const FVector2D Where = Subsystem->GetGame().World().StationPos;
-	FActorSpawnParameters Params;
-	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-	Station = World->SpawnActor<ADIAPortableStation>(FVector(Where.X, Where.Y, 0.0), FRotator::ZeroRotator, Params);
+	EnsureSpecialActor(Station, EAsphaltSpecial::PortableStation, [](const FAsphaltGame& Game) { return Game.World().StationPos; });
 }
 
 void ADIAGameMode::EnsureAutoPaver()
 {
-	UWorld* World = GetWorld();
-	UDIAWorldSubsystem* Subsystem = World ? World->GetSubsystem<UDIAWorldSubsystem>() : nullptr;
-	if (!Subsystem || AutoPaver.IsValid() || !Subsystem->GetGame().HasSpecial(EAsphaltSpecial::AutoPaver))
-	{
-		return;
-	}
-	// It starts where the core says (SpecialSpawn of its road after a purchase); the actor then follows the core every frame.
-	const FVector2D Where = Subsystem->GetGame().GetAutoPaverPos();
-	FActorSpawnParameters Params;
-	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-	AutoPaver = World->SpawnActor<ADIAAutoPaver>(FVector(Where.X, Where.Y, 0.0), FRotator::ZeroRotator, Params);
+	EnsureSpecialActor(AutoPaver, EAsphaltSpecial::AutoPaver, [](const FAsphaltGame& Game) { return Game.GetAutoPaverPos(); });
+}
+
+void ADIAGameMode::EnsureCar()
+{
+	// The truck's origin is the centre of its collision box, which stands on the ground.
+	EnsureSpecialActor(Car, EAsphaltSpecial::PaverCar, [](const FAsphaltGame& Game) { return Game.World().CarPos; }, DIAPaverCar::OriginHeightCm());
 }
 
 AActor* ADIAGameMode::ChoosePlayerStart_Implementation(AController* Player)

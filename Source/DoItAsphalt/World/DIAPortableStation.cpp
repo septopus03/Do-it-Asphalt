@@ -41,12 +41,6 @@ ADIAPortableStation::ADIAPortableStation()
 	BodyMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 }
 
-UDIAWorldSubsystem* ADIAPortableStation::GetSubsystem() const
-{
-	UWorld* World = GetWorld();
-	return World ? World->GetSubsystem<UDIAWorldSubsystem>() : nullptr;
-}
-
 ADIACharacter* ADIAPortableStation::GetLocalCharacter() const
 {
 	const UWorld* World = GetWorld();
@@ -67,32 +61,28 @@ void ADIAPortableStation::BeginPlay()
 	DIAAssets::SetModelOrFallback(BodyMesh, TEXT("SM_PortableStation"), DIAAssets::EFallback::Cube, DIAModelSizes::StationCm,
 		FVector(0.0, 0.0, DIAModelSizes::StationCm.Z * 0.5), TEXT("DIA_Steel"));
 
-	if (UDIAWorldSubsystem* Subsystem = GetSubsystem())
+	if (UDIAWorldSubsystem* Subsystem = UDIAWorldSubsystem::Get(this))
 	{
 		Subsystem->RegisterInteractable(this, this);
 		// Fires every tick; SyncFromCore returns at once unless the core and the actor differ.
-		StateHandle = Subsystem->OnStateChanged.AddUObject(this, &ADIAPortableStation::SyncFromCore);
+		StateSub.Bind(Subsystem, this, &ADIAPortableStation::SyncFromCore);
 	}
 	SyncFromCore();
 }
 
 void ADIAPortableStation::EndPlay(const EEndPlayReason::Type Reason)
 {
-	if (UDIAWorldSubsystem* Subsystem = GetSubsystem())
+	if (UDIAWorldSubsystem* Subsystem = UDIAWorldSubsystem::Get(this))
 	{
-		if (StateHandle.IsValid())
-		{
-			Subsystem->OnStateChanged.Remove(StateHandle);
-		}
+		StateSub.Unbind(Subsystem);
 		Subsystem->UnregisterInteractable(this);
 	}
-	StateHandle.Reset();
 	Super::EndPlay(Reason);
 }
 
 void ADIAPortableStation::SyncFromCore()
 {
-	const UDIAWorldSubsystem* Subsystem = GetSubsystem();
+	const UDIAWorldSubsystem* Subsystem = UDIAWorldSubsystem::Get(this);
 	if (!Subsystem)
 	{
 		return;
@@ -138,7 +128,7 @@ void ADIAPortableStation::PlaceOnGround(const FVector2D& Where, double YawDeg)
 
 FText ADIAPortableStation::GetPrompt(const ADIACharacter* By) const
 {
-	const UDIAWorldSubsystem* Subsystem = GetSubsystem();
+	const UDIAWorldSubsystem* Subsystem = UDIAWorldSubsystem::Get(this);
 	if (!Subsystem || !Subsystem->GetGame().HasSpecial(EAsphaltSpecial::PortableStation))
 	{
 		return FText::GetEmpty();
@@ -180,7 +170,7 @@ void ADIAPortableStation::ShowNoRoomToast(const ADIACharacter* By) const
 
 void ADIAPortableStation::Interact(ADIACharacter* By)
 {
-	UDIAWorldSubsystem* Subsystem = GetSubsystem();
+	UDIAWorldSubsystem* Subsystem = UDIAWorldSubsystem::Get(this);
 	if (!By || !Subsystem || !Subsystem->GetGame().HasSpecial(EAsphaltSpecial::PortableStation))
 	{
 		return;

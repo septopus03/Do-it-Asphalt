@@ -8,6 +8,7 @@
 #include "DIAGameMode.generated.h"
 
 class ADIAAutoPaver;
+class ADIAPaverCar;
 class ADIAPortableStation;
 
 /**
@@ -32,15 +33,28 @@ public:
 	/** Spawns the automated paver at the core's GetAutoPaverPos() if the player owns it and there is no live one yet; otherwise does nothing. */
 	void EnsureAutoPaver();
 
+	/** Spawns the paver truck at the core's CarPos if the player owns it and there is no live one yet; otherwise does nothing. */
+	void EnsureCar();
+
 	/** The player starts at AsphaltLayout::PlayerStart facing the lot (+X), whatever PlayerStart actors the level has. */
 	virtual AActor* ChoosePlayerStart_Implementation(AController* Player) override;
 
 private:
 	void OnSpecialBought(EAsphaltSpecial Special);
 
+	/**
+	 * The one way a special's actor comes into the world: nothing happens while the slot still holds a live actor or the
+	 * special is not owned; otherwise the actor is spawned where the core says (WhereInCore reads the position from the
+	 * core) at the given height. The actor then keeps itself in line with the core.
+	 */
+	template <typename ActorType>
+	void EnsureSpecialActor(TWeakObjectPtr<ActorType>& Slot, EAsphaltSpecial Special, TFunctionRef<FVector2D(const FAsphaltGame&)> WhereInCore, double HeightCm = 0.0);
+
 	/** Null (or stale) until the special is owned. */
 	TWeakObjectPtr<ADIAPortableStation> Station;
 	/** Null (or stale) until the special is owned. */
 	TWeakObjectPtr<ADIAAutoPaver> AutoPaver;
+	/** Null (or stale) until the special is owned. */
+	TWeakObjectPtr<ADIAPaverCar> Car;
 	FDelegateHandle SpecialHandle;
 };

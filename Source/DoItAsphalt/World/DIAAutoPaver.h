@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Game/DIAWorldSubsystem.h"
 #include "GameFramework/Actor.h"
 #include "DIAAutoPaver.generated.h"
 
@@ -43,12 +44,11 @@ protected:
 	virtual void EndPlay(const EEndPlayReason::Type Reason) override;
 
 private:
-	UDIAWorldSubsystem* GetSubsystem() const;
 	/** Moves to the core's position and turns towards the direction of travel. */
 	void SyncFromCore();
 
 	UPROPERTY()
 	TObjectPtr<UStaticMeshComponent> BodyMesh;
 
-	FDelegateHandle StateHandle;
+	FDIAStateSubscription StateSub;
 };

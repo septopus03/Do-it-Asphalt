@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "AsphaltGame.h"
 #include "Subsystems/WorldSubsystem.h"
+#include "Engine/World.h"
 #include "World/DIAInteractable.h"
 #include "DIAWorldSubsystem.generated.h"
 
@@ -21,6 +22,13 @@ public:
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnCells, const TArray<int32>&);
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnRoad, int32);
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnSpecial, EAsphaltSpecial);
+
+	/** The subsystem of the world the object lives in; null for an object without a world. Replaces the lookup every actor repeated. */
+	static UDIAWorldSubsystem* Get(const UObject* WorldContext)
+	{
+		const UWorld* World = WorldContext ? WorldContext->GetWorld() : nullptr;
+		return World ? World->GetSubsystem<UDIAWorldSubsystem>() : nullptr;
+	}
 
 	FAsphaltGame& GetGame() { return Game; }
 	const FAsphaltGame& GetGame() const { return Game; }
@@ -70,4 +78,35 @@ private:
 	TArray<FInteractableEntry> Interactables;
 
 	FAsphaltGame Game;
+};
+
+/**
+ * The OnStateChanged handle of an actor that mirrors the core: Bind in BeginPlay, Unbind in EndPlay (both are idempotent,
+ * and Bind drops an earlier binding first). It keeps the add/remove/reset sequence in one place.
+ */
+struct FDIAStateSubscription
+{
+	template <typename T>
+	void Bind(UDIAWorldSubsystem* Subsystem, T* Object, void (T::*Method)())
+	{
+		Unbind(Subsystem);
+		if (Subsystem)
+		{
+			Handle = Subsystem->OnStateChanged.AddUObject(Object, Method);
+		}
+	}
+
+	void Unbind(UDIAWorldSubsystem* Subsystem)
+	{
+		if (Handle.IsValid())
+		{
+			if (Subsystem)
+			{
+				Subsystem->OnStateChanged.Remove(Handle);
+			}
+			Handle.Reset();
+		}
+	}
+
+	FDelegateHandle Handle;
 };

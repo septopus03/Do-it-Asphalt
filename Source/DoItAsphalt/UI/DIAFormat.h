@@ -40,6 +40,8 @@ namespace DIAFormat
 
 	/** The prompt at the portable station: "E – Pick up" while it stands, "E – Put down" while it is carried. */
 	DOITASPHALT_API FText StationPrompt(bool bCarried);
+	/** The prompt at the paver truck: "E – Get in" beside it, "E – Get out" while driving it. */
+	DOITASPHALT_API FText CarPrompt(bool bInCar);
 	/** Shown when the station cannot be put down because something is in the way. */
 	DOITASPHALT_API FText StationNoRoomToast();
 }

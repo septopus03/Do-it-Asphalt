@@ -14,6 +14,7 @@
 #include "Engine/World.h"
 #include "Game/DIAAssets.h"
 #include "Game/DIAModelSizes.h"
+#include "Game/DIARefill.h"
 #include "Game/DIAWorldSubsystem.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/Controller.h"
@@ -23,18 +24,6 @@
 
 namespace
 {
-	/** The backpack fills within the plant's zone, or within the same radius of the portable station once it is owned and put down (a carried one fills nothing). */
-	bool IsInRefillZone(const FAsphaltGame& Game, const FVector2D& Position)
-	{
-		if (FVector2D::Distance(Position, AsphaltLayout::RefillCenter) <= AsphaltLayout::RefillRadiusCm)
-		{
-			return true;
-		}
-		const FAsphaltWorldState& State = Game.World();
-		return Game.HasSpecial(EAsphaltSpecial::PortableStation) && !State.bStationCarried &&
-			FVector2D::Distance(Position, State.StationPos) <= AsphaltLayout::RefillRadiusCm;
-	}
-
 	/** Bones of the Mannequin skeleton that carry the backpack and the helmet. */
 	const FName BackpackBone(TEXT("spine_03"));
 	const FName HelmetBone(TEXT("head"));
@@ -285,7 +274,8 @@ void ADIACharacter::Tick(float DeltaSeconds)
 	}
 
 	// The subsystem broadcasts OnStateChanged every tick, so the HUD sees the refilled backpack without a second dispatch.
-	if (IsInRefillZone(Game, Position))
+	// Driving the truck the character is carried along: the truck's own tank is the one that fills then.
+	if (!Game.World().bPlayerInCar && DIARefill::IsInZone(Game, Position))
 	{
 		Game.RefillBackpack(DeltaSeconds);
 	}

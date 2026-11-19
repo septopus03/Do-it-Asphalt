@@ -42,6 +42,15 @@ namespace DIAModelSizes
 	/** Automated paver (low tracked robot, front +X with the spreader bar; origin at the centre of the footprint, on the ground). */
 	inline const FVector AutoPaverCm(100.0, 80.0, 60.0);
 
+	/**
+	 * Paver truck (cab in front +X, tank, four wheels, the spreader bar at the rear X = -2.3 m just above the ground, the door on -Y;
+	 * origin at the centre of the footprint, on the ground). The whole model is 4.6 x 3.0 x 2.4 m; the body without the bar is 2.2 m
+	 * wide and is what the collision box and the placeholder box measure. The placeholder bar is a thin flat strip as wide as the real one.
+	 */
+	inline const FVector PaverCarCm(460.0, 300.0, 240.0);
+	inline const FVector PaverCarBodyCm(460.0, 220.0, 240.0);
+	inline const FVector PaverCarBarCm(10.0, 300.0, 10.0);
+
 	/** Old road behind the end of a road (origin at the centre of the near edge, runs towards +X) and the barrier that closes it (origin at the centre of the footprint). */
 	inline const FVector RoadStubCm(1200.0, 340.0, 5.0);
 	inline const FVector BarrierCm(30.0, 340.0, 100.0);

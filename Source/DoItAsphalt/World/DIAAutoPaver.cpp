@@ -22,12 +22,6 @@ ADIAAutoPaver::ADIAAutoPaver()
 	BodyMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 }
 
-UDIAWorldSubsystem* ADIAAutoPaver::GetSubsystem() const
-{
-	UWorld* World = GetWorld();
-	return World ? World->GetSubsystem<UDIAWorldSubsystem>() : nullptr;
-}
-
 void ADIAAutoPaver::BeginPlay()
 {
 	Super::BeginPlay();
@@ -36,29 +30,22 @@ void ADIAAutoPaver::BeginPlay()
 	DIAAssets::SetModelOrFallback(BodyMesh, TEXT("SM_AutoPaver"), DIAAssets::EFallback::Cube, DIAModelSizes::AutoPaverCm,
 		FVector(0.0, 0.0, DIAModelSizes::AutoPaverCm.Z * 0.5), TEXT("DIA_Steel"));
 
-	if (UDIAWorldSubsystem* Subsystem = GetSubsystem())
+	if (UDIAWorldSubsystem* Subsystem = UDIAWorldSubsystem::Get(this))
 	{
-		StateHandle = Subsystem->OnStateChanged.AddUObject(this, &ADIAAutoPaver::SyncFromCore);
+		StateSub.Bind(Subsystem, this, &ADIAAutoPaver::SyncFromCore);
 	}
 	SyncFromCore();
 }
 
 void ADIAAutoPaver::EndPlay(const EEndPlayReason::Type Reason)
 {
-	if (StateHandle.IsValid())
-	{
-		if (UDIAWorldSubsystem* Subsystem = GetSubsystem())
-		{
-			Subsystem->OnStateChanged.Remove(StateHandle);
-		}
-		StateHandle.Reset();
-	}
+	StateSub.Unbind(UDIAWorldSubsystem::Get(this));
 	Super::EndPlay(Reason);
 }
 
 void ADIAAutoPaver::SyncFromCore()
 {
-	const UDIAWorldSubsystem* Subsystem = GetSubsystem();
+	const UDIAWorldSubsystem* Subsystem = UDIAWorldSubsystem::Get(this);
 	if (!Subsystem)
 	{
 		return;
