@@ -141,6 +141,11 @@ FText DIAFormat::RoadToast(int32 Road)
 	return FText::Format(LOCTEXT("ToastRoad", "Road {0} complete"), Count(Road + 1));
 }
 
+FText DIAFormat::ExitSign()
+{
+	return LOCTEXT("ExitSign", "EXIT");
+}
+
 FText DIAFormat::SpecialName(EAsphaltSpecial Special)
 {
 	switch (Special)

@@ -30,7 +30,7 @@ enum class EAsphaltSpecial : uint8
 struct FAsphaltWorldState
 {
 	FVector2D PlayerPos = AsphaltLayout::PlayerStart;
-	double PlayerYawDeg = 0.0;
+	double PlayerYawDeg = AsphaltLayout::PlayerStartYawDeg;
 	FVector2D StationPos = FVector2D::ZeroVector;
 	bool bStationCarried = false;
 	FVector2D CarPos = FVector2D::ZeroVector;

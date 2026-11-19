@@ -11,12 +11,13 @@ class ADIAAutoPaver;
 class ADIAExitGate;
 class ADIAPaverCar;
 class ADIAPortableStation;
+class ADIASiteDressing;
 class ADIASiteFence;
 
 /**
  * Builds the scene when play starts: the ground, the plant, the six old road ends with their barriers and the five kiosks;
  * the player is an ADIACharacter. The portable station, the automated paver and the truck appear as soon as the player owns them
- * (at the start if already owned, when they are bought, or when a saved game that owns them is loaded) and go when a game without them starts. The exit gate and the fence around the site stand from the start.
+ * (at the start if already owned, when they are bought, or when a saved game that owns them is loaded) and go when a game without them starts. The exit gate, the fence around the site and the scenery inside it stand from the start.
  */
 UCLASS(NotBlueprintable)
 class DOITASPHALT_API ADIAGameMode : public AGameModeBase
@@ -44,8 +45,13 @@ public:
 	/** Spawns the fence and the invisible wall around the site if there is no live one yet; otherwise does nothing. */
 	void EnsureSiteFence();
 
-	/** The player starts at AsphaltLayout::PlayerStart facing the lot (+X), whatever PlayerStart actors the level has. */
+	/** Spawns the scenery (cones, barrels, dirt piles, floodlights) between the lot and the fence if there is none yet; otherwise does nothing. */
+	void EnsureDressing();
+
+	/** The player starts at AsphaltLayout::PlayerStart, whatever PlayerStart actors the level has. */
 	virtual AActor* ChoosePlayerStart_Implementation(AController* Player) override;
+	/** ... facing the plant (AsphaltLayout::PlayerStartYawDeg), so that the camera behind the player is not inside it. */
+	virtual void RestartPlayerAtPlayerStart(AController* NewPlayer, AActor* StartSpot) override;
 
 private:
 	void OnSpecialBought(EAsphaltSpecial Special);
@@ -72,6 +78,7 @@ private:
 	TWeakObjectPtr<ADIAPaverCar> Car;
 	TWeakObjectPtr<ADIAExitGate> ExitGate;
 	TWeakObjectPtr<ADIASiteFence> SiteFence;
+	TWeakObjectPtr<ADIASiteDressing> Dressing;
 	FDelegateHandle SpecialHandle;
 	FDelegateHandle ResetHandle;
 };

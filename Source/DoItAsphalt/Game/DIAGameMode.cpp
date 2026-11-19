@@ -17,6 +17,7 @@
 #include "World/DIAPaverCar.h"
 #include "World/DIAPortableStation.h"
 #include "World/DIARoadActor.h"
+#include "World/DIASiteDressing.h"
 #include "World/DIASiteFence.h"
 #include "World/DIAPlantActor.h"
 
@@ -76,6 +77,7 @@ void ADIAGameMode::StartPlay()
 	// The exit gate closes the gap of road 5 and the fence the rest of the circle around the site.
 	EnsureExitGate();
 	EnsureSiteFence();
+	EnsureDressing();
 
 	// The station, the paver and the truck follow the core: a purchase (or the cheat) announces itself here, and ones owned from the start are spawned now.
 	if (UDIAWorldSubsystem* Subsystem = UDIAWorldSubsystem::Get(this))
@@ -219,6 +221,18 @@ void ADIAGameMode::EnsureSiteFence()
 	SiteFence = World->SpawnActor<ADIASiteFence>(FVector::ZeroVector, FRotator::ZeroRotator, Params);
 }
 
+void ADIAGameMode::EnsureDressing()
+{
+	UWorld* World = GetWorld();
+	if (!World || Dressing.IsValid())
+	{
+		return;
+	}
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	Dressing = World->SpawnActor<ADIASiteDressing>(FVector::ZeroVector, FRotator::ZeroRotator, Params);
+}
+
 AActor* ADIAGameMode::ChoosePlayerStart_Implementation(AController* Player)
 {
 	UWorld* World = GetWorld();
@@ -237,5 +251,20 @@ AActor* ADIAGameMode::ChoosePlayerStart_Implementation(AController* Player)
 	}
 	FActorSpawnParameters Params;
 	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-	return World->SpawnActor<APlayerStart>(FVector(AsphaltLayout::PlayerStart.X, AsphaltLayout::PlayerStart.Y, SpawnHeightCm), FRotator::ZeroRotator, Params);
+	return World->SpawnActor<APlayerStart>(FVector(AsphaltLayout::PlayerStart.X, AsphaltLayout::PlayerStart.Y, SpawnHeightCm), FRotator(0.0, AsphaltLayout::PlayerStartYawDeg, 0.0), Params);
+}
+
+void ADIAGameMode::RestartPlayerAtPlayerStart(AController* NewPlayer, AActor* StartSpot)
+{
+	Super::RestartPlayerAtPlayerStart(NewPlayer, StartSpot);
+	// The level's own PlayerStart (made by Tools/UE/create_level.py) has no say in where the player looks: body and camera face the plant.
+	if (NewPlayer)
+	{
+		const FRotator Facing(0.0, AsphaltLayout::PlayerStartYawDeg, 0.0);
+		if (APawn* Pawn = NewPlayer->GetPawn())
+		{
+			Pawn->SetActorRotation(Facing);
+		}
+		NewPlayer->SetControlRotation(Facing);
+	}
 }

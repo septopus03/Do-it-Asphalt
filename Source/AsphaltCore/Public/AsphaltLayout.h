@@ -15,6 +15,8 @@ namespace AsphaltLayout
 	inline constexpr double RefillRadiusCm = 200.0;
 
 	inline const FVector2D PlayerStart{-1600.0, 0.0};
+	/** The player starts facing the plant (-X), so that the camera behind the player looks at it from the lot side instead of sitting inside it. */
+	inline constexpr double PlayerStartYawDeg = 180.0;
 
 	/** Radius of the fence ring around the site. */
 	inline constexpr double SiteRadiusCm = 2600.0;

@@ -66,4 +66,15 @@ namespace DIAModelSizes
 
 	/** Thickness of the flat disc that marks the refill zone. */
 	inline constexpr double RefillMarkerThicknessCm = 1.0;
+
+	/**
+	 * Site dressing (all origins on the ground): cone, barrel and dirt pile at the centre of the footprint; the floodlight at the foot of
+	 * its pole, the arm runs towards +Y (the envelope is X +-20, Y -20..100). The pole is the only solid part of the floodlight.
+	 */
+	inline const FVector ConeCm(30.0, 30.0, 50.0);
+	inline const FVector BarrelCm(60.0, 60.0, 90.0);
+	inline const FVector DirtPileCm(200.0, 200.0, 100.0);
+	inline const FVector LampCm(40.0, 120.0, 500.0);
+	inline const FVector LampCentreCm(0.0, 40.0, 250.0);
+	inline const FVector LampPoleCm(40.0, 40.0, 500.0);
 }

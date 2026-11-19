@@ -6,11 +6,13 @@
 #include "Components/BoxComponent.h"
 #include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Components/TextRenderComponent.h"
 #include "Engine/CollisionProfile.h"
 #include "Game/DIAAssets.h"
 #include "Game/DIAModelSizes.h"
 #include "HexMap.h"
 #include "Player/DIACharacter.h"
+#include "UI/DIAFormat.h"
 #include "World/DIAPaverCar.h"
 
 namespace
@@ -69,6 +71,22 @@ ADIAExitGate::ADIAExitGate()
 	ArmCollision->SetCollisionProfileName(UCollisionProfile::BlockAll_ProfileName);
 	ArmCollision->SetCollisionResponseToChannel(ECC_Camera, ECR_Ignore);
 
+	// The word EXIT on both faces of the sign board: first the face towards the lot (-X), then the one towards the road (+X).
+	for (int32 Side = 0; Side < 2; ++Side)
+	{
+		const double Facing = Side == 0 ? -1.0 : 1.0;
+		UTextRenderComponent* Sign = CreateDefaultSubobject<UTextRenderComponent>(*FString::Printf(TEXT("SignText%d"), Side));
+		Sign->SetupAttachment(Root);
+		Sign->SetRelativeLocationAndRotation(FVector(Facing * (DIAExitGate::SignFaceXCm + DIAExitGate::SignTextOffsetCm), 0.0, DIAExitGate::SignCentreZCm),
+			FRotator(0.0, Side == 0 ? 180.0 : 0.0, 0.0));
+		Sign->SetHorizontalAlignment(EHTA_Center);
+		Sign->SetVerticalAlignment(EVRTA_TextCenter);
+		Sign->SetWorldSize(static_cast<float>(DIAExitGate::SignTextSizeCm));
+		Sign->SetTextRenderColor(FColor(198, 40, 40));
+		Sign->SetCastShadow(false);
+		SignTexts.Add(Sign);
+	}
+
 	// The trigger lies beyond the gate: a sphere that only notices pawns (the character, the truck).
 	Trigger = CreateDefaultSubobject<USphereComponent>(TEXT("Trigger"));
 	Trigger->SetupAttachment(Root);
@@ -99,6 +117,11 @@ void ADIAExitGate::BeginPlay()
 		FVector(0.0, 0.0, DIAModelSizes::ExitGateFrameCm.Z * 0.5), TEXT("DIA_Yellow"));
 	DIAAssets::SetModelOrFallback(ArmMesh, TEXT("SM_ExitGate_Barrier"), DIAAssets::EFallback::Cube, DIAModelSizes::ExitGateBarrierCm,
 		FVector(0.0, DIAModelSizes::ExitGateBarrierCm.Y * 0.5, 0.0), TEXT("DIA_Red"));
+
+	for (UTextRenderComponent* Sign : SignTexts)
+	{
+		Sign->SetText(DIAFormat::ExitSign());
+	}
 
 	UDIAWorldSubsystem* Subsystem = UDIAWorldSubsystem::Get(this);
 	HandleGameReset();

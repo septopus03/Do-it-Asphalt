@@ -24,5 +24,8 @@ public class DoItAsphalt : ModuleRules
 			"SlateCore",
 			"AsphaltCore"
 		});
+
+		// Reads Tools/ModelGen/manifest.json in the model import test.
+		PrivateDependencyModuleNames.Add("Json");
 	}
 }

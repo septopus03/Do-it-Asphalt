@@ -10,6 +10,7 @@
 class UBoxComponent;
 class USphereComponent;
 class UStaticMeshComponent;
+class UTextRenderComponent;
 
 /** Numbers of the exit gate; the sizes of its models are in DIAModelSizes, its place in AsphaltLayout. */
 namespace DIAExitGate
@@ -24,6 +25,15 @@ namespace DIAExitGate
 	/** The win trigger (AsphaltLayout::ExitTrigger is its centre on the ground): a sphere this big, centred at mid-height of the body. */
 	inline constexpr double TriggerRadiusCm = 150.0;
 	inline constexpr double TriggerHeightCm = 100.0;
+	/**
+	 * The white sign board of the frame (2.0 x 0.5 m, centred at Z = 275 cm) stands proud of both faces of the beam, which are at X = +-11 cm;
+	 * the word is written just in front of each face (the +X face looks outwards, the -X face towards the lot).
+	 */
+	inline constexpr double SignFaceXCm = 11.0;
+	inline constexpr double SignTextOffsetCm = 0.6;
+	inline constexpr double SignCentreZCm = 275.0;
+	/** Height of the letters; the word fills about half of the board's width. */
+	inline constexpr double SignTextSizeCm = 40.0;
 }
 
 /**
@@ -54,6 +64,8 @@ public:
 	UStaticMeshComponent* GetArmMesh() const { return ArmMesh; }
 	UBoxComponent* GetArmCollision() const { return ArmCollision; }
 	USphereComponent* GetTrigger() const { return Trigger; }
+	/** The word EXIT on the board: [0] on the face towards the lot (-X), [1] on the face towards the road (+X). */
+	UTextRenderComponent* GetSignText(int32 Side) const { return SignTexts.IsValidIndex(Side) ? SignTexts[Side].Get() : nullptr; }
 
 	virtual void Tick(float DeltaSeconds) override;
 
@@ -84,6 +96,8 @@ private:
 	TObjectPtr<UBoxComponent> ArmCollision;
 	UPROPERTY()
 	TObjectPtr<USphereComponent> Trigger;
+	UPROPERTY()
+	TArray<TObjectPtr<UTextRenderComponent>> SignTexts;
 
 	/** Seconds the arm has been rising. */
 	double OpenElapsed = 0.0;

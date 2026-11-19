@@ -131,6 +131,10 @@ bool FSpecialsPositionsTest::RunTest(const FString& Parameters)
 	FAsphaltGame G;
 	TestEqual(TEXT("player start X"), G.World().PlayerPos.X, AsphaltLayout::PlayerStart.X);
 	TestEqual(TEXT("player start Y"), G.World().PlayerPos.Y, AsphaltLayout::PlayerStart.Y);
+	TestEqual(TEXT("the player starts facing the plant"), G.World().PlayerYawDeg, AsphaltLayout::PlayerStartYawDeg);
+	const double Yaw = FMath::DegreesToRadians(AsphaltLayout::PlayerStartYawDeg);
+	TestTrue(TEXT("the plant lies in the direction the player faces"),
+		FVector2D::DotProduct(FVector2D(FMath::Cos(Yaw), FMath::Sin(Yaw)), AsphaltLayout::PlantPos - AsphaltLayout::PlayerStart) > 0.0);
 	TestFalse(TEXT("station not carried"), G.World().bStationCarried);
 	TestFalse(TEXT("not in car"), G.World().bPlayerInCar);
 

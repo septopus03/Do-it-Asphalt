@@ -35,6 +35,9 @@ namespace DIAFormat
 	/** Road is 0-based; the player sees it from 1. */
 	DOITASPHALT_API FText RoadToast(int32 Road);
 	DOITASPHALT_API FText SpecialName(EAsphaltSpecial Special);
+
+	/** The word on the sign of the exit gate. */
+	DOITASPHALT_API FText ExitSign();
 	DOITASPHALT_API FText SpecialToast(EAsphaltSpecial Special);
 	DOITASPHALT_API FText ExitToast();
 
