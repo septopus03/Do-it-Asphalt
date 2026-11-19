@@ -42,37 +42,87 @@ namespace
 	/** Every engine save file starts with these four bytes; anything else is not one. */
 	constexpr uint8 SaveFileMagic[] = {'G', 'V', 'A', 'S'};
 
-	/** The core's blob inside the slot; false (and an empty array) if the slot is missing or holds something else. */
-	bool ReadSlotBlob(TArray<uint8>& OutBlob)
+	/**
+	 * Our own footer after the engine's save: these four bytes and the CRC of everything before them. The engine's reader trusts the
+	 * sizes in the file and can bring the game down on a file that a power loss cut short; a file whose footer is missing or wrong is
+	 * never given to it.
+	 */
+	constexpr uint8 SaveFooterMagic[] = {'D', 'I', 'A', 'E'};
+	constexpr int32 SaveFooterBytes = sizeof(SaveFooterMagic) + sizeof(uint32);
+
+	/**
+	 * The core's blob inside the named slot; false (and an empty array) if the slot is missing or holds something else.
+	 * Only a blob that the core accepts counts, so that what this returns can always be loaded.
+	 */
+	bool ReadSlotBlob(const FString& Slot, TArray<uint8>& OutBlob)
 	{
 		OutBlob.Reset();
 		ISaveGameSystem* SaveSystem = IPlatformFeaturesModule::Get().GetSaveGameSystem();
-		if (!SaveSystem)
-		{
-			return false;
-		}
-		// The engine reads a file without the magic as an old format and can bring the whole game down on rubbish,
-		// so the file is checked here first.
 		// No file at all is the usual case (a first start) and is not worth a warning in the log.
-		if (!SaveSystem->DoesSaveGameExist(*UDIAWorldSubsystem::SlotName(), DIASave::UserIndex))
+		if (!SaveSystem || !SaveSystem->DoesSaveGameExist(*Slot, DIASave::UserIndex))
 		{
 			return false;
 		}
+		// The engine can bring the whole game down on a damaged file (a write that was cut short leaves exactly that),
+		// so the file is checked here first: footer, CRC and the engine's magic.
 		TArray<uint8> File;
-		if (!SaveSystem->LoadGame(false, *UDIAWorldSubsystem::SlotName(), DIASave::UserIndex, File)
-			|| File.Num() < UE_ARRAY_COUNT(SaveFileMagic)
+		if (!SaveSystem->LoadGame(false, *Slot, DIASave::UserIndex, File) || File.Num() < SaveFooterBytes + UE_ARRAY_COUNT(SaveFileMagic))
+		{
+			return false;
+		}
+		const int32 BodyBytes = File.Num() - SaveFooterBytes;
+		uint32 StoredCrc = 0;
+		FMemory::Memcpy(&StoredCrc, File.GetData() + BodyBytes + sizeof(SaveFooterMagic), sizeof(StoredCrc));
+		if (FMemory::Memcmp(File.GetData() + BodyBytes, SaveFooterMagic, sizeof(SaveFooterMagic)) != 0
+			|| StoredCrc != FCrc::MemCrc32(File.GetData(), BodyBytes)
 			|| FMemory::Memcmp(File.GetData(), SaveFileMagic, sizeof(SaveFileMagic)) != 0)
 		{
 			return false;
 		}
+		File.SetNum(BodyBytes);
 		const UDIASaveGame* Save = Cast<UDIASaveGame>(UGameplayStatics::LoadGameFromMemory(File));
 		if (!Save)
+		{
+			return false;
+		}
+		FAsphaltGame Scratch;
+		if (!Scratch.LoadFromBytes(Save->Blob))
 		{
 			return false;
 		}
 		OutBlob = Save->Blob;
 		return true;
 	}
+
+	/** The blob of the slot, or, if the slot is damaged (a write that was cut short), of its backup. */
+	bool ReadSavedBlob(TArray<uint8>& OutBlob)
+	{
+		if (ReadSlotBlob(UDIAWorldSubsystem::SlotName(), OutBlob))
+		{
+			return true;
+		}
+		if (UGameplayStatics::DoesSaveGameExist(UDIAWorldSubsystem::SlotName(), DIASave::UserIndex))
+		{
+			UE_LOG(LogDoItAsphalt, Warning, TEXT("The save slot %s is damaged; trying its backup"), *UDIAWorldSubsystem::SlotName());
+		}
+		return ReadSlotBlob(UDIAWorldSubsystem::BackupSlotName(), OutBlob);
+	}
+}
+
+bool UDIAWorldSubsystem::WriteSlot(const FString& Slot, const TArray<uint8>& Blob)
+{
+	UDIASaveGame* Save = NewObject<UDIASaveGame>(GetTransientPackage());
+	Save->Blob = Blob;
+	TArray<uint8> File;
+	ISaveGameSystem* SaveSystem = IPlatformFeaturesModule::Get().GetSaveGameSystem();
+	if (!SaveSystem || !UGameplayStatics::SaveGameToMemory(Save, File))
+	{
+		return false;
+	}
+	const uint32 Crc = FCrc::MemCrc32(File.GetData(), File.Num());
+	File.Append(SaveFooterMagic, sizeof(SaveFooterMagic));
+	File.Append(reinterpret_cast<const uint8*>(&Crc), sizeof(Crc));
+	return SaveSystem->SaveGame(false, *Slot, DIASave::UserIndex, File);
 }
 
 FString UDIAWorldSubsystem::SlotName()
@@ -84,6 +134,11 @@ FString UDIAWorldSubsystem::SlotName()
 	return SlotFromCommandLine().IsEmpty() ? FString(DIASave::DefaultSlotName) : SlotFromCommandLine();
 }
 
+FString UDIAWorldSubsystem::BackupSlotName()
+{
+	return SlotName() + DIASave::BackupSuffix;
+}
+
 void UDIAWorldSubsystem::SetSlotNameOverride(const FString& Name)
 {
 	SlotOverride() = Name;
@@ -92,20 +147,14 @@ void UDIAWorldSubsystem::SetSlotNameOverride(const FString& Name)
 bool UDIAWorldSubsystem::HasSave() const
 {
 	TArray<uint8> Blob;
-	if (!ReadSlotBlob(Blob))
-	{
-		return false;
-	}
-	// A scratch game decides: the file existing proves nothing.
-	FAsphaltGame Scratch;
-	return Scratch.LoadFromBytes(Blob);
+	return ReadSavedBlob(Blob);
 }
 
 bool UDIAWorldSubsystem::LoadGame()
 {
 	TArray<uint8> Blob;
 	// LoadFromBytes checks everything before it changes anything, so a failure leaves the game as it is.
-	if (!ReadSlotBlob(Blob) || !Game.LoadFromBytes(Blob))
+	if (!ReadSavedBlob(Blob) || !Game.LoadFromBytes(Blob))
 	{
 		return false;
 	}
@@ -151,9 +200,10 @@ void UDIAWorldSubsystem::SaveGame()
 	// Any save starts the countdown to the next autosave again.
 	AutosaveTimer = 0.0;
 	WritePlayerPositions();
-	UDIASaveGame* Save = NewObject<UDIASaveGame>(GetTransientPackage());
-	Save->Blob = Game.SaveToBytes();
-	if (!UGameplayStatics::SaveGameToSlot(Save, SlotName(), DIASave::UserIndex))
+	const TArray<uint8> Blob = Game.SaveToBytes();
+	// The slot is written in place, so a write that is cut short (power loss) leaves it damaged. The backup is only written
+	// after the slot was, so one of the two always holds a complete save.
+	if (!WriteSlot(SlotName(), Blob) || !WriteSlot(BackupSlotName(), Blob))
 	{
 		UE_LOG(LogDoItAsphalt, Warning, TEXT("The game could not be saved to the slot %s"), *SlotName());
 	}
@@ -162,7 +212,9 @@ void UDIAWorldSubsystem::SaveGame()
 void UDIAWorldSubsystem::NewGame()
 {
 	Game = FAsphaltGame();
+	// Both: a backup that stayed would bring the old game back.
 	UGameplayStatics::DeleteGameInSlot(SlotName(), DIASave::UserIndex);
+	UGameplayStatics::DeleteGameInSlot(BackupSlotName(), DIASave::UserIndex);
 	AutosaveTimer = 0.0;
 	OnGameReset.Broadcast();
 	OnStateChanged.Broadcast();

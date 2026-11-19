@@ -11,6 +11,8 @@ namespace DIASave
 {
 	/** The slot of the real game; tests and screenshots use their own (UDIAWorldSubsystem::SetSlotNameOverride, -DIASlot=<name>). */
 	inline constexpr const TCHAR* DefaultSlotName = TEXT("DoItAsphalt_Slot0");
+	/** The slot's backup is the slot named with this added: every save writes both, so that a write cut short never loses the game. */
+	inline constexpr const TCHAR* BackupSuffix = TEXT("_bak");
 	/** The one local user. */
 	inline constexpr int32 UserIndex = 0;
 	/** The game saves itself this often (game time, so never while it is paused). */

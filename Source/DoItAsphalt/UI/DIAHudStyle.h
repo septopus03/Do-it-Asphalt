@@ -42,8 +42,8 @@ namespace AsphaltHud
 	inline const FLinearColor ButtonHoverColor{1.f, 0.74f, 0.36f, 1.f};
 	inline const FLinearColor ButtonPressedColor{0.82f, 0.46f, 0.08f, 1.f};
 	inline const FLinearColor ButtonDisabledColor{1.f, 1.f, 1.f, 0.10f};
-	inline const FLinearColor WinBackdropColor{0.f, 0.f, 0.f, 0.72f};
-	inline const FLinearColor WinTitleColor{1.f, 0.62f, 0.15f, 1.f};
+	inline const FLinearColor ScreenBackdropColor{0.f, 0.f, 0.f, 0.72f};
+	inline const FLinearColor ScreenTitleColor{1.f, 0.62f, 0.15f, 1.f};
 	inline const FLinearColor ButtonTextColor{0.08f, 0.06f, 0.03f, 1.f};
 	inline const FLinearColor ButtonTextDisabledColor{0.78f, 0.80f, 0.84f, 0.45f};
 
@@ -75,6 +75,9 @@ namespace AsphaltHud
 	inline constexpr float PanelCornerRadius = 12.f;
 	inline constexpr float RowCornerRadius = 8.f;
 	inline constexpr float HudPanelCornerRadius = 8.f;
+	/** The full-screen panels (win screen and menu): the padding inside the panel and above and below a button's text. */
+	inline constexpr float ScreenPanelPadding = 36.f;
+	inline constexpr float ScreenButtonPaddingV = 10.f;
 	/** The win screen: the panel's inner width, the statistics' label column and the two buttons. */
 	inline constexpr float WinPanelWidth = 640.f;
 	inline constexpr float WinLabelWidth = 320.f;
@@ -82,8 +85,6 @@ namespace AsphaltHud
 	inline constexpr float WinRowSpacing = 8.f;
 	inline constexpr float WinButtonsSpacing = 28.f;
 	inline constexpr float WinButtonWidth = 240.f;
-	inline constexpr float WinButtonPaddingV = 10.f;
-	inline constexpr float WinPanelPadding = 36.f;
 	/** The menu: the panel's inner width, the title's distance to the buttons, the gap between buttons, and the width of a button. */
 	inline constexpr float MenuPanelWidth = 520.f;
 	inline constexpr float MenuTitleSpacing = 30.f;

@@ -57,18 +57,22 @@ public:
 	// Save slot. The game is stored as one blob (FAsphaltGame::SaveToBytes) in the slot SlotName().
 	/** "DoItAsphalt_Slot0" unless overridden by SetSlotNameOverride or the command line switch -DIASlot=<name>. */
 	static FString SlotName();
+	/** Writes the blob into the named slot as a save file with the footer that ReadSlotBlob checks; false if it could not be written. */
+	static bool WriteSlot(const FString& Slot, const TArray<uint8>& Blob);
+	/** The slot's backup: SlotName() with "_bak" added. Every save writes the slot and then the backup; a damaged slot is read from it. */
+	static FString BackupSlotName();
 	/** Tests and screenshots use their own slot so that they never touch the real save; an empty name removes the override. */
 	static void SetSlotNameOverride(const FString& Name);
-	/** The slot exists and its blob loads into a scratch game (a corrupt or missing slot is no save). */
+	/** The slot (or, if that is damaged or missing, its backup) holds a blob that loads into a scratch game. */
 	bool HasSave() const;
 	/**
 	 * Replaces the game with the saved one and broadcasts OnGameReset and OnStateChanged. Returns false and leaves the current game
 	 * untouched if there is no valid save.
 	 */
 	bool LoadGame();
-	/** Writes the game to the slot; the position of the player (or of the truck, if the player drives it) is taken from the world first. */
+	/** Writes the game to the slot and its backup; the position of the player (or of the truck, if the player drives it) is taken from the world first. */
 	void SaveGame();
-	/** Starts over: a fresh core, the slot is deleted, and OnGameReset and OnStateChanged are broadcast (the actors go to the layout's positions). */
+	/** Starts over: a fresh core, the slot and its backup are deleted, and OnGameReset and OnStateChanged are broadcast (the actors go to the layout's positions). */
 	void NewGame();
 
 	/**

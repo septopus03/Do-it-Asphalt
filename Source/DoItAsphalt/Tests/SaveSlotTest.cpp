@@ -43,6 +43,12 @@ namespace
 	constexpr double SaveTestRichMoney = 1.0e9;
 	constexpr int32 SaveTestRichShards = 1000000;
 
+	/** The backup of the test slot: the name the game gives it, so that a change of the suffix shows up here. */
+	FString SaveTestBackupName()
+	{
+		return SaveTestSlotName + DIASave::BackupSuffix;
+	}
+
 	/** Takes the test slot for the length of a test: it is empty at the start and at the end, and the name override is gone afterwards. */
 	struct FSaveTestSlot
 	{
@@ -56,13 +62,23 @@ namespace
 			Delete();
 			UDIAWorldSubsystem::SetSlotNameOverride(FString());
 		}
+		/** Both the slot and its backup (DIA_Test and DIA_Test_bak). */
 		static void Delete()
 		{
 			UGameplayStatics::DeleteGameInSlot(SaveTestSlotName, DIASave::UserIndex);
+			DeleteBackup();
+		}
+		static void DeleteBackup()
+		{
+			UGameplayStatics::DeleteGameInSlot(SaveTestBackupName(), DIASave::UserIndex);
 		}
 		static bool Exists()
 		{
 			return UGameplayStatics::DoesSaveGameExist(SaveTestSlotName, DIASave::UserIndex);
+		}
+		static bool BackupExists()
+		{
+			return UGameplayStatics::DoesSaveGameExist(SaveTestBackupName(), DIASave::UserIndex);
 		}
 	};
 
@@ -102,9 +118,14 @@ namespace
 	}
 
 	/** The slot file on disk, for the test that puts rubbish into it. */
+	FString SaveTestFile(const FString& Slot)
+	{
+		return FPaths::ProjectSavedDir() / TEXT("SaveGames") / (Slot + TEXT(".sav"));
+	}
+
 	FString SaveTestSlotFile()
 	{
-		return FPaths::ProjectSavedDir() / TEXT("SaveGames") / (SaveTestSlotName + TEXT(".sav"));
+		return SaveTestFile(SaveTestSlotName);
 	}
 }
 
@@ -188,9 +209,9 @@ bool FCorruptSlotStartsNewGameTest::RunTest(const FString& Parameters)
 	const double StartMoney = Game.GetMoney();
 
 	// A slot that holds a save object with 1000 bytes of rubbish.
-	UDIASaveGame* Rubbish = NewObject<UDIASaveGame>(GetTransientPackage());
-	Rubbish->Blob.Init(SaveTestCorruptFill, SaveTestCorruptBytes);
-	TestTrue(TEXT("the rubbish was written"), UGameplayStatics::SaveGameToSlot(Rubbish, SaveTestSlotName, DIASave::UserIndex));
+	TArray<uint8> Rubbish;
+	Rubbish.Init(SaveTestCorruptFill, SaveTestCorruptBytes);
+	TestTrue(TEXT("the rubbish was written"), UDIAWorldSubsystem::WriteSlot(SaveTestSlotName, Rubbish));
 	TestFalse(TEXT("corrupt blob: no save"), Subsystem->HasSave());
 	TestFalse(TEXT("corrupt blob: LoadGame fails"), Subsystem->LoadGame());
 	TestEqual(TEXT("the game is a new game"), Game.GetMoney(), StartMoney);
@@ -205,12 +226,12 @@ bool FCorruptSlotStartsNewGameTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("the game in progress is untouched"), Game.GetMoney(), Money);
 	TestEqual(TEXT("and nothing was announced"), Resets, 0);
 
-	// A truncated real save.
+	// A truncated real save (with no backup to fall back to).
 	Subsystem->SaveGame();
+	FSaveTestSlot::DeleteBackup();
 	TArray<uint8> Blob = Game.SaveToBytes();
 	Blob.SetNum(Blob.Num() / 2);
-	Rubbish->Blob = MoveTemp(Blob);
-	UGameplayStatics::SaveGameToSlot(Rubbish, SaveTestSlotName, DIASave::UserIndex);
+	UDIAWorldSubsystem::WriteSlot(SaveTestSlotName, Blob);
 	TestFalse(TEXT("truncated blob: no save"), Subsystem->HasSave());
 	TestFalse(TEXT("truncated blob: LoadGame fails"), Subsystem->LoadGame());
 
@@ -429,9 +450,7 @@ namespace
 	/** Writes a blob into the slot as the game would. */
 	void SaveTestWriteBlob(const TArray<uint8>& Blob)
 	{
-		UDIASaveGame* Save = NewObject<UDIASaveGame>(GetTransientPackage());
-		Save->Blob = Blob;
-		UGameplayStatics::SaveGameToSlot(Save, SaveTestSlotName, DIASave::UserIndex);
+		UDIAWorldSubsystem::WriteSlot(SaveTestSlotName, Blob);
 	}
 }
 
@@ -866,5 +885,214 @@ bool FWinScreenNewGameTest::RunTest(const FString& Parameters)
 	Subsystem->LoadGame();
 	TestTrue(TEXT("the win screen is up again"), Hud->IsWinScreenShown());
 	TestTrue(TEXT("with the input"), Controller->IsWinInput());
+	return true;
+}
+
+namespace
+{
+	/** A game in a world, saved once: the starting point of the tests of the backup. */
+	constexpr double SaveTestMoneyA = 5000.0;
+	constexpr double SaveTestMoneyB = 9000.0;
+	/** Lengths at which a write can be cut short: inside the magic, inside the header, and deep in the blob. */
+	constexpr int32 SaveTestCutLengths[] = {0, 1, 3, 4, 5, 8, 16, 32, 64, 128, 1000};
+
+	void SaveTestWriteFile(const FString& Slot, const TArray<uint8>& Bytes)
+	{
+		FFileHelper::SaveArrayToFile(Bytes, *SaveTestFile(Slot));
+	}
+
+	TArray<uint8> SaveTestReadFile(const FString& Slot)
+	{
+		TArray<uint8> Bytes;
+		FFileHelper::LoadFileToArray(Bytes, *SaveTestFile(Slot));
+		return Bytes;
+	}
+
+	TArray<uint8> SaveTestRubbish()
+	{
+		TArray<uint8> Rubbish;
+		Rubbish.Init(SaveTestCorruptFill, SaveTestCorruptBytes);
+		return Rubbish;
+	}
+}
+
+DIA_TEST(FSaveBackupFallbackTest, "DoItAsphalt.Game.SaveBackupFallback")
+
+bool FSaveBackupFallbackTest::RunTest(const FString& Parameters)
+{
+	FSaveTestSlot Slot;
+	FTestWorldWrapper Wrapper;
+	if (!DIATest::StartGameWorld(Wrapper, *this))
+	{
+		return false;
+	}
+	UDIAWorldSubsystem* Subsystem = Wrapper.GetTestWorld()->GetSubsystem<UDIAWorldSubsystem>();
+	if (!TestNotNull(TEXT("world subsystem"), Subsystem))
+	{
+		return false;
+	}
+	FAsphaltGame& Game = Subsystem->GetGame();
+	TestEqual(TEXT("the backup is the slot with _bak"), UDIAWorldSubsystem::BackupSlotName(), SaveTestBackupName());
+
+	// A save writes the slot and the backup.
+	Game.DebugGive(SaveTestMoneyA, 0);
+	const double MoneyA = Game.GetMoney();
+	Subsystem->SaveGame();
+	TestTrue(TEXT("the slot was written"), FSaveTestSlot::Exists());
+	TestTrue(TEXT("and the backup"), FSaveTestSlot::BackupExists());
+
+	// A good slot is read first: the slot holds a later game than the backup does.
+	Game.DebugGive(SaveTestMoneyB, 0);
+	const double MoneyB = Game.GetMoney();
+	SaveTestWriteBlob(Game.SaveToBytes());
+	TestTrue(TEXT("a good slot and a good backup"), Subsystem->LoadGame());
+	TestEqual(TEXT("the slot wins"), Subsystem->GetGame().GetMoney(), MoneyB);
+
+	// A slot that a cut-short write left as rubbish: the backup's game comes back.
+	SaveTestWriteFile(SaveTestSlotName, SaveTestRubbish());
+	Subsystem->GetGame().DebugGive(SaveTestMoneyB, 0);
+	TestTrue(TEXT("a damaged slot still counts as a save"), Subsystem->HasSave());
+	TestTrue(TEXT("it loads from the backup"), Subsystem->LoadGame());
+	TestEqual(TEXT("the backup's game"), Subsystem->GetGame().GetMoney(), MoneyA);
+
+	// The same with a slot that is a real save cut in half, and with a slot that is gone.
+	Subsystem->SaveGame();
+	TArray<uint8> Half = SaveTestReadFile(SaveTestSlotName);
+	Half.SetNum(Half.Num() / 2);
+	SaveTestWriteFile(SaveTestSlotName, Half);
+	Subsystem->GetGame().DebugGive(SaveTestMoneyB, 0);
+	TestTrue(TEXT("a half slot loads from the backup"), Subsystem->LoadGame());
+	TestEqual(TEXT("the backup's game again"), Subsystem->GetGame().GetMoney(), MoneyA);
+	UGameplayStatics::DeleteGameInSlot(SaveTestSlotName, DIASave::UserIndex);
+	Subsystem->GetGame().DebugGive(SaveTestMoneyB, 0);
+	TestTrue(TEXT("a missing slot loads from the backup"), Subsystem->LoadGame());
+	TestEqual(TEXT("the backup's game from a missing slot"), Subsystem->GetGame().GetMoney(), MoneyA);
+	return true;
+}
+
+DIA_TEST(FSaveBothDamagedTest, "DoItAsphalt.Game.SaveBothDamaged")
+
+bool FSaveBothDamagedTest::RunTest(const FString& Parameters)
+{
+	FSaveTestSlot Slot;
+	FTestWorldWrapper Wrapper;
+	if (!DIATest::StartGameWorld(Wrapper, *this))
+	{
+		return false;
+	}
+	UDIAWorldSubsystem* Subsystem = Wrapper.GetTestWorld()->GetSubsystem<UDIAWorldSubsystem>();
+	if (!TestNotNull(TEXT("world subsystem"), Subsystem))
+	{
+		return false;
+	}
+	FAsphaltGame& Game = Subsystem->GetGame();
+	Game.DebugGive(SaveTestMoneyA, 0);
+	const double Money = Game.GetMoney();
+	int32 Resets = 0;
+	Subsystem->OnGameReset.AddLambda([&Resets]() { ++Resets; });
+
+	SaveTestWriteFile(SaveTestSlotName, SaveTestRubbish());
+	SaveTestWriteFile(SaveTestBackupName(), SaveTestRubbish());
+	TestFalse(TEXT("two files of rubbish: no save"), Subsystem->HasSave());
+	TestFalse(TEXT("two files of rubbish: LoadGame fails"), Subsystem->LoadGame());
+
+	// Two real saves, both cut short.
+	Subsystem->SaveGame();
+	TArray<uint8> Cut = SaveTestReadFile(SaveTestSlotName);
+	Cut.SetNum(Cut.Num() / 2);
+	SaveTestWriteFile(SaveTestSlotName, Cut);
+	SaveTestWriteFile(SaveTestBackupName(), Cut);
+	TestFalse(TEXT("two cut saves: no save"), Subsystem->HasSave());
+	TestFalse(TEXT("two cut saves: LoadGame fails"), Subsystem->LoadGame());
+
+	// A well-formed save file whose blob is rubbish, in front of a cut backup.
+	SaveTestWriteBlob(SaveTestRubbish());
+	TestFalse(TEXT("a rubbish blob in the slot, a cut backup: no save"), Subsystem->HasSave());
+
+	TestEqual(TEXT("the game was never touched"), Game.GetMoney(), Money);
+	TestEqual(TEXT("and nothing was announced"), Resets, 0);
+	return true;
+}
+
+DIA_TEST(FNewGameRemovesBackupTest, "DoItAsphalt.Game.NewGameRemovesBackup")
+
+bool FNewGameRemovesBackupTest::RunTest(const FString& Parameters)
+{
+	FSaveTestSlot Slot;
+	FTestWorldWrapper Wrapper;
+	if (!DIATest::StartGameWorld(Wrapper, *this))
+	{
+		return false;
+	}
+	UDIAWorldSubsystem* Subsystem = Wrapper.GetTestWorld()->GetSubsystem<UDIAWorldSubsystem>();
+	if (!TestNotNull(TEXT("world subsystem"), Subsystem))
+	{
+		return false;
+	}
+	Subsystem->GetGame().DebugGive(SaveTestMoneyA, 0);
+	Subsystem->SaveGame();
+	TestTrue(TEXT("the slot is there"), FSaveTestSlot::Exists());
+	TestTrue(TEXT("and the backup"), FSaveTestSlot::BackupExists());
+
+	Subsystem->NewGame();
+	TestFalse(TEXT("New Game removed the slot"), FSaveTestSlot::Exists());
+	TestFalse(TEXT("and the backup"), FSaveTestSlot::BackupExists());
+	TestFalse(TEXT("there is no save left to continue"), Subsystem->HasSave());
+	TestFalse(TEXT("and nothing to load"), Subsystem->LoadGame());
+	return true;
+}
+
+DIA_TEST(FSaveCutShortNeverCrashesTest, "DoItAsphalt.Game.SaveCutShortNeverCrashes")
+
+bool FSaveCutShortNeverCrashesTest::RunTest(const FString& Parameters)
+{
+	FSaveTestSlot Slot;
+	FTestWorldWrapper Wrapper;
+	if (!DIATest::StartGameWorld(Wrapper, *this))
+	{
+		return false;
+	}
+	UDIAWorldSubsystem* Subsystem = Wrapper.GetTestWorld()->GetSubsystem<UDIAWorldSubsystem>();
+	if (!TestNotNull(TEXT("world subsystem"), Subsystem))
+	{
+		return false;
+	}
+	FAsphaltGame& Game = Subsystem->GetGame();
+	SaveTestComplete(Subsystem, SaveTestCells);
+	Game.DebugGive(SaveTestMoneyA, 0);
+	const double Money = Game.GetMoney();
+	Subsystem->SaveGame();
+	const TArray<uint8> Whole = SaveTestReadFile(SaveTestSlotName);
+	if (!TestTrue(TEXT("a real save file to cut"), Whole.Num() > SaveTestCutLengths[UE_ARRAY_COUNT(SaveTestCutLengths) - 1]))
+	{
+		return false;
+	}
+	FSaveTestSlot::DeleteBackup();
+	TestTrue(TEXT("the whole file is a save"), Subsystem->HasSave());
+
+	TArray<int32> Lengths(SaveTestCutLengths, UE_ARRAY_COUNT(SaveTestCutLengths));
+	Lengths.Add(Whole.Num() / 4);
+	Lengths.Add(Whole.Num() / 2);
+	Lengths.Add(Whole.Num() - 1);
+	for (const int32 Length : Lengths)
+	{
+		TArray<uint8> Cut(Whole.GetData(), Length);
+		SaveTestWriteFile(SaveTestSlotName, Cut);
+		TestFalse(*FString::Printf(TEXT("cut at %d bytes: no save"), Length), Subsystem->HasSave());
+		TestFalse(*FString::Printf(TEXT("cut at %d bytes: LoadGame fails"), Length), Subsystem->LoadGame());
+	}
+	// One flipped byte anywhere in an otherwise whole file: the CRC catches it.
+	for (const int32 At : {0, Whole.Num() / 2, Whole.Num() - 1})
+	{
+		TArray<uint8> Flipped = Whole;
+		Flipped[At] ^= 0xFF;
+		SaveTestWriteFile(SaveTestSlotName, Flipped);
+		TestFalse(*FString::Printf(TEXT("byte %d flipped: no save"), At), Subsystem->HasSave());
+		TestFalse(*FString::Printf(TEXT("byte %d flipped: LoadGame fails"), At), Subsystem->LoadGame());
+	}
+	TestEqual(TEXT("the game was never touched"), Game.GetMoney(), Money);
+	// The whole file once more is a save again.
+	SaveTestWriteFile(SaveTestSlotName, Whole);
+	TestTrue(TEXT("the whole file is a save"), Subsystem->LoadGame());
 	return true;
 }
