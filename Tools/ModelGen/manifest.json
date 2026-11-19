@@ -26,5 +26,7 @@
   {"name": "SM_Fence", "min": [-0.04, -1.0, 0], "max": [0.04, 1.0, 1.8], "max_tris": 300, "tolerance": 0.02},
   {"name": "SM_Barrel", "min": [-0.3, -0.3, 0], "max": [0.3, 0.3, 0.9], "max_tris": 250, "tolerance": 0.02},
   {"name": "SM_Lamp", "min": [-0.2, -0.2, 0], "max": [0.2, 1.0, 5.0], "max_tris": 300, "tolerance": 0.02},
-  {"name": "SM_DirtPile", "min": [-1.0, -1.0, 0], "max": [1.0, 1.0, 1.0], "max_tris": 300, "tolerance": 0.02}
+  {"name": "SM_DirtPile", "min": [-1.0, -1.0, 0], "max": [1.0, 1.0, 1.0], "max_tris": 300, "tolerance": 0.02},
+  {"name": "SM_AutoPaver", "min": [-0.5, -0.4, 0], "max": [0.5, 0.4, 0.6], "max_tris": 1500, "tolerance": 0.02},
+  {"name": "SM_PaverCar", "min": [-2.3, -1.5, 0], "max": [2.3, 1.5, 2.4], "max_tris": 8000, "tolerance": 0.02}
 ]
