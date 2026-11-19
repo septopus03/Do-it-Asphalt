@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Brushes/SlateRoundedBoxBrush.h"
 #include "UI/DIAFormat.h"
+#include "UI/DIAHudStyle.h"
 #include "Widgets/SCompoundWidget.h"
 
 class ADIAHUD;
@@ -45,5 +46,5 @@ private:
 	FDelegateHandle StateHandle;
 
 	FDIAHudModel Model;
-	FSlateRoundedBoxBrush PanelBrush{FLinearColor::White, 8.f};
+	FSlateRoundedBoxBrush PanelBrush{FLinearColor::White, AsphaltHud::HudPanelCornerRadius};
 };

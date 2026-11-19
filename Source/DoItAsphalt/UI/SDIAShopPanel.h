@@ -42,7 +42,7 @@ private:
 	FDelegateHandle StateHandle;
 
 	FDIAShopModel Model;
-	FSlateRoundedBoxBrush PanelBrush{FLinearColor::White, 12.f};
-	FSlateRoundedBoxBrush RowBrush{FLinearColor::White, 8.f};
+	FSlateRoundedBoxBrush PanelBrush{FLinearColor::White, AsphaltHud::PanelCornerRadius};
+	FSlateRoundedBoxBrush RowBrush{FLinearColor::White, AsphaltHud::RowCornerRadius};
 	FButtonStyle ButtonStyle;
 };

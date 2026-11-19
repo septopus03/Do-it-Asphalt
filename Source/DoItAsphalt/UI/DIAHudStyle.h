@@ -45,6 +45,9 @@ namespace AsphaltHud
 	inline const FLinearColor ButtonTextColor{0.08f, 0.06f, 0.03f, 1.f};
 	inline const FLinearColor ButtonTextDisabledColor{0.78f, 0.80f, 0.84f, 0.45f};
 
+	/** Offset of the text shadow. */
+	inline const FVector2D ShadowOffset{1.0, 1.0};
+
 	// Sizes.
 	inline constexpr int32 BigFontSize = 34;
 	inline constexpr int32 MediumFontSize = 26;
@@ -66,6 +69,10 @@ namespace AsphaltHud
 	inline constexpr float ShopRowSpacing = 10.f;
 	inline constexpr float ShopPadding = 26.f;
 	inline constexpr float ButtonCornerRadius = 8.f;
+	/** Corner radii: the big panels (shop, win screen), their rows, and the smaller HUD panels (stats, toasts). */
+	inline constexpr float PanelCornerRadius = 12.f;
+	inline constexpr float RowCornerRadius = 8.f;
+	inline constexpr float HudPanelCornerRadius = 8.f;
 	/** The win screen: the panel's inner width, the statistics' label column and the two buttons. */
 	inline constexpr float WinPanelWidth = 640.f;
 	inline constexpr float WinLabelWidth = 320.f;

@@ -7,6 +7,7 @@
 #include "Brushes/SlateRoundedBoxBrush.h"
 #include "Styling/SlateTypes.h"
 #include "UI/DIAFormat.h"
+#include "UI/DIAHudStyle.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
 
@@ -41,7 +42,7 @@ private:
 	FSimpleDelegate OnQuit;
 
 	FDIAWinModel Model;
-	FSlateRoundedBoxBrush PanelBrush{FLinearColor::White, 12.f};
-	FSlateRoundedBoxBrush RowBrush{FLinearColor::White, 8.f};
+	FSlateRoundedBoxBrush PanelBrush{FLinearColor::White, AsphaltHud::PanelCornerRadius};
+	FSlateRoundedBoxBrush RowBrush{FLinearColor::White, AsphaltHud::RowCornerRadius};
 	FButtonStyle ButtonStyle;
 };

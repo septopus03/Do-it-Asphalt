@@ -5,6 +5,7 @@
 #include "Styling/CoreStyle.h"
 #include "UI/DIAHUD.h"
 #include "UI/DIAHudStyle.h"
+#include "UI/DIAHudWidgets.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
@@ -17,17 +18,6 @@ namespace
 	const FSlateBrush* WhiteBrush()
 	{
 		return FCoreStyle::Get().GetBrush("WhiteBrush");
-	}
-
-	/** Bold text with a drop shadow so that it stays legible on any ground. */
-	TSharedRef<STextBlock> MakeText(TAttribute<FText> Text, int32 Size, const FLinearColor& Color)
-	{
-		return SNew(STextBlock)
-			.Text(Text)
-			.Font(FCoreStyle::GetDefaultFontStyle("Bold", Size))
-			.ColorAndOpacity(Color)
-			.ShadowOffset(FVector2D(1.0, 1.0))
-			.ShadowColorAndOpacity(AsphaltHud::ShadowColor);
 	}
 
 	/** A horizontal bar: dim track and a fill whose width follows Fraction (0..1). */
@@ -113,11 +103,11 @@ TSharedRef<SWidget> SDIAHudOverlay::BuildTopLeft()
 		return SNew(SHorizontalBox)
 			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
 			[
-				MakeText(Value, AsphaltHud::BigFontSize, Color)
+				AsphaltHud::MakeShadowedText(Value, AsphaltHud::BigFontSize, Color)
 			]
 			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Bottom).Padding(10.f, 0.f, 0.f, 4.f)
 			[
-				MakeText(Caption, AsphaltHud::CaptionFontSize, AsphaltHud::CaptionColor)
+				AsphaltHud::MakeShadowedText(Caption, AsphaltHud::CaptionFontSize, AsphaltHud::CaptionColor)
 			];
 	};
 	return SNew(SBorder)
@@ -147,11 +137,11 @@ TSharedRef<SWidget> SDIAHudOverlay::BuildTopRight()
 			SNew(SVerticalBox)
 			+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Right)
 			[
-				MakeText(TAttribute<FText>::CreateLambda([this]() { return Model.GetView().Progress; }), AsphaltHud::BigFontSize, AsphaltHud::TextColor)
+				AsphaltHud::MakeShadowedText(TAttribute<FText>::CreateLambda([this]() { return Model.GetView().Progress; }), AsphaltHud::BigFontSize, AsphaltHud::TextColor)
 			]
 			+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Right)
 			[
-				MakeText(NSLOCTEXT("DIAHud", "ProgressCaption", "cells paved"), AsphaltHud::CaptionFontSize, AsphaltHud::CaptionColor)
+				AsphaltHud::MakeShadowedText(NSLOCTEXT("DIAHud", "ProgressCaption", "cells paved"), AsphaltHud::CaptionFontSize, AsphaltHud::CaptionColor)
 			]
 			+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Right).Padding(0.f, 6.f, 0.f, 0.f)
 			[
@@ -173,7 +163,7 @@ TSharedRef<SWidget> SDIAHudOverlay::BuildBottom()
 			.Padding(AsphaltHud::PanelPaddingH, AsphaltHud::PanelPaddingV)
 			.Visibility_Lambda([WeakHud]() { return WeakHud.IsValid() && !WeakHud->GetPrompt().IsEmpty() ? EVisibility::Visible : EVisibility::Collapsed; })
 			[
-				MakeText(TAttribute<FText>::CreateLambda([WeakHud]() { return WeakHud.IsValid() ? WeakHud->GetPrompt() : FText::GetEmpty(); }), AsphaltHud::MediumFontSize, AsphaltHud::PromptColor)
+				AsphaltHud::MakeShadowedText(TAttribute<FText>::CreateLambda([WeakHud]() { return WeakHud.IsValid() ? WeakHud->GetPrompt() : FText::GetEmpty(); }), AsphaltHud::MediumFontSize, AsphaltHud::PromptColor)
 			]
 		]
 		// Stock of the plant, only near a refill point.
@@ -191,11 +181,11 @@ TSharedRef<SWidget> SDIAHudOverlay::BuildBottom()
 					SNew(SHorizontalBox)
 					+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Bottom).Padding(0.f, 0.f, 10.f, 3.f)
 					[
-						MakeText(NSLOCTEXT("DIAHud", "StockCaption", "PLANT STOCK"), AsphaltHud::CaptionFontSize, AsphaltHud::CaptionColor)
+						AsphaltHud::MakeShadowedText(NSLOCTEXT("DIAHud", "StockCaption", "PLANT STOCK"), AsphaltHud::CaptionFontSize, AsphaltHud::CaptionColor)
 					]
 					+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
 					[
-						MakeText(TAttribute<FText>::CreateLambda([this]() { return Model.GetView().Stock; }), AsphaltHud::MediumFontSize, AsphaltHud::TextColor)
+						AsphaltHud::MakeShadowedText(TAttribute<FText>::CreateLambda([this]() { return Model.GetView().Stock; }), AsphaltHud::MediumFontSize, AsphaltHud::TextColor)
 					]
 				]
 				+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0.f, 4.f, 0.f, 0.f)
@@ -218,11 +208,11 @@ TSharedRef<SWidget> SDIAHudOverlay::BuildBottom()
 					SNew(SHorizontalBox)
 					+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Bottom).Padding(0.f, 0.f, 12.f, 5.f)
 					[
-						MakeText(TAttribute<FText>::CreateLambda([this]() { return Model.GetView().BackpackCaption; }), AsphaltHud::CaptionFontSize, AsphaltHud::CaptionColor)
+						AsphaltHud::MakeShadowedText(TAttribute<FText>::CreateLambda([this]() { return Model.GetView().BackpackCaption; }), AsphaltHud::CaptionFontSize, AsphaltHud::CaptionColor)
 					]
 					+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
 					[
-						MakeText(TAttribute<FText>::CreateLambda([this]() { return Model.GetView().Backpack; }), AsphaltHud::BigFontSize, AsphaltHud::TextColor)
+						AsphaltHud::MakeShadowedText(TAttribute<FText>::CreateLambda([this]() { return Model.GetView().Backpack; }), AsphaltHud::BigFontSize, AsphaltHud::TextColor)
 					]
 				]
 				+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0.f, 4.f, 0.f, 0.f)
@@ -252,7 +242,7 @@ TSharedRef<SWidget> SDIAHudOverlay::BuildToasts()
 				.Text_Lambda([WeakHud, Index]() { return WeakHud.IsValid() ? WeakHud->GetToasts().GetText(Index) : FText::GetEmpty(); })
 				.Font(FCoreStyle::GetDefaultFontStyle("Bold", AsphaltHud::MediumFontSize))
 				.ColorAndOpacity_Lambda([Alpha]() { FLinearColor C = AsphaltHud::TextColor; C.A = Alpha(); return FSlateColor(C); })
-				.ShadowOffset(FVector2D(1.0, 1.0))
+				.ShadowOffset(AsphaltHud::ShadowOffset)
 				.ShadowColorAndOpacity_Lambda([Alpha]() { FLinearColor C = AsphaltHud::ShadowColor; C.A *= Alpha(); return C; })
 			]
 		];

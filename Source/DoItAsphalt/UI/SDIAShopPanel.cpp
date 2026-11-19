@@ -5,6 +5,7 @@
 #include "Styling/CoreStyle.h"
 #include "UI/DIAButtonStyle.h"
 #include "UI/DIAHudStyle.h"
+#include "UI/DIAHudWidgets.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
@@ -12,19 +13,6 @@
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SOverlay.h"
 #include "Widgets/Text/STextBlock.h"
-
-namespace
-{
-	TSharedRef<STextBlock> MakeShopText(TAttribute<FText> Text, int32 Size, const FLinearColor& Color)
-	{
-		return SNew(STextBlock)
-			.Text(Text)
-			.Font(FCoreStyle::GetDefaultFontStyle("Bold", Size))
-			.ColorAndOpacity(Color)
-			.ShadowOffset(FVector2D(1.0, 1.0))
-			.ShadowColorAndOpacity(AsphaltHud::ShadowColor);
-	}
-}
 
 void SDIAShopPanel::Construct(const FArguments& InArgs)
 {
@@ -65,7 +53,7 @@ void SDIAShopPanel::Construct(const FArguments& InArgs)
 					SNew(SHorizontalBox)
 					+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
 					[
-						MakeShopText(NSLOCTEXT("DIAHud", "ShopTitle", "SHOP"), AsphaltHud::BigFontSize, AsphaltHud::TextColor)
+						AsphaltHud::MakeShadowedText(NSLOCTEXT("DIAHud", "ShopTitle", "SHOP"), AsphaltHud::BigFontSize, AsphaltHud::TextColor)
 					]
 					+ SHorizontalBox::Slot().FillWidth(1.f)
 					[
@@ -73,7 +61,7 @@ void SDIAShopPanel::Construct(const FArguments& InArgs)
 					]
 					+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Bottom).Padding(24.f, 0.f, 0.f, 4.f)
 					[
-						MakeShopText(NSLOCTEXT("DIAHud", "ShopHint", "Tab - close"), AsphaltHud::CaptionFontSize, AsphaltHud::CaptionColor)
+						AsphaltHud::MakeShadowedText(NSLOCTEXT("DIAHud", "ShopHint", "Tab - close"), AsphaltHud::CaptionFontSize, AsphaltHud::CaptionColor)
 					]
 				]
 				+ SVerticalBox::Slot().AutoHeight()
@@ -127,21 +115,21 @@ TSharedRef<SWidget> SDIAShopPanel::BuildRow(int32 Row)
 			[
 				SNew(SBox).WidthOverride(AsphaltHud::ShopNameWidth)
 				[
-					MakeShopText(TAttribute<FText>::CreateLambda([this, Index]() { return Model.GetRow(Index).Name; }), AsphaltHud::MediumFontSize, AsphaltHud::TextColor)
+					AsphaltHud::MakeShadowedText(TAttribute<FText>::CreateLambda([this, Index]() { return Model.GetRow(Index).Name; }), AsphaltHud::MediumFontSize, AsphaltHud::TextColor)
 				]
 			]
 			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
 			[
 				SNew(SBox).WidthOverride(AsphaltHud::ShopChangeWidth)
 				[
-					MakeShopText(TAttribute<FText>::CreateLambda([this, Index]() { return Model.GetRow(Index).Change; }), AsphaltHud::MediumFontSize, AsphaltHud::CaptionColor)
+					AsphaltHud::MakeShadowedText(TAttribute<FText>::CreateLambda([this, Index]() { return Model.GetRow(Index).Change; }), AsphaltHud::MediumFontSize, AsphaltHud::CaptionColor)
 				]
 			]
 			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
 			[
 				SNew(SBox).WidthOverride(AsphaltHud::ShopPriceWidth)
 				[
-					MakeShopText(TAttribute<FText>::CreateLambda([this, Index]() { return Model.GetRow(Index).Price; }), AsphaltHud::MediumFontSize,
+					AsphaltHud::MakeShadowedText(TAttribute<FText>::CreateLambda([this, Index]() { return Model.GetRow(Index).Price; }), AsphaltHud::MediumFontSize,
 						bShards ? AsphaltHud::ShardColor : AsphaltHud::MoneyColor)
 				]
 			]

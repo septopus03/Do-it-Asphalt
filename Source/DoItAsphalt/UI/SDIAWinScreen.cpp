@@ -4,25 +4,13 @@
 #include "Styling/CoreStyle.h"
 #include "UI/DIAButtonStyle.h"
 #include "UI/DIAHudStyle.h"
+#include "UI/DIAHudWidgets.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SOverlay.h"
 #include "Widgets/Text/STextBlock.h"
-
-namespace
-{
-	TSharedRef<STextBlock> MakeWinText(TAttribute<FText> Text, int32 Size, const FLinearColor& Color)
-	{
-		return SNew(STextBlock)
-			.Text(Text)
-			.Font(FCoreStyle::GetDefaultFontStyle("Bold", Size))
-			.ColorAndOpacity(Color)
-			.ShadowOffset(FVector2D(1.0, 1.0))
-			.ShadowColorAndOpacity(AsphaltHud::ShadowColor);
-	}
-}
 
 void SDIAWinScreen::Construct(const FArguments& InArgs)
 {
@@ -53,7 +41,7 @@ void SDIAWinScreen::Construct(const FArguments& InArgs)
 					SNew(SVerticalBox)
 					+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0.f, 0.f, 0.f, AsphaltHud::WinTitleSpacing)
 					[
-						MakeWinText(NSLOCTEXT("DIAHud", "WinTitle", "Parking lot complete!"), AsphaltHud::BigFontSize, AsphaltHud::WinTitleColor)
+						AsphaltHud::MakeShadowedText(NSLOCTEXT("DIAHud", "WinTitle", "Parking lot complete!"), AsphaltHud::BigFontSize, AsphaltHud::WinTitleColor)
 					]
 					+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 0.f, 0.f, AsphaltHud::WinRowSpacing)
 					[
@@ -119,12 +107,12 @@ TSharedRef<SWidget> SDIAWinScreen::BuildStatRow(const FText& Label, TFunction<FT
 			[
 				SNew(SBox).WidthOverride(AsphaltHud::WinLabelWidth)
 				[
-					MakeWinText(Label, AsphaltHud::MediumFontSize, AsphaltHud::CaptionColor)
+					AsphaltHud::MakeShadowedText(Label, AsphaltHud::MediumFontSize, AsphaltHud::CaptionColor)
 				]
 			]
 			+ SHorizontalBox::Slot().FillWidth(1.f).HAlign(HAlign_Right).VAlign(VAlign_Center)
 			[
-				MakeWinText(TAttribute<FText>::CreateLambda(MoveTemp(Value)), AsphaltHud::MediumFontSize, ValueColor)
+				AsphaltHud::MakeShadowedText(TAttribute<FText>::CreateLambda(MoveTemp(Value)), AsphaltHud::MediumFontSize, ValueColor)
 			]
 		];
 }
