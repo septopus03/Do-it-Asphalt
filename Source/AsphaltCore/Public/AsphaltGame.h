@@ -39,7 +39,7 @@ struct FAsphaltWorldState
 };
 
 /** Everything that happened during one game operation; operations can be summed with Append. */
-struct FAsphaltEvents
+struct ASPHALTCORE_API FAsphaltEvents
 {
 	double LitresPoured = 0.0;
 	double MoneyEarned = 0.0;
