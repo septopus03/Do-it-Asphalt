@@ -16,6 +16,7 @@
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
 #include "Game/DIAWorldSubsystem.h"
+#include "UI/DIAHUD.h"
 #include "HAL/FileManager.h"
 #include "HAL/IConsoleManager.h"
 #include "Misc/Paths.h"
@@ -227,6 +228,37 @@ namespace DIACheats
 		}
 	}
 
+	ADIAHUD* GetHud(UWorld* World)
+	{
+		APlayerController* PC = GetPlayerController(World);
+		ADIAHUD* Hud = PC ? Cast<ADIAHUD>(PC->GetHUD()) : nullptr;
+		if (PC && !Hud)
+		{
+			UE_LOG(LogDoItAsphalt, Warning, TEXT("DIA cheat: the player has no ADIAHUD"));
+		}
+		return Hud;
+	}
+
+	void Prompt(const TArray<FString>& Args, UWorld* World)
+	{
+		if (ADIAHUD* Hud = GetHud(World))
+		{
+			Hud->SetPrompt(FText::FromString(FString::Join(Args, TEXT(" "))));
+		}
+	}
+
+	void Toast(const TArray<FString>& Args, UWorld* World)
+	{
+		if (!Usage(Args.Num() >= 1, TEXT("dia.Toast <text>")))
+		{
+			return;
+		}
+		if (ADIAHUD* Hud = GetHud(World))
+		{
+			Hud->ShowToast(FText::FromString(FString::Join(Args, TEXT(" "))));
+		}
+	}
+
 	TWeakObjectPtr<ACameraActor> TopViewCamera;
 
 	void TopView(const TArray<FString>& Args, UWorld* World)
@@ -300,7 +332,8 @@ namespace DIACheats
 				}
 				IFileManager::Get().Delete(*Path, false, true, true);
 				IFileManager::Get().MakeDirectory(*FPaths::GetPath(Path), true);
-				FScreenshotRequest::RequestScreenshot(Path, false, false);
+				// bShowUI: the picture includes the Slate HUD.
+				FScreenshotRequest::RequestScreenshot(Path, true, false);
 				State->bRequested = true;
 				UE_LOG(LogDoItAsphalt, Log, TEXT("dia.ShotAndQuit: screenshot requested: %s"), *Path);
 				return true;
@@ -330,6 +363,8 @@ namespace DIACheats
 	FAutoConsoleCommandWithWorldAndArgs SetLevelsCommand(TEXT("dia.SetLevels"), TEXT("dia.SetLevels <backpack> <tool> <plant>"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&SetLevels));
 	FAutoConsoleCommandWithWorldAndArgs SpecialCommand(TEXT("dia.Special"), TEXT("dia.Special <Sprint|TwoHands|PortableStation|AutoPaver|PaverCar>"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Special));
 	FAutoConsoleCommandWithWorldAndArgs TeleportCommand(TEXT("dia.Teleport"), TEXT("dia.Teleport <x> <y> [yaw] [pitch]"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Teleport));
+	FAutoConsoleCommandWithWorldAndArgs PromptCommand(TEXT("dia.Prompt"), TEXT("dia.Prompt <text>: sets the contextual prompt (no text hides it)"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Prompt));
+	FAutoConsoleCommandWithWorldAndArgs ToastCommand(TEXT("dia.Toast"), TEXT("dia.Toast <text>: shows a toast"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Toast));
 	FAutoConsoleCommandWithWorldAndArgs TopViewCommand(TEXT("dia.TopView"), TEXT("dia.TopView: camera 45 m above the centre, looking straight down"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&TopView));
 	FAutoConsoleCommandWithWorldAndArgs ShotAndQuitCommand(TEXT("dia.ShotAndQuit"), TEXT("dia.ShotAndQuit <seconds> <name>: saves Saved/Screenshots/<name>.png and quits"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&ShotAndQuit));
 }

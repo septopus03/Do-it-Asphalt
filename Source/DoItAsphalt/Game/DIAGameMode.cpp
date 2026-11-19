@@ -7,6 +7,7 @@
 #include "GameFramework/PlayerStart.h"
 #include "Player/DIACharacter.h"
 #include "Player/DIAPlayerController.h"
+#include "UI/DIAHUD.h"
 #include "World/DIAGroundActor.h"
 #include "World/DIAPlantActor.h"
 
@@ -20,6 +21,7 @@ ADIAGameMode::ADIAGameMode()
 {
 	DefaultPawnClass = ADIACharacter::StaticClass();
 	PlayerControllerClass = ADIAPlayerController::StaticClass();
+	HUDClass = ADIAHUD::StaticClass();
 }
 
 void ADIAGameMode::StartPlay()
