@@ -364,10 +364,13 @@ bool FGameBackpackKeepsContentOnUpgradeTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("still 5 l"), G.GetBackpackLitres(), 5.0, 1e-9);
 	TestEqual(TEXT("capacity"), G.GetBackpackCapacity(), 7.0, 1e-9);
 
-	// Lowering a level by hand cannot leave more inside than fits.
+	// Lowering a level by hand cannot leave more inside than fits: fill the 7 l backpack, then drop to level 0.
+	G.Tick(60.0);
+	G.RefillBackpack(10.0);
+	TestEqual(TEXT("7 l inside"), G.GetBackpackLitres(), 7.0, 1e-9);
 	G.DebugSetLevel(EAsphaltUpgrade::Backpack, 0);
 	TestEqual(TEXT("capacity back to 5"), G.GetBackpackCapacity(), 5.0, 1e-9);
-	TestTrue(TEXT("content within capacity"), G.GetBackpackLitres() <= G.GetBackpackCapacity());
+	TestEqual(TEXT("content clamped to 5 l"), G.GetBackpackLitres(), 5.0, 1e-9);
 	return true;
 }
 

@@ -2,6 +2,7 @@
 
 #include "AsphaltGame.h"
 #include "AsphaltBalance.h"
+#include "HexCoord.h"
 
 namespace
 {
@@ -32,6 +33,13 @@ namespace
 	bool IsFinite(const FVector2D& V)
 	{
 		return FMath::IsFinite(V.X) && FMath::IsFinite(V.Y);
+	}
+
+	constexpr int32 NumSpecials = static_cast<int32>(EAsphaltSpecial::Count);
+
+	bool IsValidSpecial(EAsphaltSpecial S)
+	{
+		return static_cast<int32>(S) >= 0 && static_cast<int32>(S) < NumSpecials;
 	}
 
 	FVector2D ClampToWorld(const FVector2D& V)
@@ -161,7 +169,8 @@ double FAsphaltGame::GetBackpackLitres() const
 
 double FAsphaltGame::GetToolWidthCm() const
 {
-	return CmPerMetre * AsphaltBalance::ToolWidthM[GetLevel(EAsphaltUpgrade::Tool)];
+	const double Width = CmPerMetre * AsphaltBalance::ToolWidthM[GetLevel(EAsphaltUpgrade::Tool)];
+	return HasSpecial(EAsphaltSpecial::TwoHands) ? Width * 2.0 : Width;
 }
 
 double FAsphaltGame::GetPlantRatePerMin() const
@@ -190,32 +199,112 @@ FAsphaltEvents FAsphaltGame::Tick(double Dt)
 	double Remaining = FMath::Min(Dt, MaxTickSeconds);
 	while (Remaining > 0.0)
 	{
-		const double Step = FMath::Min(Remaining, MaxStepSeconds);
-		TickStep(Step);
+		const double Step = FMath::Min(Remaining, AsphaltBalance::MaxStepSeconds);
+		Events.Append(TickStep(Step));
 		Remaining -= Step;
 	}
 	return Events;
 }
 
-void FAsphaltGame::TickStep(double Step)
+FAsphaltEvents FAsphaltGame::TickStep(double Step)
 {
 	PlaytimeSeconds += Step;
 	PlantStock = FMath::Min(PlantStock + GetPlantRatePerMin() / 60.0 * Step, GetPlantStorage());
+	return TickAutoPaver(Step);
 }
 
-double FAsphaltGame::RefillBackpack(double Dt)
+FAsphaltEvents FAsphaltGame::TickAutoPaver(double Step)
+{
+	if (!HasSpecial(EAsphaltSpecial::AutoPaver))
+	{
+		return FAsphaltEvents();
+	}
+
+	if (AutoPaverTarget == INDEX_NONE || Grid.IsCellComplete(AutoPaverTarget))
+	{
+		AutoPaverTarget = PickAutoPaverTarget();
+	}
+	if (AutoPaverTarget == INDEX_NONE)
+	{
+		return FAsphaltEvents();
+	}
+
+	const FVector2D Center = AsphaltHex::ToWorld(Map.GetCell(AutoPaverTarget).Coord);
+	const FVector2D ToTarget = Center - AutoPaverPos;
+	const double Distance = ToTarget.Size();
+	if (Distance > AsphaltBalance::AutoPaverReachCm)
+	{
+		// Walking: the paver earns no litres on the way.
+		const double Reach = AsphaltBalance::AutoPaverSpeedCmS * Step;
+		AutoPaverPos = Distance <= Reach ? Center : AutoPaverPos + ToTarget * (Reach / Distance);
+		return FAsphaltEvents();
+	}
+
+	AutoPaverBudget += AsphaltBalance::AutoPaverRateLPerMin / 60.0 * Step;
+	const FPourResult Result = Grid.DepositIntoCell(AutoPaverTarget, AutoPaverBudget);
+	AutoPaverBudget = FMath::Clamp(AutoPaverBudget - Result.LitresUsed, 0.0, AsphaltBalance::AutoPaverMaxBudgetL);
+	return ApplyPourResult(Result);
+}
+
+int32 FAsphaltGame::PickAutoPaverTarget() const
+{
+	if (Grid.NumCompleteCells() >= Map.Num())
+	{
+		return INDEX_NONE;
+	}
+
+	int32 Best = INDEX_NONE;
+	double BestDistSq = 0.0;
+	for (int32 Cell = 0; Cell < Map.Num(); ++Cell)
+	{
+		if (Grid.IsCellComplete(Cell))
+		{
+			continue;
+		}
+		const double DistSq = FVector2D::DistSquared(AsphaltHex::ToWorld(Map.GetCell(Cell).Coord), AutoPaverPos);
+		if (Best == INDEX_NONE || DistSq < BestDistSq)
+		{
+			Best = Cell;
+			BestDistSq = DistSq;
+		}
+	}
+	return Best;
+}
+
+double FAsphaltGame::MoveFromPlant(double Capacity, double& Container, double Dt)
 {
 	if (!(Dt > 0.0) || !FMath::IsFinite(Dt))
 	{
 		return 0.0;
 	}
 
-	const double Capacity = GetBackpackCapacity();
 	const double ByRate = Capacity / AsphaltBalance::RefillSeconds * Dt;
-	const double Moved = FMath::Max(0.0, FMath::Min3(ByRate, Capacity - BackpackLitres, PlantStock));
-	BackpackLitres = FMath::Min(BackpackLitres + Moved, Capacity);
+	const double Moved = FMath::Max(0.0, FMath::Min3(ByRate, Capacity - Container, PlantStock));
+	Container = FMath::Min(Container + Moved, Capacity);
 	PlantStock = FMath::Max(0.0, PlantStock - Moved);
 	return Moved;
+}
+
+double FAsphaltGame::RefillBackpack(double Dt)
+{
+	return MoveFromPlant(GetBackpackCapacity(), BackpackLitres, Dt);
+}
+
+double FAsphaltGame::RefillCar(double Dt)
+{
+	return HasSpecial(EAsphaltSpecial::PaverCar) ? MoveFromPlant(AsphaltBalance::CarTankL, CarLitres, Dt) : 0.0;
+}
+
+FAsphaltEvents FAsphaltGame::PourFromCar(FVector2D A, FVector2D B)
+{
+	if (!HasSpecial(EAsphaltSpecial::PaverCar) || !(CarLitres > 0.0) || !IsFinite(A) || !IsFinite(B))
+	{
+		return FAsphaltEvents();
+	}
+
+	const FPourResult Result = Grid.Stamp(ClampToWorld(A), ClampToWorld(B), AsphaltBalance::CarWidthCm, CarLitres);
+	CarLitres = FMath::Max(0.0, CarLitres - Result.LitresUsed);
+	return ApplyPourResult(Result);
 }
 
 FAsphaltEvents FAsphaltGame::PourFromBackpack(FVector2D A, FVector2D B)
@@ -238,10 +327,146 @@ FAsphaltEvents FAsphaltGame::ApplyPourResult(const FPourResult& Result)
 	Events.ShardsEarned = Result.CompletedCells.Num() * AsphaltBalance::ShardsPerCell;
 	Events.CompletedCells = Result.CompletedCells;
 
+	// Roads and the exit follow from the grid, so a road is reported by the result that completed its last cell.
+	for (const int32 Cell : Result.CompletedCells)
+	{
+		const FAsphaltCell& Info = Map.GetCell(Cell);
+		if (Info.Kind == EAsphaltCellKind::Road && IsRoadComplete(Info.RoadIndex))
+		{
+			Events.CompletedRoads.AddUnique(Info.RoadIndex);
+		}
+	}
+	Events.bExitOpened = Result.CompletedCells.Num() > 0 && IsExitOpen();
+
 	TotalLitresPoured += Events.LitresPoured;
 	Money += Events.MoneyEarned;
 	Shards += Events.ShardsEarned;
 	return Events;
+}
+
+bool FAsphaltGame::HasSpecial(EAsphaltSpecial S) const
+{
+	return IsValidSpecial(S) && bOwned[static_cast<int32>(S)];
+}
+
+double FAsphaltGame::GetSpecialPrice(EAsphaltSpecial S) const
+{
+	return IsValidSpecial(S) ? AsphaltBalance::SpecialPriceMoney[static_cast<int32>(S)] : -1.0;
+}
+
+int32 FAsphaltGame::GetSpecialRoad(EAsphaltSpecial S) const
+{
+	return IsValidSpecial(S) ? AsphaltBalance::SpecialRoad[static_cast<int32>(S)] : INDEX_NONE;
+}
+
+bool FAsphaltGame::CanBuySpecial(EAsphaltSpecial S) const
+{
+	return IsValidSpecial(S) && !HasSpecial(S) && IsRoadComplete(GetSpecialRoad(S)) && Money >= GetSpecialPrice(S);
+}
+
+bool FAsphaltGame::BuySpecial(EAsphaltSpecial S)
+{
+	if (!CanBuySpecial(S))
+	{
+		return false;
+	}
+	Money -= GetSpecialPrice(S);
+	GrantSpecial(S);
+	return true;
+}
+
+void FAsphaltGame::GrantSpecial(EAsphaltSpecial S)
+{
+	if (!IsValidSpecial(S) || HasSpecial(S))
+	{
+		return;
+	}
+	bOwned[static_cast<int32>(S)] = true;
+
+	const FVector2D Spawn = AsphaltLayout::SpecialSpawn(GetSpecialRoad(S));
+	switch (S)
+	{
+	case EAsphaltSpecial::PortableStation:
+		WorldState.StationPos = Spawn;
+		break;
+	case EAsphaltSpecial::PaverCar:
+		WorldState.CarPos = Spawn;
+		break;
+	case EAsphaltSpecial::AutoPaver:
+		AutoPaverPos = Spawn;
+		AutoPaverTarget = INDEX_NONE;
+		AutoPaverBudget = 0.0;
+		break;
+	default:
+		break;
+	}
+}
+
+int32 FAsphaltGame::GetRoadProgress(int32 Road) const
+{
+	if (Road < 0 || Road >= FHexMap::NumRoads)
+	{
+		return 0;
+	}
+	int32 Done = 0;
+	for (const int32 Cell : Map.GetRoadCells(Road))
+	{
+		Done += Grid.IsCellComplete(Cell) ? 1 : 0;
+	}
+	return Done;
+}
+
+bool FAsphaltGame::IsRoadComplete(int32 Road) const
+{
+	return GetRoadProgress(Road) == FHexMap::CellsPerRoad;
+}
+
+bool FAsphaltGame::IsExitOpen() const
+{
+	return Grid.NumCompleteCells() >= Map.Num();
+}
+
+bool FAsphaltGame::HasWon() const
+{
+	return bWon;
+}
+
+void FAsphaltGame::SetWon()
+{
+	if (IsExitOpen())
+	{
+		bWon = true;
+	}
+}
+
+double FAsphaltGame::GetCarLitres() const
+{
+	return CarLitres;
+}
+
+FVector2D FAsphaltGame::GetAutoPaverPos() const
+{
+	return AutoPaverPos;
+}
+
+int32 FAsphaltGame::GetAutoPaverTarget() const
+{
+	return AutoPaverTarget;
+}
+
+FAsphaltWorldState& FAsphaltGame::World()
+{
+	return WorldState;
+}
+
+const FAsphaltWorldState& FAsphaltGame::World() const
+{
+	return WorldState;
+}
+
+void FAsphaltGame::DebugGrantSpecial(EAsphaltSpecial S)
+{
+	GrantSpecial(S);
 }
 
 void FAsphaltGame::DebugGive(double InMoney, int32 InShards)

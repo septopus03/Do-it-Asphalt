@@ -31,6 +31,9 @@ namespace AsphaltBalance
 	inline constexpr int32 SpecialRoad[5] = {3, 2, 4, 1, 0};
 	inline constexpr int32 ExitRoad = 5;
 
+	/** Largest simulation step in seconds; FAsphaltGame::Tick splits longer spans into steps of this size. */
+	inline constexpr double MaxStepSeconds = 0.25;
+
 	inline constexpr double PlantStorageMinutes = 4.0;
 	inline constexpr double RefillSeconds = 1.5;
 	/** How far in front of the player the pouring bar is held. */
@@ -44,6 +47,10 @@ namespace AsphaltBalance
 
 	inline constexpr double AutoPaverRateLPerMin = 20.0;
 	inline constexpr double AutoPaverSpeedCmS = 150.0;
+	/** The paver starts pouring once its centre is this close to the centre of its target cell. */
+	inline constexpr double AutoPaverReachCm = 5.0;
+	/** Largest amount of unspent litres the paver carries over from one step to the next. */
+	inline constexpr double AutoPaverMaxBudgetL = 1.0;
 
 	inline constexpr double CarTankL = 500.0;
 	inline constexpr double CarWidthCm = 300.0;
