@@ -500,6 +500,16 @@ def join(objects, name):
     return obj
 
 
+def finish(parts, name):
+    """The usual end of a model script: check the winding of every part, join them
+    into the mesh `name`, write the GLB and render the previews. Returns the object."""
+    assert_outward(parts)
+    obj = join(parts, name)
+    export(obj, name)
+    render_previews(obj, name)
+    return obj
+
+
 # --------------------------------------------------------------------------- export
 
 
