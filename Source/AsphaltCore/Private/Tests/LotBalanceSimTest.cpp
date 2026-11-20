@@ -22,13 +22,13 @@ DIA_TEST(FLotBalanceSimPlaythroughTest, "DoItAsphalt.Lot.BalanceSim.Playthrough"
  * Measured times (game time, with the tunables of LotBalance.h as committed):
  *   milestone      measured   allowed
  *   1st cell       0:42 min   40 - 80 s
- *   10 cells       2:51       up to 6:00
- *   100 cells      8:25       up to 18:00
- *   350 cells      22:52      (logged only)
- *   800 cells      41:35      up to 42:00
- *   6 000 cells    73:25      up to 78:00
- *   30 000 cells   141:45     105 - 165 min (the exit opens at the same moment)
- *   Unlock steps: quick swap 3:05, sprint 9:44, strip work 22:53, auto paver 44:17, car 75:24, exit 141:45.
+ *   10 cells       2:39       up to 6:00
+ *   100 cells      8:07       up to 18:00
+ *   350 cells      22:34      (logged only)
+ *   800 cells      41:17      up to 42:00
+ *   6 000 cells    73:07      up to 78:00
+ *   30 000 cells   141:27     105 - 165 min (the exit opens at the same moment)
+ *   Unlock steps: quick swap 2:47, sprint 9:26, strip work 22:35, auto paver 43:59, car 75:06, exit 141:27.
  *
  * Player policy
  *  - Buying: after every step it buys the cheapest offered thing it can afford (items and plant levels).
@@ -480,15 +480,6 @@ namespace
 			}
 		}
 
-		/** The bucket cannot be filled while it is in the hand. */
-		void EnsureBucketNotInHand()
-		{
-			if (G.GetHand() == ELotHand::Bucket)
-			{
-				EnsureHand(ELotHand::Bowl);
-			}
-		}
-
 		/** Moves the station to 5 m from a far target (the player walks to it, carries it and puts it down). */
 		void PlaceStation(FVector2D Target)
 		{
@@ -600,7 +591,7 @@ namespace
 		{
 			for (int32 Loop = 0; Loop < MaxJobLoops && !bAborted && !G.GetGrid().IsCellComplete(Cell); ++Loop)
 			{
-				EnsureBucketNotInHand();
+				EnsureHand(ELotHand::Bucket);
 				GoWithin(SourcePos(), LotLayout::RefillRadiusCm, WalkSpeed());
 				Cur = EAct::Fill;
 				while (!bAborted && G.GetHandLitres(ELotHand::Bucket) < G.GetHandCapacity(ELotHand::Bucket) - 1e-9)
@@ -684,7 +675,7 @@ namespace
 				{
 					return;
 				}
-				EnsureBucketNotInHand();
+				EnsureHand(ELotHand::Bucket);
 				GoWithin(Stand, LotBalance::InteractionRangeCm, WalkSpeed());
 				Cur = EAct::Fill;
 				while (!bAborted && G.GetMovableLitres(Suitcase) > 1e-9 && G.GetHandLitres(ELotHand::Bucket) < G.GetHandCapacity(ELotHand::Bucket) - 1e-9)

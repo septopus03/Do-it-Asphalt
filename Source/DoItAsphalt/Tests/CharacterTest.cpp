@@ -486,15 +486,25 @@ bool FCharacterBucketAtOutletTest::RunTest(const FString& Parameters)
 	Game.DebugGrantItem(ELotItem::Bucket);
 	TestTrue(TEXT("take the bucket"), Character->SelectHand(ELotHand::Bucket));
 	TickFor(Wrapper, LotBalance::SwapSeconds + 0.5);
-	Game.DebugFillHand();
 
-	// Aiming at the outlet the bucket is for filling, never for dumping on the ground by the trough.
+	// Aiming at the outlet the bucket in hand fills at the dispense rate and is never dumped on the ground.
 	Place(Character, LotLayout::TroughPos + FVector2D(0.0, 200.0), 0.0, -90.0);
 	TestTrue(TEXT("aiming at the outlet"), DIARefill::IsAtOutlet(Game, Character->GetAimPoint()));
+	TestEqual(TEXT("the bucket is empty"), Game.GetHandLitres(ELotHand::Bucket), 0.0);
 	Character->SetUsing(true);
 	TickFor(Wrapper, 1.0);
+	TestNearlyEqual(TEXT("one second of filling"), Game.GetHandLitres(ELotHand::Bucket), LotBalance::DispenseRateLPerS(Game.GetPlantLevel()), 1e-6);
 	TestEqual(TEXT("nothing dumped at the outlet"), Game.GetTotalLitres(), 0.0);
 	TestEqual(TEXT("no cell finished"), Game.GetCompletedCells(), 0);
+	TickFor(Wrapper, 5.0);
+	TestNearlyEqual(TEXT("filled to the brim"), Game.GetHandLitres(ELotHand::Bucket), LotBalance::HandCapacityL[static_cast<int32>(ELotHand::Bucket)], 1e-6);
+	Character->SetUsing(false);
+
+	// Away from the outlet one press empties it into the cell under the aim.
+	Place(Character, MiddleOfLot(), -90.0, 0.0);
+	Character->SetUsing(true);
+	TickFor(Wrapper, 1.0);
+	TestEqual(TEXT("one dump, one cell"), Game.GetCompletedCells(), 1);
 	return true;
 }
 

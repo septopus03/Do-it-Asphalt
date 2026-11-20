@@ -332,6 +332,15 @@ bool FLotMovableBucketFromSuitcaseTest::RunTest(const FString& Parameters)
 	FillFull(H, ELotMovable::Suitcase);
 	H.Grab(ELotMovable::Suitcase);
 	TestEqual(TEXT("a held suitcase cannot be tapped"), H.FillBucket(ELotSource::Suitcase, 1.0), 0.0);
+
+	FLotGame K;
+	Equip(K, ELotItem::Suitcase);
+	K.DebugGrantItem(ELotItem::Bucket);
+	FillFull(K, ELotMovable::Suitcase);
+	K.SelectHand(ELotHand::Bucket);
+	K.Tick(LotBalance::SwapSeconds);
+	TestNearlyEqual(TEXT("the bucket in hand is tapped too"), K.FillBucket(ELotSource::Suitcase, 1.0), 5.0, Tolerance);
+	TestNearlyEqual(TEXT("... and holds it"), K.GetHandLitres(ELotHand::Bucket), 5.0, Tolerance);
 	return true;
 }
 

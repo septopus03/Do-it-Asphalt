@@ -127,7 +127,7 @@ public:
 	double ScoopFromTrough(double Dt);
 	/**
 	 * Moves litres from the source into the bucket: DispenseRateLPerS * Dt from the plant stock, TapRateLPerS * Dt from
-	 * the content of the suitcase or the cart. The bucket must be owned and not in hand, a movable source must be owned
+	 * the content of the suitcase or the cart. The bucket must be owned (it is filled while in hand or not), a movable source must be owned
 	 * and not held. Limited by the source content and the free room in the bucket. Returns litres moved.
 	 */
 	double FillBucket(ELotSource Source, double Dt);

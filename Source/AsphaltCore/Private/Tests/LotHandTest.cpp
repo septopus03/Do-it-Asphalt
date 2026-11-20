@@ -226,7 +226,10 @@ bool FLotHandBucketDumpTest::RunTest(const FString& Parameters)
 	FLotGame Other;
 	Other.DebugGrantItem(ELotItem::Bucket);
 	Other.SelectHand(ELotHand::Bucket);
-	TestEqual(TEXT("bucket in hand cannot be filled"), Other.FillBucket(ELotSource::Plant, 1.0), 0.0);
+	TestEqual(TEXT("busy hands fill nothing"), Other.FillBucket(ELotSource::Plant, 1.0), 0.0);
+	Other.Tick(LotBalance::SwapSeconds);
+	TestNearlyEqual(TEXT("bucket in hand fills at the dispense rate"), Other.FillBucket(ELotSource::Plant, 1.0), LotBalance::DispenseRateLPerS(0), Tolerance);
+	TestNearlyEqual(TEXT("... and holds it"), Other.GetHandLitres(ELotHand::Bucket), LotBalance::DispenseRateLPerS(0), Tolerance);
 	return true;
 }
 

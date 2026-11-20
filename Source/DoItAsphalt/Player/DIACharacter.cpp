@@ -45,11 +45,11 @@ namespace
 		switch (Hand)
 		{
 		case ELotHand::Scoop:
-			Layout = {TEXT("SM_Scoop"), DIAAssets::EFallback::Cube, DIAModelSizes::ScoopCm, FVector(0.0, 0.0, 0.0), FRotator(-8.0, 0.0, 0.0)};
+			Layout = {TEXT("SM_Scoop"), DIAAssets::EFallback::Cube, DIAModelSizes::ScoopCm, FVector(0.0, 0.0, 6.0), FRotator(-8.0, 0.0, 0.0)};
 			break;
 		case ELotHand::Bucket:
-			// Inner measurements of SM_Bucket (docs/04, chapter 4.1): rim radius 13.2 cm, floor radius 9.6 cm.
-			Layout = {TEXT("SM_Bucket"), DIAAssets::EFallback::Cylinder, DIAModelSizes::BucketCm, FVector(0.0, 0.0, -14.0), FRotator(0.0, 0.0, 0.0), 1.5, 9.6, 37.5, 13.2};
+			// Inner measurements of SM_Bucket (docs/04, chapter 4.1): rim radius 13.2 cm, floor radius 9.6 cm; the body ends at about 25 cm, the bail rises above it.
+			Layout = {TEXT("SM_Bucket"), DIAAssets::EFallback::Cylinder, DIAModelSizes::BucketCm, FVector(10.0, 2.0, -8.0), FRotator(0.0, 0.0, 0.0), 1.5, 9.6, 25.0, 13.2};
 			break;
 		case ELotHand::Trowel:
 			Layout = {TEXT("SM_Trowel"), DIAAssets::EFallback::Cube, DIAModelSizes::TrowelCm, FVector(4.0, 0.0, 17.0), FRotator(10.0, 0.0, 0.0)};
@@ -71,7 +71,7 @@ namespace
 	/** Content below this shows nothing. */
 	constexpr double LiquidMinLitres = 1e-4;
 	/** Engine cylinder: 100 cm across and 100 cm high. */
-	constexpr double BasicShapeCm = 100.0;
+	constexpr double LiquidShapeCm = 100.0;
 
 	void ConfigureToolMesh(UStaticMeshComponent* Mesh)
 	{
@@ -429,7 +429,7 @@ void ADIACharacter::UpdateLiquid()
 	const double Z = FMath::Lerp(Layout.FloorZ, Top, Fill);
 	const double Across = (Z - Layout.FloorZ) / FMath::Max(Layout.RimZ - Layout.FloorZ, UE_KINDA_SMALL_NUMBER);
 	const double Radius = FMath::Max(FMath::Lerp(Layout.FloorRadius, Layout.RimRadius, Across) - LiquidInsetCm, 1.0);
-	LiquidMesh->SetRelativeScale3D(FVector(2.0 * Radius / BasicShapeCm, 2.0 * Radius / BasicShapeCm, DIACharacter::LiquidThicknessCm / BasicShapeCm));
+	LiquidMesh->SetRelativeScale3D(FVector(2.0 * Radius / LiquidShapeCm, 2.0 * Radius / LiquidShapeCm, DIACharacter::LiquidThicknessCm / LiquidShapeCm));
 	LiquidMesh->SetRelativeLocation(FVector(0.0, 0.0, Z));
 	LiquidMesh->SetVisibility(true);
 }

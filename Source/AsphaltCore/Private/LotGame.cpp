@@ -513,7 +513,7 @@ double FLotGame::ScoopFromTrough(double Dt)
 
 double FLotGame::FillBucket(ELotSource Source, double Dt)
 {
-	if (!(Dt > 0.0) || !FMath::IsFinite(Dt) || !Owns(ELotItem::Bucket) || Hand == ELotHand::Bucket || !HandsFree())
+	if (!(Dt > 0.0) || !FMath::IsFinite(Dt) || !Owns(ELotItem::Bucket) || !HandsFree())
 	{
 		return 0.0;
 	}
