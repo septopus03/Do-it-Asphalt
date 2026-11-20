@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
+#include "LotBalance.h"
 #include "Player/DIAInput.h"
 #include "DIAPlayerController.generated.h"
 
@@ -48,6 +49,14 @@ public:
 	void OnInteract();
 	/** Esc: opens or closes the pause menu (nothing on the win screen). */
 	void OnPause();
+	/** Use and WorkView: held buttons; they do nothing while a menu or the win screen is up. */
+	void OnUseStarted();
+	void OnUseCompleted();
+	void OnWorkViewStarted();
+	void OnWorkViewCompleted();
+	/** 1 - 4 and Q: take an item into the hand. */
+	void OnSelectHand(ELotHand Hand);
+	void OnNextHand();
 
 protected:
 	virtual void InitInputSystem() override;
@@ -59,7 +68,7 @@ private:
 	void OnSprintCompleted();
 
 	class ADIACharacter* GetDIACharacter() const;
-	/** Lets go of everything a UI that takes over the screen must not leave running: sprinting. */
+	/** Lets go of everything a UI that takes over the screen must not leave running: sprinting, using the item and the work view. */
 	void ReleaseControls();
 	/** The menu or the win screen covers the screen and owns the mouse: nothing behind it can be used. */
 	bool IsUiInput() const { return bMenuInput || bWinInput; }

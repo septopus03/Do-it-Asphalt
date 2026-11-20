@@ -18,6 +18,7 @@ DIA_TEST(FLotHandNothingLeavesOnOccupiedTest, "DoItAsphalt.Lot.Hand.NothingLeave
 DIA_TEST(FLotHandFirstSquareTest, "DoItAsphalt.Lot.Hand.FirstSquare")
 DIA_TEST(FLotHandBucketDumpTest, "DoItAsphalt.Lot.Hand.BucketDump")
 DIA_TEST(FLotHandTrowelTest, "DoItAsphalt.Lot.Hand.Trowel")
+DIA_TEST(FLotHandDebugFillTest, "DoItAsphalt.Lot.Hand.DebugFill")
 
 namespace
 {
@@ -255,6 +256,27 @@ bool FLotHandTrowelTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("smoothing costs nothing"), E.LitresPoured, 0.0);
 	TestEqual(TEXT("total litres unchanged"), G.GetTotalLitres(), Litres);
 	TestNearlyEqual(TEXT("bowl untouched"), G.GetHandLitres(ELotHand::Bowl), 2.5, Tolerance);
+	return true;
+}
+
+bool FLotHandDebugFillTest::RunTest(const FString& Parameters)
+{
+	FLotGame G;
+	G.DebugFillHand();
+	TestNearlyEqual(TEXT("bowl filled to capacity"), G.GetHandLitres(ELotHand::Bowl), 2.5, Tolerance);
+	TestEqual(TEXT("the stock is not touched"), G.GetPlantStock(), LotBalance::PlantStartStockL);
+
+	G.DebugGrantItem(ELotItem::Bucket);
+	TestTrue(TEXT("take the bucket"), G.SelectHand(ELotHand::Bucket));
+	TestEqual(TEXT("the bucket is empty"), G.GetHandLitres(ELotHand::Bucket), 0.0);
+	G.DebugFillHand();
+	TestNearlyEqual(TEXT("bucket filled to capacity"), G.GetHandLitres(ELotHand::Bucket), 10.0, Tolerance);
+	TestNearlyEqual(TEXT("the bowl keeps its own content"), G.GetHandLitres(ELotHand::Bowl), 2.5, Tolerance);
+
+	G.Tick(LotBalance::SwapSeconds);
+	TestTrue(TEXT("take the trowel"), G.SelectHand(ELotHand::Trowel));
+	G.DebugFillHand();
+	TestEqual(TEXT("the trowel holds nothing"), G.GetHandLitres(ELotHand::Trowel), 0.0);
 	return true;
 }
 

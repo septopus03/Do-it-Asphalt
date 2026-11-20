@@ -425,6 +425,11 @@ FLotEvents FLotGame::DebugCompleteCells(int32 Count)
 	return ApplyPour(Total);
 }
 
+void FLotGame::DebugFillHand()
+{
+	HandLitres[static_cast<int32>(Hand)] = GetHandCapacity(Hand);
+}
+
 bool FLotGame::CanSelectHand(ELotHand NewHand) const
 {
 	switch (NewHand)

@@ -217,6 +217,8 @@ public:
 	FLotEvents DebugCompleteCell(int32 Cell);
 	/** Completes the first Count incomplete cells by index, reported as one event. */
 	FLotEvents DebugCompleteCells(int32 Count);
+	/** Fills the item in hand to its capacity without touching the stock; the trowel holds nothing. */
+	void DebugFillHand();
 
 private:
 	/** True if hand actions are allowed: no swap in progress. */

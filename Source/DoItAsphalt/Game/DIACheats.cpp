@@ -15,6 +15,7 @@
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/SpringArmComponent.h"
+#include "Player/DIACharacter.h"
 #include "GameFramework/PlayerController.h"
 #include "Game/DIAWorldSubsystem.h"
 #include "LotBalance.h"
@@ -257,26 +258,95 @@ namespace DIACheats
 		}
 	}
 
-	/** Puts the third-person camera <distance> cm behind the player, turned by <yawOffset> from the player's heading (for close-ups of the equipment). */
+	ADIACharacter* GetCharacter(UWorld* World)
+	{
+		APlayerController* PC = GetPlayerController(World);
+		ADIACharacter* Character = PC ? Cast<ADIACharacter>(PC->GetPawn()) : nullptr;
+		if (PC && !Character)
+		{
+			UE_LOG(LogDoItAsphalt, Warning, TEXT("DIA cheat: the player is not an ADIACharacter"));
+		}
+		return Character;
+	}
+
+	/** Without arguments toggles between the view from the eyes and the external view; with them shows the external view <distance> cm behind the player (0 = from the eyes). */
 	void CameraCommand(const TArray<FString>& Args, UWorld* World)
 	{
-		if (!Usage(Args.Num() >= 1 && Args.Num() <= 3, TEXT("dia.Camera <distanceCm> [yawOffsetDeg] [pitchDeg]")))
+		if (!Usage(Args.Num() <= 3, TEXT("dia.Camera [distanceCm] [yawOffsetDeg] [pitchDeg]")))
 		{
 			return;
 		}
-		APlayerController* PC = GetPlayerController(World);
-		APawn* Pawn = PC ? PC->GetPawn() : nullptr;
-		USpringArmComponent* Boom = Pawn ? Pawn->FindComponentByClass<USpringArmComponent>() : nullptr;
-		if (!Boom)
+		ADIACharacter* Character = GetCharacter(World);
+		APlayerController* PC = Character ? Cast<APlayerController>(Character->GetController()) : nullptr;
+		if (!PC)
 		{
-			UE_LOG(LogDoItAsphalt, Warning, TEXT("dia.Camera: the player has no camera boom"));
 			return;
 		}
-		Boom->TargetArmLength = static_cast<float>(FCString::Atod(*Args[0]));
-		const double YawOffset = Args.Num() >= 2 ? FCString::Atod(*Args[1]) : 0.0;
-		const double Pitch = Args.Num() >= 3 ? FCString::Atod(*Args[2]) : 0.0;
-		PC->SetControlRotation(FRotator(Pitch, Pawn->GetActorRotation().Yaw + YawOffset, 0.0));
-		PC->SetViewTarget(Pawn);
+		const double Distance = Args.Num() >= 1 ? FCString::Atod(*Args[0]) : (Character->IsExternalView() ? 0.0 : DIACharacter::CameraBoomLengthCm);
+		if (Distance <= 0.0)
+		{
+			Character->SetExternalView(false);
+		}
+		else
+		{
+			Character->SetExternalView(true, static_cast<float>(Distance));
+			const double YawOffset = Args.Num() >= 2 ? FCString::Atod(*Args[1]) : 0.0;
+			const double Pitch = Args.Num() >= 3 ? FCString::Atod(*Args[2]) : 0.0;
+			PC->SetControlRotation(FRotator(Pitch, Character->GetActorRotation().Yaw + YawOffset, 0.0));
+		}
+		PC->SetViewTarget(Character);
+	}
+
+	/** The names dia.Hand accepts: the ELotHand values in order. */
+	const TCHAR* const HandNames[] = {TEXT("Bowl"), TEXT("Scoop"), TEXT("Bucket"), TEXT("Trowel")};
+	static_assert(UE_ARRAY_COUNT(HandNames) == static_cast<int32>(ELotHand::Count), "one name per hand item");
+
+	void Hand(const TArray<FString>& Args, UWorld* World)
+	{
+		static const TCHAR* Usage_ = TEXT("dia.Hand <Bowl|Scoop|Bucket|Trowel>");
+		if (!Usage(Args.Num() == 1, Usage_))
+		{
+			return;
+		}
+		int32 Found = INDEX_NONE;
+		for (int32 I = 0; I < UE_ARRAY_COUNT(HandNames); ++I)
+		{
+			if (Args[0].Equals(HandNames[I], ESearchCase::IgnoreCase))
+			{
+				Found = I;
+			}
+		}
+		if (!Usage(Found != INDEX_NONE, Usage_))
+		{
+			return;
+		}
+		if (UDIAWorldSubsystem* S = GetSubsystem(World))
+		{
+			const ELotHand Wanted = static_cast<ELotHand>(Found);
+			// A tool the player has not bought yet is given first (the cheat is for looking at things).
+			if (Wanted == ELotHand::Scoop)
+			{
+				S->GetGame().DebugGrantItem(ELotItem::Scoop);
+			}
+			else if (Wanted == ELotHand::Bucket)
+			{
+				S->GetGame().DebugGrantItem(ELotItem::Bucket);
+			}
+			if (!S->GetGame().SelectHand(Wanted))
+			{
+				UE_LOG(LogDoItAsphalt, Warning, TEXT("dia.Hand: the hands are busy or hold something"));
+			}
+			S->Dispatch(FLotEvents());
+		}
+	}
+
+	void Fill(const TArray<FString>& Args, UWorld* World)
+	{
+		if (UDIAWorldSubsystem* S = GetSubsystem(World))
+		{
+			S->GetGame().DebugFillHand();
+			S->Dispatch(FLotEvents());
+		}
 	}
 
 	TWeakObjectPtr<ACameraActor> TopViewCamera;
@@ -397,7 +467,9 @@ namespace DIACheats
 	FAutoConsoleCommandWithWorldAndArgs PromptCommand(TEXT("dia.Prompt"), TEXT("dia.Prompt <text>: sets the contextual prompt (no text hides it)"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Prompt));
 	FAutoConsoleCommandWithWorldAndArgs ToastCommand(TEXT("dia.Toast"), TEXT("dia.Toast <text>: shows a toast"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Toast));
 	FAutoConsoleCommandWithWorldAndArgs SkipMenuCommand(TEXT("dia.SkipMenu"), TEXT("dia.SkipMenu: closes the main menu without choosing anything (the game starts as it is; screenshots use it)"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&SkipMenu));
-	FAutoConsoleCommandWithWorldAndArgs CameraConsoleCommand(TEXT("dia.Camera"), TEXT("dia.Camera <distanceCm> [yawOffsetDeg] [pitchDeg]: third-person camera distance and angle relative to the player's heading"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&CameraCommand));
+	FAutoConsoleCommandWithWorldAndArgs CameraConsoleCommand(TEXT("dia.Camera"), TEXT("dia.Camera [distanceCm] [yawOffsetDeg] [pitchDeg]: no arguments toggle between the view from the eyes and the external view; otherwise the external view that far behind the player at that angle (0 = from the eyes)"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&CameraCommand));
+	FAutoConsoleCommandWithWorldAndArgs HandConsoleCommand(TEXT("dia.Hand"), TEXT("dia.Hand <Bowl|Scoop|Bucket|Trowel>: takes the item into the hand (a scoop or bucket not owned yet is given)"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Hand));
+	FAutoConsoleCommandWithWorldAndArgs FillConsoleCommand(TEXT("dia.Fill"), TEXT("dia.Fill: fills the vessel in hand to its capacity"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Fill));
 	FAutoConsoleCommandWithWorldAndArgs TopViewCommand(TEXT("dia.TopView"), TEXT("dia.TopView [heightM=260]: camera above the centre of the lot, looking straight down (+X up, +Y right)"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&TopView));
 	FAutoConsoleCommandWithWorldAndArgs ShotAndQuitCommand(TEXT("dia.ShotAndQuit"), TEXT("dia.ShotAndQuit <seconds> <name>: saves Saved/Screenshots/<name>.png and quits"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&ShotAndQuit));
 }

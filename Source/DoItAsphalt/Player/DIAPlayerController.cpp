@@ -50,6 +50,17 @@ void ADIAPlayerController::SetupInputComponent()
 	Enhanced->BindAction(Input.Sprint, ETriggerEvent::Started, this, &ADIAPlayerController::OnSprintStarted);
 	Enhanced->BindAction(Input.Sprint, ETriggerEvent::Completed, this, &ADIAPlayerController::OnSprintCompleted);
 	Enhanced->BindAction(Input.Sprint, ETriggerEvent::Canceled, this, &ADIAPlayerController::OnSprintCompleted);
+	Enhanced->BindAction(Input.Use, ETriggerEvent::Started, this, &ADIAPlayerController::OnUseStarted);
+	Enhanced->BindAction(Input.Use, ETriggerEvent::Completed, this, &ADIAPlayerController::OnUseCompleted);
+	Enhanced->BindAction(Input.Use, ETriggerEvent::Canceled, this, &ADIAPlayerController::OnUseCompleted);
+	Enhanced->BindAction(Input.WorkView, ETriggerEvent::Started, this, &ADIAPlayerController::OnWorkViewStarted);
+	Enhanced->BindAction(Input.WorkView, ETriggerEvent::Completed, this, &ADIAPlayerController::OnWorkViewCompleted);
+	Enhanced->BindAction(Input.WorkView, ETriggerEvent::Canceled, this, &ADIAPlayerController::OnWorkViewCompleted);
+	Enhanced->BindAction(Input.NextHand, ETriggerEvent::Started, this, &ADIAPlayerController::OnNextHand);
+	Enhanced->BindAction(Input.Hand1, ETriggerEvent::Started, this, &ADIAPlayerController::OnSelectHand, ELotHand::Bowl);
+	Enhanced->BindAction(Input.Hand2, ETriggerEvent::Started, this, &ADIAPlayerController::OnSelectHand, ELotHand::Scoop);
+	Enhanced->BindAction(Input.Hand3, ETriggerEvent::Started, this, &ADIAPlayerController::OnSelectHand, ELotHand::Bucket);
+	Enhanced->BindAction(Input.Hand4, ETriggerEvent::Started, this, &ADIAPlayerController::OnSelectHand, ELotHand::Trowel);
 	Enhanced->BindAction(Input.Interact, ETriggerEvent::Started, this, &ADIAPlayerController::OnInteract);
 	Enhanced->BindAction(Input.Pause, ETriggerEvent::Started, this, &ADIAPlayerController::OnPause);
 }
@@ -74,6 +85,54 @@ void ADIAPlayerController::OnLook(const FInputActionValue& Value)
 	if (ADIACharacter* Character = GetDIACharacter())
 	{
 		Character->DoLook(Axis.X, Axis.Y);
+	}
+}
+
+void ADIAPlayerController::OnUseStarted()
+{
+	if (ADIACharacter* Character = GetDIACharacter(); Character && !IsUiInput())
+	{
+		Character->SetUsing(true);
+	}
+}
+
+void ADIAPlayerController::OnUseCompleted()
+{
+	if (ADIACharacter* Character = GetDIACharacter())
+	{
+		Character->SetUsing(false);
+	}
+}
+
+void ADIAPlayerController::OnWorkViewStarted()
+{
+	if (ADIACharacter* Character = GetDIACharacter(); Character && !IsUiInput())
+	{
+		Character->SetWorkView(true);
+	}
+}
+
+void ADIAPlayerController::OnWorkViewCompleted()
+{
+	if (ADIACharacter* Character = GetDIACharacter())
+	{
+		Character->SetWorkView(false);
+	}
+}
+
+void ADIAPlayerController::OnSelectHand(ELotHand Hand)
+{
+	if (ADIACharacter* Character = GetDIACharacter(); Character && !IsUiInput())
+	{
+		Character->SelectHand(Hand);
+	}
+}
+
+void ADIAPlayerController::OnNextHand()
+{
+	if (ADIACharacter* Character = GetDIACharacter(); Character && !IsUiInput())
+	{
+		Character->NextHand();
 	}
 }
 
@@ -196,8 +255,10 @@ void ADIAPlayerController::ReleaseControls()
 {
 	if (ADIACharacter* Character = GetDIACharacter())
 	{
-		// Releasing a key while a UI is up does not reach the game, so sprinting must not stay on.
+		// Releasing a key while a UI is up does not reach the game, so nothing held may stay on.
 		Character->SetSprinting(false);
+		Character->SetUsing(false);
+		Character->SetWorkView(false);
 	}
 }
 

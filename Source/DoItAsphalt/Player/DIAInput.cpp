@@ -41,7 +41,15 @@ FDIAInput FDIAInput::Create(UObject* Outer)
 	Input.Context = NewObject<UInputMappingContext>(Outer, TEXT("IMC_DIA"));
 	Input.Move = MakeAction(Outer, TEXT("IA_DIA_Move"), EInputActionValueType::Axis2D);
 	Input.Look = MakeAction(Outer, TEXT("IA_DIA_Look"), EInputActionValueType::Axis2D);
-	Input.Pour = MakeAction(Outer, TEXT("IA_DIA_Pour"), EInputActionValueType::Boolean);
+	Input.Use = MakeAction(Outer, TEXT("IA_DIA_Use"), EInputActionValueType::Boolean);
+	Input.WorkView = MakeAction(Outer, TEXT("IA_DIA_WorkView"), EInputActionValueType::Boolean);
+	Input.NextHand = MakeAction(Outer, TEXT("IA_DIA_NextHand"), EInputActionValueType::Boolean);
+	Input.Hand1 = MakeAction(Outer, TEXT("IA_DIA_Hand1"), EInputActionValueType::Boolean);
+	Input.Hand2 = MakeAction(Outer, TEXT("IA_DIA_Hand2"), EInputActionValueType::Boolean);
+	Input.Hand3 = MakeAction(Outer, TEXT("IA_DIA_Hand3"), EInputActionValueType::Boolean);
+	Input.Hand4 = MakeAction(Outer, TEXT("IA_DIA_Hand4"), EInputActionValueType::Boolean);
+	Input.Flap = MakeAction(Outer, TEXT("IA_DIA_Flap"), EInputActionValueType::Boolean);
+	Input.SendPaver = MakeAction(Outer, TEXT("IA_DIA_SendPaver"), EInputActionValueType::Boolean);
 	Input.Sprint = MakeAction(Outer, TEXT("IA_DIA_Sprint"), EInputActionValueType::Boolean);
 	Input.Interact = MakeAction(Outer, TEXT("IA_DIA_Interact"), EInputActionValueType::Boolean);
 	Input.Shop = MakeAction(Outer, TEXT("IA_DIA_Shop"), EInputActionValueType::Boolean);
@@ -61,7 +69,15 @@ FDIAInput FDIAInput::Create(UObject* Outer)
 	// Look: the mouse reports up as positive Y; the controller's pitch input wants the opposite.
 	MapAxisKey(Context, Input.Look, EKeys::Mouse2D, false, false, /*NegateY*/ true);
 
-	Context->MapKey(Input.Pour, EKeys::LeftMouseButton);
+	Context->MapKey(Input.Use, EKeys::LeftMouseButton);
+	Context->MapKey(Input.WorkView, EKeys::RightMouseButton);
+	Context->MapKey(Input.NextHand, EKeys::Q);
+	Context->MapKey(Input.Hand1, EKeys::One);
+	Context->MapKey(Input.Hand2, EKeys::Two);
+	Context->MapKey(Input.Hand3, EKeys::Three);
+	Context->MapKey(Input.Hand4, EKeys::Four);
+	Context->MapKey(Input.Flap, EKeys::F);
+	Context->MapKey(Input.SendPaver, EKeys::G);
 	Context->MapKey(Input.Sprint, EKeys::LeftShift);
 	Context->MapKey(Input.Interact, EKeys::E);
 	Context->MapKey(Input.Shop, EKeys::Tab);
