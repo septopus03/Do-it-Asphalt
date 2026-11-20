@@ -173,7 +173,7 @@ bool FCarDrivesTest::RunTest(const FString& Parameters)
 	// Reversing is half as fast.
 	Car->SetThrottle(-1.f);
 	CarTickFor(Wrapper, 3.0);
-	TestEqual(TEXT("reverse is half the speed"), Car->GetSpeed(), -AsphaltBalance::CarSpeedCmS * DIAPaverCar::ReverseSpeedFactor, CarToleranceCm);
+	TestEqual(TEXT("reverse is half the speed"), Car->GetSpeed(), -AsphaltBalance::CarSpeedCmS * AsphaltBalance::CarReverseSpeedFactor, CarToleranceCm);
 
 	// Without throttle it stops; a standing truck does not turn even with the wheel over.
 	Car->SetThrottle(0.f);
@@ -193,7 +193,7 @@ bool FCarDrivesTest::RunTest(const FString& Parameters)
 	Car->SetSteer(1.f);
 	CarTickFor(Wrapper, 0.1);
 	TestTrue(TEXT("steering right turns it clockwise"), FMath::FindDeltaAngleDegrees(YawBefore, Car->GetActorRotation().Yaw) > 0.0);
-	TestTrue(TEXT("by at most 90 degrees per second"), FMath::FindDeltaAngleDegrees(YawBefore, Car->GetActorRotation().Yaw) <= DIAPaverCar::TurnRateDegPerSec * CarTickSeconds + 0.01);
+	TestTrue(TEXT("by at most 90 degrees per second"), FMath::FindDeltaAngleDegrees(YawBefore, Car->GetActorRotation().Yaw) <= AsphaltBalance::CarTurnRateDegPerSec * CarTickSeconds + 0.01);
 
 	// The plant stops it: driving at it from the lot it stays in front of its collision (centre of the truck 230 cm from the face).
 	PlaceCar(Car, FVector2D(-1000.0, 0.0), 180.0);

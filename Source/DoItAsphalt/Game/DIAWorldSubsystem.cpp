@@ -1,6 +1,7 @@
 // Copyright Do it Asphalt. All Rights Reserved.
 
 #include "Game/DIAWorldSubsystem.h"
+#include "AsphaltBalance.h"
 #include "DoItAsphalt.h"
 #include "EngineUtils.h"
 #include "Game/DIASaveGame.h"
@@ -316,7 +317,7 @@ IDIAInteractable* UDIAWorldSubsystem::FindInteractable(const ADIACharacter* Who,
 	}
 	const FVector Point = Who->GetActorLocation();
 	IDIAInteractable* Best = nullptr;
-	double BestDistance = DIAInteraction::RangeCm;
+	double BestDistance = AsphaltBalance::InteractionRangeCm;
 	for (const FInteractableEntry& Entry : Interactables)
 	{
 		AActor* Actor = Entry.Actor.Get();
@@ -357,7 +358,7 @@ void UDIAWorldSubsystem::Tick(float DeltaTime)
 
 	// The game time of an autosave: a paused game (the menu) does not tick, so it never counts.
 	AutosaveTimer += Seconds;
-	if (AutosaveTimer >= DIASave::AutosaveIntervalSeconds)
+	if (AutosaveTimer >= AsphaltBalance::AutosaveIntervalSeconds)
 	{
 		AutosaveTimer = 0.0;
 		Autosave();

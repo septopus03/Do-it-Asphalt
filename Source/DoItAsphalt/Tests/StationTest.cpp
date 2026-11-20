@@ -239,7 +239,7 @@ bool FStationInteractTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("attached to the character"), Station->GetAttachParentActor() == Character);
 	TestEqual(TEXT("carried prompt"), Station->GetPrompt(Character).ToString(), FString(TEXT("E – Put down")));
 	TestEqual(TEXT("no collision while carried"), Station->GetCollision()->GetCollisionEnabled(), ECollisionEnabled::NoCollision);
-	TestTrue(TEXT("100 cm behind the character"), StationWhere(Station).Equals(StationWhere(Character) - FVector2D(DIAStation::CarryBehindCm, 0.0), 0.5));
+	TestTrue(TEXT("100 cm behind the character"), StationWhere(Station).Equals(StationWhere(Character) - FVector2D(AsphaltBalance::StationCarryBehindCm, 0.0), 0.5));
 	// A walking character hovers a couple of cm above the floor (the movement component keeps a small gap), and the station hangs at its feet.
 	TestEqual(TEXT("feet on the ground"), Station->GetActorLocation().Z, 0.0, FloorGapToleranceCm);
 	Character->SetActorLocation(FVector(-100.0, 0.0, DIACharacter::CapsuleHalfHeightCm));
@@ -247,7 +247,7 @@ bool FStationInteractTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("the carried station can still be used"), Subsystem->FindInteractable(Character) == Cast<IDIAInteractable>(Station));
 
 	// Something blocks the spot 150 cm in front of the character: it stays carried and a toast says why.
-	const FVector2D Target = StationWhere(Character) + FVector2D(DIAStation::PutDownAheadCm, 0.0);
+	const FVector2D Target = StationWhere(Character) + FVector2D(AsphaltBalance::StationPutDownAheadCm, 0.0);
 	AActor* Blocker = World->SpawnActor<AActor>(Params);
 	UBoxComponent* BlockerBox = NewObject<UBoxComponent>(Blocker);
 	BlockerBox->SetBoxExtent(FVector(20.0, 20.0, 50.0));

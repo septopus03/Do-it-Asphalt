@@ -59,6 +59,27 @@ namespace AsphaltBalance
 	inline constexpr double CarWidthCm = 300.0;
 	inline constexpr double CarSpeedCmS = 600.0;
 	inline constexpr double CarBarBehindCm = 230.0;
+	/** Full steering turns the truck this fast at full speed; slower (or reversing) it turns in proportion to the speed. */
+	inline constexpr double CarTurnRateDegPerSec = 90.0;
+	/** Reversing is this much of the forward speed. */
+	inline constexpr double CarReverseSpeedFactor = 0.5;
+	/** How fast the truck's speed follows the throttle (cm/s per second). */
+	inline constexpr double CarAccelerationCmS2 = 1500.0;
+
+	/** While the portable station is carried it hangs this far behind the character's centre. */
+	inline constexpr double StationCarryBehindCm = 100.0;
+	/** Putting the portable station down places its centre this far in front of the character's centre. */
+	inline constexpr double StationPutDownAheadCm = 150.0;
+
+	/** An interactable counts as near when its collision envelope is at most this far from the character. */
+	inline constexpr double InteractionRangeCm = 150.0;
+
+	/** The game saves itself this often (game time, so never while it is paused). */
+	inline constexpr double AutosaveIntervalSeconds = 30.0;
+
+	/** Plant levels (0-based) from which the two plant addons are built. */
+	inline constexpr int32 PlantAddonALevel = 5;
+	inline constexpr int32 PlantAddonBLevel = 10;
 
 	/** Visual tier of the backpack model: levels 0..2 -> 0, 3..6 -> 1, 7..9 -> 2, 10..12 -> 3. */
 	constexpr int32 BackpackTier(int32 Level)

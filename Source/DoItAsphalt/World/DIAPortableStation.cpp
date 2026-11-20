@@ -1,6 +1,7 @@
 // Copyright Do it Asphalt. All Rights Reserved.
 
 #include "World/DIAPortableStation.h"
+#include "AsphaltBalance.h"
 #include "Components/BoxComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -105,7 +106,7 @@ void ADIAPortableStation::CarryBy(ADIACharacter* Carrier)
 	Collision->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	// The station hangs behind the character with its feet on the ground (the capsule's centre is half a height above it).
 	AttachToComponent(Carrier->GetRootComponent(), FAttachmentTransformRules::KeepRelativeTransform);
-	SetActorRelativeLocation(FVector(-DIAStation::CarryBehindCm, 0.0, -DIACharacter::CapsuleHalfHeightCm));
+	SetActorRelativeLocation(FVector(-AsphaltBalance::StationCarryBehindCm, 0.0, -DIACharacter::CapsuleHalfHeightCm));
 	SetActorRelativeRotation(FRotator::ZeroRotator);
 }
 
@@ -181,7 +182,7 @@ void ADIAPortableStation::Interact(ADIACharacter* By)
 	const FVector Forward = By->GetActorForwardVector();
 	const FVector2D Ahead = FVector2D(Forward.X, Forward.Y).GetSafeNormal();
 	const FVector Location = By->GetActorLocation();
-	const FVector2D Where = FVector2D(Location.X, Location.Y) + Ahead * DIAStation::PutDownAheadCm;
+	const FVector2D Where = FVector2D(Location.X, Location.Y) + Ahead * AsphaltBalance::StationPutDownAheadCm;
 	const double YawDeg = By->GetActorRotation().Yaw;
 	if (!HasRoomAt(Where, YawDeg, By))
 	{

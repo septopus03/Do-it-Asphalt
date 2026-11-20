@@ -10,11 +10,9 @@ class UBoxComponent;
 class UStaticMeshComponent;
 class UDIAWorldSubsystem;
 
-/** Plant levels from which the addons are built (levels are 0-based like AsphaltBalance::PlantRateLPerMin). */
+/** Where the addons are built is AsphaltBalance::PlantAddonALevel / PlantAddonBLevel (levels are 0-based like AsphaltBalance::PlantRateLPerMin). */
 namespace DIAPlant
 {
-	inline constexpr int32 AddonALevel = 5;
-	inline constexpr int32 AddonBLevel = 10;
 	/** Where the addons stand, relative to the plant's origin (the centre of its footprint). */
 	inline const FVector AddonALocationCm(-150.0, 280.0, 0.0);
 	inline const FVector AddonBLocationCm(-150.0, -290.0, 0.0);

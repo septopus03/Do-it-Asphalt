@@ -1,6 +1,7 @@
 // Copyright Do it Asphalt. All Rights Reserved.
 
 #include "World/DIAPlantActor.h"
+#include "AsphaltBalance.h"
 #include "AsphaltLayout.h"
 #include "Components/BoxComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -100,8 +101,8 @@ void ADIAPlantActor::RefreshAddons()
 		return;
 	}
 	const int32 Level = Subsystem->GetGame().GetLevel(EAsphaltUpgrade::Plant);
-	ShowAddon(AddonA, Level >= DIAPlant::AddonALevel);
-	ShowAddon(AddonB, Level >= DIAPlant::AddonBLevel);
+	ShowAddon(AddonA, Level >= AsphaltBalance::PlantAddonALevel);
+	ShowAddon(AddonB, Level >= AsphaltBalance::PlantAddonBLevel);
 }
 
 void ADIAPlantActor::EndPlay(const EEndPlayReason::Type Reason)

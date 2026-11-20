@@ -9,6 +9,13 @@
 
 namespace
 {
+	/** Clamps an upgrade level to the table it indexes: 0 .. last entry (the same bound as FAsphaltGame::GetMaxLevel). */
+	template <typename TableType, SIZE_T TableSize>
+	int32 DIAFormatClampToTable(int32 Level, const TableType (&)[TableSize])
+	{
+		return FMath::Clamp(Level, 0, static_cast<int32>(TableSize) - 1);
+	}
+
 	/** Digits with "," between thousands. Written by hand: the texts must be the same on every machine and culture. */
 	FString Grouped(int64 Value)
 	{
@@ -120,12 +127,12 @@ FText DIAFormat::UpgradeValue(EAsphaltUpgrade Upgrade, int32 Level)
 	switch (Upgrade)
 	{
 	case EAsphaltUpgrade::Backpack:
-		return FText::Format(LOCTEXT("ValueBackpack", "{0} L"), Count(FMath::RoundToInt64(AsphaltBalance::BackpackCapacityL[FMath::Clamp(Level, 0, 12)])));
+		return FText::Format(LOCTEXT("ValueBackpack", "{0} L"), Count(FMath::RoundToInt64(AsphaltBalance::BackpackCapacityL[DIAFormatClampToTable(Level, AsphaltBalance::BackpackCapacityL)])));
 	case EAsphaltUpgrade::Tool:
 		// One decimal always, so that the widths line up: "0.2 m", "1.0 m", "2.0 m".
-		return FText::Format(LOCTEXT("ValueTool", "{0} m"), FText::AsCultureInvariant(FString::Printf(TEXT("%.1f"), AsphaltBalance::ToolWidthM[FMath::Clamp(Level, 0, 6)])));
+		return FText::Format(LOCTEXT("ValueTool", "{0} m"), FText::AsCultureInvariant(FString::Printf(TEXT("%.1f"), AsphaltBalance::ToolWidthM[DIAFormatClampToTable(Level, AsphaltBalance::ToolWidthM)])));
 	case EAsphaltUpgrade::Plant:
-		return FText::Format(LOCTEXT("ValuePlant", "{0} L/min"), Count(FMath::RoundToInt64(AsphaltBalance::PlantRateLPerMin[FMath::Clamp(Level, 0, 12)])));
+		return FText::Format(LOCTEXT("ValuePlant", "{0} L/min"), Count(FMath::RoundToInt64(AsphaltBalance::PlantRateLPerMin[DIAFormatClampToTable(Level, AsphaltBalance::PlantRateLPerMin)])));
 	default:
 		return FText::GetEmpty();
 	}

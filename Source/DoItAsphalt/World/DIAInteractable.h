@@ -8,13 +8,6 @@
 
 class ADIACharacter;
 
-/** How the player finds things to interact with. */
-namespace DIAInteraction
-{
-	/** An interactable counts as near when its collision envelope is at most this far from the character (cm). */
-	inline constexpr double RangeCm = 150.0;
-}
-
 UINTERFACE(MinimalAPI, NotBlueprintable)
 class UDIAInteractable : public UInterface
 {

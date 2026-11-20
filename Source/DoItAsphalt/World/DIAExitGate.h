@@ -22,8 +22,7 @@ namespace DIAExitGate
 	inline constexpr double ArmHeightCm = 100.0;
 	/** The columns stand on both sides of the 340 cm passage (20 cm square columns on 40 x 20 cm footings; the box covers the footing). */
 	inline const FVector PostCm(40.0, 20.0, 300.0);
-	/** The win trigger (AsphaltLayout::ExitTrigger is its centre on the ground): a sphere this big, centred at mid-height of the body. */
-	inline constexpr double TriggerRadiusCm = 150.0;
+	/** The win trigger (AsphaltLayout::ExitTrigger is its centre on the ground, AsphaltLayout::ExitTriggerRadiusCm its radius): a sphere centred at mid-height of the body, i.e. this high. */
 	inline constexpr double TriggerHeightCm = 100.0;
 	/**
 	 * The white sign board of the frame (2.0 x 0.5 m, centred at Z = 275 cm) stands proud of both faces of the beam, which are at X = +-11 cm;

@@ -2,6 +2,7 @@
 
 #include "World/DIAPaverCar.h"
 #include "AsphaltBalance.h"
+#include "AsphaltLayout.h"
 #include "Camera/CameraComponent.h"
 #include "Components/BoxComponent.h"
 #include "Components/CapsuleComponent.h"
@@ -311,11 +312,11 @@ void ADIAPaverCar::HandleGameReset()
 
 void ADIAPaverCar::Drive(float DeltaSeconds)
 {
-	const double Wanted = Throttle >= 0.f ? Throttle * AsphaltBalance::CarSpeedCmS : Throttle * AsphaltBalance::CarSpeedCmS * DIAPaverCar::ReverseSpeedFactor;
-	Speed = FMath::FInterpConstantTo(Speed, Wanted, DeltaSeconds, DIAPaverCar::AccelerationCmS2);
+	const double Wanted = Throttle >= 0.f ? Throttle * AsphaltBalance::CarSpeedCmS : Throttle * AsphaltBalance::CarSpeedCmS * AsphaltBalance::CarReverseSpeedFactor;
+	Speed = FMath::FInterpConstantTo(Speed, Wanted, DeltaSeconds, AsphaltBalance::CarAccelerationCmS2);
 
 	// Turning scales with the speed (signed, so that reversing turns the other way like a real truck), and a standing truck does not turn.
-	const double Yaw = GetActorRotation().Yaw + Steer * DIAPaverCar::TurnRateDegPerSec * (Speed / AsphaltBalance::CarSpeedCmS) * DeltaSeconds;
+	const double Yaw = GetActorRotation().Yaw + Steer * AsphaltBalance::CarTurnRateDegPerSec * (Speed / AsphaltBalance::CarSpeedCmS) * DeltaSeconds;
 	const FQuat NewRotation = FRotator(0.0, Yaw, 0.0).Quaternion();
 	if (FMath::IsNearlyZero(Speed) && NewRotation.Equals(GetActorQuat()))
 	{
@@ -373,7 +374,7 @@ void ADIAPaverCar::Tick(float DeltaSeconds)
 	}
 
 	// The subsystem broadcasts OnStateChanged every tick, so the HUD sees the refilled tank without a second dispatch.
-	if (DIARefill::IsInZone(Game, Position, DIAPaverCar::RefillExtraRadiusCm))
+	if (DIARefill::IsInZone(Game, Position, AsphaltLayout::CarRefillExtraRadiusCm))
 	{
 		Game.RefillCar(DeltaSeconds);
 	}

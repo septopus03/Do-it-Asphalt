@@ -89,7 +89,7 @@ public:
 	void RegisterInteractable(AActor* Actor, IDIAInteractable* Interactable);
 	void UnregisterInteractable(const AActor* Actor);
 	/**
-	 * The nearest registered interactable whose collision envelope is within DIAInteraction::RangeCm of the character and whose
+	 * The nearest registered interactable whose collision envelope is within AsphaltBalance::InteractionRangeCm of the character and whose
 	 * prompt is not empty; null if there is none. Runs every frame: no allocation, a handful of distance queries.
 	 */
 	IDIAInteractable* FindInteractable(const ADIACharacter* Who, AActor** OutActor = nullptr) const;

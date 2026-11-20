@@ -14,13 +14,9 @@ class UBoxComponent;
 class UDIAWorldSubsystem;
 class UStaticMeshComponent;
 
-/** Handling of the portable station (the refill radius is AsphaltLayout::RefillRadiusCm; positions are in the character's frame). */
+/** Handling of the portable station (the refill radius is AsphaltLayout::RefillRadiusCm, carrying and putting down are AsphaltBalance::Station*; positions are in the character's frame). */
 namespace DIAStation
 {
-	/** While it is carried the station hangs this far behind the character's centre. */
-	inline constexpr double CarryBehindCm = 100.0;
-	/** Putting it down places its centre this far in front of the character's centre. */
-	inline constexpr double PutDownAheadCm = 150.0;
 	/** The free-space test lifts the station's box this high, so that the ground it stands on does not count as blocking. */
 	inline constexpr double ClearanceLiftCm = 2.0;
 }

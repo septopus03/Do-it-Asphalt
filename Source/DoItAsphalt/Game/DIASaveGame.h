@@ -15,8 +15,6 @@ namespace DIASave
 	inline constexpr const TCHAR* BackupSuffix = TEXT("_bak");
 	/** The one local user. */
 	inline constexpr int32 UserIndex = 0;
-	/** The game saves itself this often (game time, so never while it is paused). */
-	inline constexpr double AutosaveIntervalSeconds = 30.0;
 }
 
 /** What is stored in the slot: the core's own serialisation (FAsphaltGame::SaveToBytes), which validates itself when it is read back. */

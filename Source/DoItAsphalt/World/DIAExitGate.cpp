@@ -95,7 +95,7 @@ ADIAExitGate::ADIAExitGate()
 	// The trigger lies beyond the gate: a sphere that only notices pawns (the character, the truck).
 	Trigger = CreateDefaultSubobject<USphereComponent>(TEXT("Trigger"));
 	Trigger->SetupAttachment(Root);
-	Trigger->InitSphereRadius(static_cast<float>(DIAExitGate::TriggerRadiusCm));
+	Trigger->InitSphereRadius(static_cast<float>(AsphaltLayout::ExitTriggerRadiusCm));
 	const FVector2D Offset = AsphaltLayout::ExitTrigger() - AsphaltLayout::GatePos(GateRoad);
 	Trigger->SetRelativeLocation(FVector(FVector2D::DotProduct(Offset, FHexMap::RoadDirection(GateRoad)), 0.0, DIAExitGate::TriggerHeightCm));
 	Trigger->SetCollisionObjectType(ECC_WorldDynamic);

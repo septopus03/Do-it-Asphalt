@@ -16,16 +16,9 @@ class UCameraComponent;
 class USpringArmComponent;
 class UStaticMeshComponent;
 
-/** Handling of the paver truck (its speed, tank, bar width and bar position are the core's: AsphaltBalance::Car*). */
+/** Handling of the paver truck (its speed, handling, tank, bar width and bar position are the core's: AsphaltBalance::Car*; the refill reach is AsphaltLayout::CarRefillExtraRadiusCm). */
 namespace DIAPaverCar
 {
-	/** Full steering turns the truck this fast at full speed; slower (or reversing) it turns in proportion to the speed. */
-	inline constexpr double TurnRateDegPerSec = 90.0;
-	/** Reversing is this much of the forward speed. */
-	inline constexpr double ReverseSpeedFactor = 0.5;
-	/** How fast the speed follows the throttle (cm/s per second); the truck is a heavy vehicle, so it does not jump to speed. */
-	inline constexpr double AccelerationCmS2 = 1500.0;
-
 	/** The collision box rests this far above the ground, so that driving does not scrape along it. */
 	inline constexpr double GroundLiftCm = 1.0;
 	/** The actor's origin is the centre of the collision box: half the box height plus the lift. */
@@ -43,9 +36,6 @@ namespace DIAPaverCar
 	inline constexpr double ExitSideCm = 200.0;
 	/** The free-space test for the exit lifts the character's capsule this high, so that the ground does not count as blocking. */
 	inline constexpr double ExitClearanceLiftCm = 2.0;
-
-	/** The truck fills its tank when its centre is within AsphaltLayout::RefillRadiusCm plus this of a refill point. */
-	inline constexpr double RefillExtraRadiusCm = 200.0;
 
 	/** A bar that moved less than this (cm per frame) lays nothing: the pour stamp needs a direction. */
 	inline constexpr double MinBarMoveCm = 0.01;
