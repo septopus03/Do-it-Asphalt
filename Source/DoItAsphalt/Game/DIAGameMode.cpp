@@ -14,6 +14,7 @@
 #include "World/DIAGroundActor.h"
 #include "World/DIALotEdge.h"
 #include "World/DIAMallActor.h"
+#include "World/DIAMovable.h"
 #include "World/DIAPlantActor.h"
 
 namespace
@@ -40,6 +41,13 @@ void ADIAGameMode::StartPlay()
 		World->SpawnActor<ADIAPlantActor>(FVector(LotLayout::PlantPos.X, LotLayout::PlantPos.Y, 0.0), FRotator(0.0, LotLayout::PlantYawDeg, 0.0), Params);
 		EnsureSite();
 	}
+	if (UDIAWorldSubsystem* Subsystem = UDIAWorldSubsystem::Get(this))
+	{
+		// The actors of the movables follow what the game owns: a purchase and a loaded or restarted game both change that.
+		ItemBoughtHandle = Subsystem->OnItemBought.AddUObject(this, &ADIAGameMode::HandleItemBought);
+		GameResetHandle = Subsystem->OnGameReset.AddUObject(this, &ADIAGameMode::EnsureAllMovables);
+	}
+	EnsureAllMovables();
 	Super::StartPlay();
 }
 
@@ -66,10 +74,67 @@ void ADIAGameMode::EnsureSite()
 	}
 }
 
+void ADIAGameMode::EnsureAllMovables()
+{
+	for (int32 I = 0; I < static_cast<int32>(ELotMovable::Count); ++I)
+	{
+		EnsureMovable(static_cast<ELotMovable>(I));
+	}
+}
+
+void ADIAGameMode::EnsureMovable(ELotMovable Kind)
+{
+	UWorld* World = GetWorld();
+	const UDIAWorldSubsystem* Subsystem = UDIAWorldSubsystem::Get(this);
+	if (!World || !Subsystem)
+	{
+		return;
+	}
+	const FLotGame& Game = Subsystem->GetGame();
+	const bool bOwned = Game.OwnsMovable(Kind);
+
+	// What stands now: one actor of the kind at most is kept, and none if the game does not own it.
+	ADIAMovable* Kept = nullptr;
+	TArray<ADIAMovable*> Surplus;
+	for (TActorIterator<ADIAMovable> It(World); It; ++It)
+	{
+		if (It->GetKind() != Kind || It->IsActorBeingDestroyed())
+		{
+			continue;
+		}
+		if (bOwned && !Kept)
+		{
+			Kept = *It;
+		}
+		else
+		{
+			Surplus.Add(*It);
+		}
+	}
+	for (ADIAMovable* Actor : Surplus)
+	{
+		Actor->Destroy();
+	}
+	if (!bOwned || Kept)
+	{
+		return;
+	}
+	const FLotMovable& State = Game.World().Movables[static_cast<int32>(Kind)];
+	const FTransform Where(FRotator(0.0, State.YawDeg, 0.0), FVector(State.Pos.X, State.Pos.Y, 0.0));
+	// The kind is set before BeginPlay, which registers the actor and shows its model.
+	if (ADIAMovable* Spawned = World->SpawnActorDeferred<ADIAMovable>(ADIAMovable::StaticClass(), Where, nullptr, nullptr, ESpawnActorCollisionHandlingMethod::AlwaysSpawn))
+	{
+		Spawned->Init(Kind);
+		Spawned->FinishSpawning(Where);
+	}
+}
+
 void ADIAGameMode::EndPlay(const EEndPlayReason::Type Reason)
 {
 	if (UDIAWorldSubsystem* Subsystem = UDIAWorldSubsystem::Get(this))
 	{
+		Subsystem->OnItemBought.Remove(ItemBoughtHandle);
+		Subsystem->OnGameReset.Remove(GameResetHandle);
 		// The last save of a session: the actors are all still there to say where the player stands.
 		Subsystem->Autosave();
 	}

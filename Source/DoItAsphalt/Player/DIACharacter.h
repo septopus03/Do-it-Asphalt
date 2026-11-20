@@ -62,6 +62,9 @@ public:
 	/** Use (left button, held): scoops, fills, pours, dumps or trowels with the item in hand. */
 	void SetUsing(bool bUse);
 	bool IsUsing() const { return bUsing; }
+	/** Flap (F, held): the standing suitcase beside the player doses raw asphalt through its flap. */
+	void SetFlap(bool bOpen) { bFlap = bOpen; }
+	bool IsFlapHeld() const { return bFlap; }
 	/** Work view (right button, held): the field of view narrows and the view tilts down; it eases back on release. */
 	void SetWorkView(bool bWork);
 	bool IsWorkView() const { return bWorkView; }
@@ -92,7 +95,7 @@ protected:
 
 private:
 	UDIAWorldSubsystem* GetSubsystem() const;
-	/** Walk / sprint speed follows the current state. */
+	/** Walk, sprint and held-movable speed follow the current state (the single place that sets MaxWalkSpeed). */
 	void UpdateMovementSettings();
 	void OnStateChanged();
 	/** Gives the hand pivot the meshes of the item the core says is in the hand. */
@@ -134,6 +137,7 @@ private:
 
 	bool bSprinting = false;
 	bool bUsing = false;
+	bool bFlap = false;
 	bool bWorkView = false;
 	bool bExternalView = false;
 	/** 0 = normal view, 1 = work view. */
@@ -143,8 +147,9 @@ private:
 	/** The trowel has a contact point from the press on; it follows the aim at most TrowelSpeedCmS. */
 	bool bTrowelDown = false;
 	FVector2D TrowelContact = FVector2D::ZeroVector;
-	/** The item the pivot shows now; Count before the first refresh. */
+	/** The item the pivot shows now and the movable held then; Count before the first refresh. */
 	ELotHand ShownHand = ELotHand::Count;
+	ELotMovable ShownHeld = ELotMovable::Count;
 	/** Content of the vessel the disc shows now, to skip the work when nothing changed. */
 	double ShownLitres = -1.0;
 

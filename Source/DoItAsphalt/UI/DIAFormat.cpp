@@ -360,6 +360,27 @@ FText DIAFormat::ExitToast()
 	return LOCTEXT("ToastExit", "The exit is open!");
 }
 
+FText DIAFormat::MovablePrompt(ELotMovable Movable, bool bHeld)
+{
+	if (bHeld)
+	{
+		return LOCTEXT("PromptLetGo", "E – Let go");
+	}
+	switch (Movable)
+	{
+	case ELotMovable::Suitcase: return LOCTEXT("PromptPullFlap", "E – Pull\nF – Open flap");
+	case ELotMovable::Station: return LOCTEXT("PromptPull", "E – Pull");
+	case ELotMovable::Cart:
+	case ELotMovable::Finisher: return LOCTEXT("PromptPush", "E – Push");
+	default: return FText::GetEmpty();
+	}
+}
+
+FText DIAFormat::MovableNoRoomToast()
+{
+	return LOCTEXT("ToastNoRoom", "No room to put it down here.");
+}
+
 bool FDIAHudModel::Update(const FLotGame& Game)
 {
 	FKey NewKey;

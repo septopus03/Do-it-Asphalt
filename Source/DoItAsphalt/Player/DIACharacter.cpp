@@ -15,6 +15,7 @@
 #include "Game/DIAModelSizes.h"
 #include "Game/DIARefill.h"
 #include "Game/DIAWorldSubsystem.h"
+#include "World/DIAMovable.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/Controller.h"
 #include "GameFramework/PlayerController.h"
@@ -205,6 +206,7 @@ void ADIACharacter::HandleGameReset()
 {
 	SetSprinting(false);
 	SetUsing(false);
+	SetFlap(false);
 	SetWorkView(false);
 
 	const UDIAWorldSubsystem* Subsystem = GetSubsystem();
@@ -231,14 +233,30 @@ void ADIACharacter::SetSprinting(bool bSprint)
 
 void ADIACharacter::UpdateMovementSettings()
 {
+	// The one place that decides the speed: what the player holds sets it, and only a free player may sprint.
 	double Speed = LotBalance::WalkSpeedCmS;
-	if (bSprinting)
+	const UDIAWorldSubsystem* Subsystem = GetSubsystem();
+	const FLotGame* Game = Subsystem ? &Subsystem->GetGame() : nullptr;
+	switch (Game ? Game->GetHeld() : ELotMovable::Count)
 	{
-		const UDIAWorldSubsystem* Subsystem = GetSubsystem();
-		if (Subsystem && Subsystem->GetGame().IsUnlocked(ELotUnlock::Sprint))
+	case ELotMovable::Suitcase:
+		Speed = LotBalance::SuitcasePullSpeedCmS;
+		break;
+	case ELotMovable::Cart:
+		Speed = bUsing ? LotBalance::CartLaySpeedCmS : LotBalance::CartPushSpeedCmS;
+		break;
+	case ELotMovable::Station:
+		Speed = LotBalance::StationCarrySpeedCmS;
+		break;
+	case ELotMovable::Finisher:
+		Speed = LotBalance::FinisherPushSpeedCmS;
+		break;
+	default:
+		if (bSprinting && Game && Game->IsUnlocked(ELotUnlock::Sprint))
 		{
 			Speed *= LotBalance::SprintMultiplier;
 		}
+		break;
 	}
 	GetCharacterMovement()->MaxWalkSpeed = static_cast<float>(Speed);
 }
@@ -275,6 +293,8 @@ void ADIACharacter::SetUsing(bool bUse)
 		bTrowelDown = false;
 	}
 	bUsing = bUse;
+	// Laying a strip with the cart is slower than pushing it.
+	UpdateMovementSettings();
 }
 
 void ADIACharacter::SetWorkView(bool bWork)
@@ -376,9 +396,13 @@ void ADIACharacter::RefreshHandMesh()
 		return;
 	}
 	const ELotHand Hand = Subsystem->GetGame().GetHand();
-	if (Hand != ShownHand)
+	// A movable in the hands hides the tool, and the tool comes back when it is let go.
+	const ELotMovable Held = Subsystem->GetGame().GetHeld();
+	const bool bToolShown = !bExternalView && Held == ELotMovable::Count;
+	if (Hand != ShownHand || Held != ShownHeld)
 	{
 		ShownHand = Hand;
+		ShownHeld = Held;
 		ShownLitres = -1.0;
 		bTrowelDown = false;
 
@@ -387,7 +411,7 @@ void ADIACharacter::RefreshHandMesh()
 		HandMesh->SetRelativeScale3D(FVector::OneVector);
 		HandMesh->SetRelativeLocationAndRotation(Layout.Location, Layout.Rotation);
 		DIAAssets::SetModelOrFallback(HandMesh, Layout.Model, Layout.Shape, Layout.SizeCm, FVector(0.0, 0.0, Layout.SizeCm.Z * 0.5), TEXT("DIA_Steel"));
-		HandMesh->SetVisibility(!bExternalView);
+		HandMesh->SetVisibility(bToolShown);
 
 		const bool bSpoon = Hand == ELotHand::Bowl;
 		if (bSpoon)
@@ -396,7 +420,7 @@ void ADIACharacter::RefreshHandMesh()
 			SpoonMesh->SetRelativeLocationAndRotation(SpoonLocationCm, SpoonRotation);
 			DIAAssets::SetModelOrFallback(SpoonMesh, TEXT("SM_Spoon"), DIAAssets::EFallback::Cube, DIAModelSizes::SpoonCm, FVector::ZeroVector, TEXT("DIA_Steel"));
 		}
-		SpoonMesh->SetVisibility(bSpoon && !bExternalView);
+		SpoonMesh->SetVisibility(bSpoon && bToolShown);
 	}
 	UpdateLiquid();
 }
@@ -418,7 +442,7 @@ void ADIACharacter::UpdateLiquid()
 	ShownLitres = Litres;
 
 	const double Capacity = Game.GetHandCapacity(Game.GetHand());
-	if (Layout.RimZ <= 0.0 || Capacity <= 0.0 || Litres < LiquidMinLitres || bExternalView)
+	if (Layout.RimZ <= 0.0 || Capacity <= 0.0 || Litres < LiquidMinLitres || bExternalView || Game.GetHeld() != ELotMovable::Count)
 	{
 		LiquidMesh->SetVisibility(false);
 		return;
@@ -471,6 +495,12 @@ void ADIACharacter::UseHand(UDIAWorldSubsystem& Subsystem, float DeltaSeconds)
 	{
 		bTrowelDown = false;
 	}
+	if (Game.GetHeld() != ELotMovable::Count)
+	{
+		// The hands are on a suitcase, cart or machine: what they do is that object's own (the cart lays its strip from its own tick).
+		bTrowelDown = false;
+		return;
+	}
 
 	switch (Hand)
 	{
@@ -486,7 +516,12 @@ void ADIACharacter::UseHand(UDIAWorldSubsystem& Subsystem, float DeltaSeconds)
 		}
 		break;
 	case ELotHand::Bucket:
-		if (DIARefill::IsAtOutlet(Game, Aim))
+		if (ELotSource Source; ADIAMovable::FindTapAt(GetWorld(), Aim, Source))
+		{
+			// The tap of a standing suitcase or cart comes before dumping: the bucket fills from what stands there.
+			Game.FillBucket(Source, DeltaSeconds);
+		}
+		else if (DIARefill::IsAtOutlet(Game, Aim))
 		{
 			Game.FillBucket(ELotSource::Plant, DeltaSeconds);
 		}

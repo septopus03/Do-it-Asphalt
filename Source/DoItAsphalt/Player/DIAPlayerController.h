@@ -65,6 +65,9 @@ public:
 	/** Use and WorkView: held buttons; they do nothing while a menu or the win screen is up. */
 	void OnUseStarted();
 	void OnUseCompleted();
+	/** Flap (F, held): the standing suitcase beside the player opens its flap; it does nothing while a menu, the shop or the win screen is up. */
+	void OnFlapStarted();
+	void OnFlapCompleted();
 	void OnWorkViewStarted();
 	void OnWorkViewCompleted();
 	/** 1 - 4 and Q: take an item into the hand. */
@@ -81,7 +84,7 @@ private:
 	void OnSprintCompleted();
 
 	class ADIACharacter* GetDIACharacter() const;
-	/** Lets go of everything a UI that takes over the screen must not leave running: sprinting, using the item, the work view and the check view. */
+	/** Lets go of everything a UI that takes over the screen must not leave running: sprinting, using the item, the flap, the work view and the check view. */
 	void ReleaseControls();
 	/** The menu, the shop or the win screen covers the screen and owns the mouse: nothing behind it can be used. */
 	bool IsUiInput() const { return bMenuInput || bShopInput || bWinInput; }

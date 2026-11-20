@@ -53,6 +53,9 @@ void ADIAPlayerController::SetupInputComponent()
 	Enhanced->BindAction(Input.Use, ETriggerEvent::Started, this, &ADIAPlayerController::OnUseStarted);
 	Enhanced->BindAction(Input.Use, ETriggerEvent::Completed, this, &ADIAPlayerController::OnUseCompleted);
 	Enhanced->BindAction(Input.Use, ETriggerEvent::Canceled, this, &ADIAPlayerController::OnUseCompleted);
+	Enhanced->BindAction(Input.Flap, ETriggerEvent::Started, this, &ADIAPlayerController::OnFlapStarted);
+	Enhanced->BindAction(Input.Flap, ETriggerEvent::Completed, this, &ADIAPlayerController::OnFlapCompleted);
+	Enhanced->BindAction(Input.Flap, ETriggerEvent::Canceled, this, &ADIAPlayerController::OnFlapCompleted);
 	Enhanced->BindAction(Input.WorkView, ETriggerEvent::Started, this, &ADIAPlayerController::OnWorkViewStarted);
 	Enhanced->BindAction(Input.WorkView, ETriggerEvent::Completed, this, &ADIAPlayerController::OnWorkViewCompleted);
 	Enhanced->BindAction(Input.WorkView, ETriggerEvent::Canceled, this, &ADIAPlayerController::OnWorkViewCompleted);
@@ -105,6 +108,22 @@ void ADIAPlayerController::OnUseCompleted()
 	if (ADIACharacter* Character = GetDIACharacter())
 	{
 		Character->SetUsing(false);
+	}
+}
+
+void ADIAPlayerController::OnFlapStarted()
+{
+	if (ADIACharacter* Character = GetDIACharacter(); Character && !IsUiInput())
+	{
+		Character->SetFlap(true);
+	}
+}
+
+void ADIAPlayerController::OnFlapCompleted()
+{
+	if (ADIACharacter* Character = GetDIACharacter())
+	{
+		Character->SetFlap(false);
 	}
 }
 
@@ -309,6 +328,7 @@ void ADIAPlayerController::ReleaseControls()
 		// Releasing a key while a UI is up does not reach the game, so nothing held may stay on.
 		Character->SetSprinting(false);
 		Character->SetUsing(false);
+		Character->SetFlap(false);
 		Character->SetWorkView(false);
 	}
 	if (ADIAHUD* Hud = Cast<ADIAHUD>(GetHUD()))

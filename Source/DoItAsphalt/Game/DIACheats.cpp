@@ -13,6 +13,7 @@
 #include "DoItAsphalt.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
+#include "EngineUtils.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Player/DIACharacter.h"
@@ -22,6 +23,7 @@
 #include "LotLayout.h"
 #include "LotMap.h"
 #include "UI/DIAHUD.h"
+#include "World/DIAMovable.h"
 #include "HAL/FileManager.h"
 #include "HAL/IConsoleManager.h"
 #include "Misc/Paths.h"
@@ -183,6 +185,123 @@ namespace DIACheats
 			UE_LOG(LogDoItAsphalt, Warning, TEXT("DIA cheat: there is no player controller"));
 		}
 		return PC;
+	}
+
+	/** The names dia.Grab accepts: the ELotMovable values in order. */
+	const TCHAR* const MovableNames[] = {TEXT("Suitcase"), TEXT("Cart"), TEXT("Station"), TEXT("Finisher")};
+	static_assert(UE_ARRAY_COUNT(MovableNames) == static_cast<int32>(ELotMovable::Count), "one name per movable");
+
+	/** The movable a name stands for; Count if it is none. */
+	ELotMovable ParseMovable(const FString& Name)
+	{
+		for (int32 I = 0; I < UE_ARRAY_COUNT(MovableNames); ++I)
+		{
+			if (Name.Equals(MovableNames[I], ESearchCase::IgnoreCase))
+			{
+				return static_cast<ELotMovable>(I);
+			}
+		}
+		return ELotMovable::Count;
+	}
+
+	/** Gives the player the movable (if not owned yet) and fills a suitcase or a cart to the top from the plant stock; the cheat is for looking at things. */
+	void ProvideMovable(UDIAWorldSubsystem& S, ELotMovable Movable)
+	{
+		FLotGame& Game = S.GetGame();
+		if (!Game.OwnsMovable(Movable))
+		{
+			const ELotItem Item = Movable == ELotMovable::Suitcase ? ELotItem::Suitcase : Movable == ELotMovable::Cart ? ELotItem::Cart
+				: Movable == ELotMovable::Station ? ELotItem::Station : ELotItem::Finisher;
+			Game.DebugGrantItem(Item);
+			S.OnItemBought.Broadcast(Item);
+		}
+		Game.DebugSetPlantStock(Game.GetPlantStorage());
+		for (int32 I = 0; I < 100 && Game.GetMovableLitres(Movable) < Game.GetMovableCapacity(Movable); ++I)
+		{
+			if (Game.FillMovable(Movable, 1.0) <= 0.0)
+			{
+				break;
+			}
+		}
+	}
+
+	void Grab(const TArray<FString>& Args, UWorld* World)
+	{
+		static const TCHAR* Usage_ = TEXT("dia.Grab <Suitcase|Cart|Station|Finisher>");
+		if (!Usage(Args.Num() == 1, Usage_))
+		{
+			return;
+		}
+		const ELotMovable Movable = ParseMovable(Args[0]);
+		if (!Usage(Movable != ELotMovable::Count, Usage_))
+		{
+			return;
+		}
+		UDIAWorldSubsystem* S = GetSubsystem(World);
+		if (!S)
+		{
+			return;
+		}
+		ProvideMovable(*S, Movable);
+		for (TActorIterator<ADIAMovable> It(S->GetWorld()); It; ++It)
+		{
+			if (It->GetKind() == Movable)
+			{
+				It->Interact(Cast<ADIACharacter>(GetPlayerController(World) ? GetPlayerController(World)->GetPawn() : nullptr));
+			}
+		}
+		if (S->GetGame().GetHeld() != Movable)
+		{
+			UE_LOG(LogDoItAsphalt, Warning, TEXT("dia.Grab: could not take it (something else is held, or the player sits in the car)"));
+		}
+	}
+
+	void Drop(const TArray<FString>& Args, UWorld* World)
+	{
+		UDIAWorldSubsystem* S = GetSubsystem(World);
+		if (!S || S->GetGame().GetHeld() == ELotMovable::Count)
+		{
+			UE_LOG(LogDoItAsphalt, Warning, TEXT("dia.Drop: nothing is held"));
+			return;
+		}
+		APlayerController* PC = GetPlayerController(World);
+		for (TActorIterator<ADIAMovable> It(S->GetWorld()); It; ++It)
+		{
+			if (It->IsHeld())
+			{
+				It->TryRelease(PC ? Cast<ADIACharacter>(PC->GetPawn()) : nullptr);
+			}
+		}
+	}
+
+	/** Lays a raw strip of the cart's width through the core, from the point towards +X, as if the cart had been pushed there; the cart stays where it was. */
+	void RawStrip(const TArray<FString>& Args, UWorld* World)
+	{
+		if (!Usage(Args.Num() >= 2 && Args.Num() <= 3, TEXT("dia.RawStrip <x> <y> [lengthM=4]")))
+		{
+			return;
+		}
+		UDIAWorldSubsystem* S = GetSubsystem(World);
+		if (!S)
+		{
+			return;
+		}
+		FLotGame& Game = S->GetGame();
+		if (Game.GetHeld() != ELotMovable::Count)
+		{
+			UE_LOG(LogDoItAsphalt, Warning, TEXT("dia.RawStrip: something is held; let go of it first (dia.Drop)"));
+			return;
+		}
+		ProvideMovable(*S, ELotMovable::Cart);
+		const FLotMovable Before = Game.World().Movables[static_cast<int32>(ELotMovable::Cart)];
+		const FVector2D From(FCString::Atod(*Args[0]), FCString::Atod(*Args[1]));
+		const double LengthCm = (Args.Num() == 3 ? FCString::Atod(*Args[2]) : 4.0) * 100.0;
+		if (Game.Grab(ELotMovable::Cart))
+		{
+			S->Dispatch(Game.LayCartStrip(From, From + FVector2D(LengthCm, 0.0)));
+			Game.Release(Before.Pos, Before.YawDeg);
+			S->Dispatch(FLotEvents());
+		}
 	}
 
 	void Teleport(const TArray<FString>& Args, UWorld* World)
@@ -494,6 +613,9 @@ namespace DIACheats
 	FAutoConsoleCommandWithWorldAndArgs CompleteCommand(TEXT("dia.Complete"), TEXT("dia.Complete <n>: completes the first n incomplete cells"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Complete));
 	FAutoConsoleCommandWithWorldAndArgs CompleteEntryCommand(TEXT("dia.CompleteEntry"), TEXT("dia.CompleteEntry <0..5>: completes the 12 cells of an entry segment"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&CompleteEntry));
 	FAutoConsoleCommandWithWorldAndArgs ItemCommand(TEXT("dia.Item"), TEXT("dia.Item <name>: gives the player an item (Scoop, Bucket, Suitcase, Cart, Station, Finisher, AutoPaver, AutoPaverFast, AutoPaverFaster, Car, CarWideBar)"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Item));
+	FAutoConsoleCommandWithWorldAndArgs GrabCommand(TEXT("dia.Grab"), TEXT("dia.Grab <Suitcase|Cart|Station|Finisher>: gives the player the movable if needed, fills a suitcase or cart and takes it in the hands"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Grab));
+	FAutoConsoleCommandWithWorldAndArgs DropCommand(TEXT("dia.Drop"), TEXT("dia.Drop: lets go of the held movable where it is, if there is room"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Drop));
+	FAutoConsoleCommandWithWorldAndArgs RawStripCommand(TEXT("dia.RawStrip"), TEXT("dia.RawStrip <x> <y> [lengthM=4]: lays a raw strip of the cart's width from the point towards +X through the core (gives and fills the cart)"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&RawStrip));
 	FAutoConsoleCommandWithWorldAndArgs PlantCommand(TEXT("dia.Plant"), TEXT("dia.Plant <0..5>: sets the plant level"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Plant));
 	FAutoConsoleCommandWithWorldAndArgs TeleportCommand(TEXT("dia.Teleport"), TEXT("dia.Teleport <x> <y> [yaw] [pitch]"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Teleport));
 	FAutoConsoleCommandWithWorldAndArgs PromptCommand(TEXT("dia.Prompt"), TEXT("dia.Prompt <text>: sets the contextual prompt (no text hides it)"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Prompt));
