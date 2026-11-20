@@ -11,6 +11,7 @@
 #include "Framework/Application/SlateApplication.h"
 #include "Misc/App.h"
 #include "Game/DIAWorldSubsystem.h"
+#include "LotMap.h"
 #include "Player/DIACharacter.h"
 #include "UI/DIAHUD.h"
 #include "World/DIAInteractable.h"
@@ -69,6 +70,7 @@ void ADIAPlayerController::SetupInputComponent()
 	Enhanced->BindAction(Input.CheckView, ETriggerEvent::Started, this, &ADIAPlayerController::OnCheckViewStarted);
 	Enhanced->BindAction(Input.CheckView, ETriggerEvent::Completed, this, &ADIAPlayerController::OnCheckViewCompleted);
 	Enhanced->BindAction(Input.CheckView, ETriggerEvent::Canceled, this, &ADIAPlayerController::OnCheckViewCompleted);
+	Enhanced->BindAction(Input.SendPaver, ETriggerEvent::Started, this, &ADIAPlayerController::OnSendPaver);
 	Enhanced->BindAction(Input.Pause, ETriggerEvent::Started, this, &ADIAPlayerController::OnPause);
 }
 
@@ -212,6 +214,49 @@ void ADIAPlayerController::OnInteract()
 	if (IDIAInteractable* Interactable = FindInteractable())
 	{
 		Interactable->Interact(GetDIACharacter());
+	}
+}
+
+void ADIAPlayerController::OnSendPaver()
+{
+	UDIAWorldSubsystem* Subsystem = UDIAWorldSubsystem::Get(this);
+	const ADIACharacter* Character = GetDIACharacter();
+	if (IsUiInput() || !Subsystem || !Character)
+	{
+		return;
+	}
+	FLotGame& Game = Subsystem->GetGame();
+	ADIAHUD* Hud = Cast<ADIAHUD>(GetHUD());
+	auto Say = [Hud](const FText& Text)
+	{
+		if (Hud)
+		{
+			Hud->ShowToast(Text);
+		}
+	};
+	if (!Game.Owns(ELotItem::AutoPaver))
+	{
+		Say(DIAFormat::PaverNoneToast());
+		return;
+	}
+	// The pawn is where the player stands; the sector is the one under its feet (none on the strip or in the mall quadrant).
+	const int32 Sector = AsphaltLot::SectorAt(FVector2D(Character->GetActorLocation()));
+	if (Sector == INDEX_NONE)
+	{
+		Say(DIAFormat::PaverOffLotToast());
+		return;
+	}
+	// The core restarts a sector's progress when it is assigned again, so the sector the paver works in is left alone.
+	if (Game.GetAutoPaverSector() == Sector)
+	{
+		Say(DIAFormat::PaverAlreadyHereToast());
+		return;
+	}
+	if (Game.AssignAutoPaverSector(Sector))
+	{
+		Say(DIAFormat::PaverSentToast(Sector));
+		// The outline and the HUD line show it now, not at the next tick.
+		Subsystem->Dispatch(FLotEvents());
 	}
 }
 

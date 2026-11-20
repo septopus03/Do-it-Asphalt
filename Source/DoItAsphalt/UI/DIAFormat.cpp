@@ -360,6 +360,45 @@ FText DIAFormat::ExitToast()
 	return LOCTEXT("ToastExit", "The exit is open!");
 }
 
+FText DIAFormat::SectorNumber(int32 Sector)
+{
+	return Count(Sector + 1);
+}
+
+FText DIAFormat::PaverSentToast(int32 Sector)
+{
+	return FText::Format(LOCTEXT("ToastPaverSent", "Paver → sector {0}"), SectorNumber(Sector));
+}
+
+FText DIAFormat::PaverNoneToast()
+{
+	return LOCTEXT("ToastPaverNone", "No paver");
+}
+
+FText DIAFormat::PaverOffLotToast()
+{
+	return LOCTEXT("ToastPaverOffLot", "Not on the lot");
+}
+
+FText DIAFormat::PaverAlreadyHereToast()
+{
+	return LOCTEXT("ToastPaverHere", "Paver is already here");
+}
+
+FText DIAFormat::PaverLine(const FLotGame& Game)
+{
+	if (!Game.Owns(ELotItem::AutoPaver))
+	{
+		return FText::GetEmpty();
+	}
+	const int32 Sector = Game.GetAutoPaverSector();
+	if (Sector == INDEX_NONE)
+	{
+		return LOCTEXT("PaverWaiting", "Paver: waiting – press G");
+	}
+	return FText::Format(LOCTEXT("PaverWorking", "Paver: sector {0} · {1} / {2}"), SectorNumber(Sector), Count(Game.GetAutoPaverStep()), Count(AsphaltLot::CellsPerSector));
+}
+
 FText DIAFormat::MovablePrompt(ELotMovable Movable, bool bHeld)
 {
 	if (bHeld)
@@ -405,6 +444,12 @@ bool FDIAHudModel::Update(const FLotGame& Game)
 	const ELotUnlock Step = NextStep(Game);
 	NewKey.NextStep = static_cast<int32>(Step);
 	NewKey.NextEntryCells = Step == ELotUnlock::Count ? 0 : Game.GetEntryProgress(static_cast<int32>(Step));
+	// The paver's line shows the sector and the step; while it waits (or is not owned) the step is not shown.
+	if (Game.Owns(ELotItem::AutoPaver))
+	{
+		NewKey.PaverSector = Game.GetAutoPaverSector();
+		NewKey.PaverStep = NewKey.PaverSector == INDEX_NONE ? 0 : Game.GetAutoPaverStep();
+	}
 
 	if (RebuildCount > 0 && NewKey == Key)
 	{
@@ -420,6 +465,7 @@ bool FDIAHudModel::Update(const FLotGame& Game)
 	View.HandGauge = DIAFormat::HandGauge(Game);
 	View.Refill = DIAFormat::RefillLine(Game);
 	View.Next = DIAFormat::NextUnlock(Game);
+	View.Paver = DIAFormat::PaverLine(Game);
 	return true;
 }
 

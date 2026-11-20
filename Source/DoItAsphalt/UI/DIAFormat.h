@@ -64,6 +64,19 @@ namespace DIAFormat
 	DOITASPHALT_API FText PlantToast(int32 Level);
 	DOITASPHALT_API FText ExitToast();
 
+	/** The sector number the player sees: the index counted from 1 (the entries are numbered the same way). */
+	DOITASPHALT_API FText SectorNumber(int32 Sector);
+	/** "Paver → sector 12" (Sector is the 0-based index). */
+	DOITASPHALT_API FText PaverSentToast(int32 Sector);
+	/** The toast of SendPaver without the auto paver. */
+	DOITASPHALT_API FText PaverNoneToast();
+	/** The toast of SendPaver while the player stands outside the sectors (the strip, the mall quadrant). */
+	DOITASPHALT_API FText PaverOffLotToast();
+	/** The toast of SendPaver to the sector the paver works in already. */
+	DOITASPHALT_API FText PaverAlreadyHereToast();
+	/** The HUD line of the auto paver: "Paver: sector 12 · 143 / 400" or "Paver: waiting – press G"; empty without the auto paver. */
+	DOITASPHALT_API FText PaverLine(const FLotGame& Game);
+
 	/**
 	 * The prompt of a suitcase, cart, station or finisher: "E – Pull" (suitcase), "E – Push" (cart), "E – Carry" (station) or "E – Guide" (finisher) while it
 	 * stands, "E – Let go" while it is held ("E – Put down" for the station); a standing suitcase adds "F – Open flap" on a second line. Empty for an invalid kind.
@@ -87,6 +100,8 @@ struct FDIAHudView
 	FText Refill;
 	/** The next unlock step and how far it is. */
 	FText Next;
+	/** The auto paver's line; empty without the auto paver. */
+	FText Paver;
 };
 
 /**
@@ -122,6 +137,9 @@ private:
 		/** The next step (ELotUnlock::Count when none) and its entry progress. */
 		int32 NextStep = -1;
 		int32 NextEntryCells = -1;
+		/** The auto paver: -2 while not owned, INDEX_NONE while waiting, else its sector; and the step of that sector (0 while waiting). */
+		int32 PaverSector = -2;
+		int32 PaverStep = 0;
 
 		bool operator==(const FKey& Other) const = default;
 	};

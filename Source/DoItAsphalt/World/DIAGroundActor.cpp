@@ -122,6 +122,7 @@ void ADIAGroundActor::BeginPlay()
 		GroundMaterial->SetTextureParameterValue(TEXT("CoverageTex"), CoverageTexture);
 		GroundMaterial->SetScalarParameterValue(TEXT("MissingHighlight"), MissingHighlight);
 		PlotMesh->SetMaterial(0, GroundMaterial);
+		SyncSectorRect();
 	}
 	else
 	{
@@ -149,11 +150,37 @@ void ADIAGroundActor::SetMissingHighlight(float Amount)
 void ADIAGroundActor::OnStateChanged()
 {
 	SyncCoverage();
+	SyncSectorRect();
 }
 
 void ADIAGroundActor::HandleGameReset()
 {
 	SyncCoverage(/*bFull*/ true);
+	SyncSectorRect();
+}
+
+void ADIAGroundActor::SyncSectorRect()
+{
+	const UDIAWorldSubsystem* Subsystem = UDIAWorldSubsystem::Get(this);
+	if (!Subsystem || !GroundMaterial)
+	{
+		return;
+	}
+	// Only a change of the sector touches the material (the state changes on every tick).
+	const int32 Sector = Subsystem->GetGame().GetAutoPaverSector();
+	if (Sector == ShownSector)
+	{
+		return;
+	}
+	ShownSector = Sector;
+	FLinearColor Rect(0.f, 0.f, 0.f, 0.f);
+	if (Sector != INDEX_NONE)
+	{
+		const FVector2D Centre = AsphaltLot::SectorCentre(Sector);
+		const double Half = DIAGround::SectorSizeCm * 0.5;
+		Rect = FLinearColor(static_cast<float>(Centre.X - Half), static_cast<float>(Centre.Y - Half), static_cast<float>(Centre.X + Half), static_cast<float>(Centre.Y + Half));
+	}
+	GroundMaterial->SetVectorParameterValue(TEXT("SectorRect"), Rect);
 }
 
 bool ADIAGroundActor::GetCoverageTexel(int32 X, int32 Y, uint8& OutR, uint8& OutG) const

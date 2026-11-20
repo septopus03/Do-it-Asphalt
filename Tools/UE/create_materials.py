@@ -179,6 +179,10 @@ def build_ground():
     missing = node(mat, unreal.MaterialExpressionScalarParameter, -1000, 600,
                    parameter_name="MissingHighlight", default_value=0.0)
 
+    # The auto paver's sector (min X, min Y, max X, max Y in world cm): a 10 cm orange outline along its inside. All zero = no outline.
+    sector = node(mat, unreal.MaterialExpressionVectorParameter, -1000, 750,
+                  parameter_name="SectorRect", default_value=unreal.LinearColor(0.0, 0.0, 0.0, 0.0))
+
     # One Custom node decides the whole look: rgb = base colour, a = roughness. The cell grid lines come from the
     # world position, so they need no texture; the lot shape (an L: the +X/+Y quadrant is the mall) is in the code.
     ground = custom(mat, -600, 100, "GroundLook", """float e = max(Softness, 0.0001);
@@ -205,12 +209,22 @@ rough = lerp(rough, 0.6, wG);
 float missingMask = Missing * lot * (1.0 - wG);
 colour = lerp(colour, float3(1.0, 0.30, 0.02), missingMask);
 rough = lerp(rough, 0.7, missingMask);
+// Auto paver sector: a 10 cm outline along the inside of the rectangle, over bare, raw and finished ground alike.
+// The parameter's RGB and its alpha arrive as two inputs (a Custom input takes one output of the node).
+float4 r = float4(Sector, SectorMaxY);
+float hasRect = (r.z > r.x && r.w > r.y) ? 1.0 : 0.0;
+float inside = min(min(p.x - r.x, r.z - p.x), min(p.y - r.y, r.w - p.y));
+float outline = hasRect * ((inside >= 0.0 && inside < 10.0) ? 1.0 : 0.0);
+colour = lerp(colour, float3(1.0, 0.45, 0.02), outline);
+rough = lerp(rough, 0.7, outline);
 return float4(colour, rough);""",
-                    ["Coverage", "WorldPos", "Softness", "Missing"], unreal.CustomMaterialOutputType.CMOT_FLOAT4)
+                    ["Coverage", "WorldPos", "Softness", "Missing", "Sector", "SectorMaxY"], unreal.CustomMaterialOutputType.CMOT_FLOAT4)
     link(coverage, ground, "Coverage", "RGB")
     link(world, ground, "WorldPos")
     link(softness, ground, "Softness")
     link(missing, ground, "Missing")
+    link(sector, ground, "Sector", "RGB")
+    link(sector, ground, "SectorMaxY", "A")
 
     colour = node(mat, unreal.MaterialExpressionComponentMask, -250, 0, r=True, g=True, b=True, a=False)
     link(ground, colour, "")
@@ -219,7 +233,7 @@ return float4(colour, rough);""",
     link(ground, rough, "")
     mel.connect_material_property(rough, "", unreal.MaterialProperty.MP_ROUGHNESS)
 
-    expect_nodes(mat, 7)
+    expect_nodes(mat, 8)
     mel.recompile_material(mat)
     save(path)
 

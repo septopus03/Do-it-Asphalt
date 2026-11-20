@@ -154,6 +154,15 @@ TSharedRef<SWidget> SDIAHudOverlay::BuildTopRight()
 					AsphaltHud::MakeShadowedText(TAttribute<FText>::CreateLambda([this]() { return Model.GetView().Next; }), AsphaltHud::CaptionFontSize, AsphaltHud::PromptColor)
 				]
 			]
+			// The auto paver (hidden until it is owned).
+			+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Right).Padding(0.f, 4.f, 0.f, 0.f)
+			[
+				SNew(SBox)
+				.Visibility_Lambda([this]() { return Model.GetView().Paver.IsEmpty() ? EVisibility::Collapsed : EVisibility::HitTestInvisible; })
+				[
+					AsphaltHud::MakeShadowedText(TAttribute<FText>::CreateLambda([this]() { return Model.GetView().Paver; }), AsphaltHud::CaptionFontSize, AsphaltHud::TextColor)
+				]
+			]
 		];
 }
 

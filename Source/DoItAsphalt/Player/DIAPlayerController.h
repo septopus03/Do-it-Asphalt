@@ -70,6 +70,11 @@ public:
 	void OnFlapCompleted();
 	void OnWorkViewStarted();
 	void OnWorkViewCompleted();
+	/**
+	 * G: sends the auto paver to the sector the player stands in (toast: "Paver → sector n", "No paver", "Not on the lot" or "Paver is
+	 * already here"). It does nothing while a menu, the shop or the win screen is up; the same code path serves dia.SendPaver.
+	 */
+	void OnSendPaver();
 	/** 1 - 4 and Q: take an item into the hand. */
 	void OnSelectHand(ELotHand Hand);
 	void OnNextHand();

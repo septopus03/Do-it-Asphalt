@@ -27,6 +27,8 @@ namespace DIAGround
 	inline constexpr double CollisionDepthCm = 100.0;
 	/** An upload of at least this many texels is logged at Log level; smaller ones only at VeryVerbose. */
 	inline constexpr int64 BulkyUploadTexels = 100000;
+	/** A sector's side in cm: the rectangle the auto paver's outline is drawn around. */
+	inline constexpr double SectorSizeCm = AsphaltLot::SectorSide * AsphaltLot::CellCm;
 }
 
 /**
@@ -56,6 +58,12 @@ public:
 	 */
 	void SetMissingHighlight(float Amount);
 	float GetMissingHighlight() const { return MissingHighlight; }
+
+	/**
+	 * The outline of the auto paver's sector: the material's vector parameter SectorRect (min X, min Y, max X, max Y in world cm), set
+	 * when the paver's sector changes; a zero rectangle (no sector) draws nothing.
+	 */
+	void SyncSectorRect();
 
 	UTexture2D* GetCoverageTexture() const { return CoverageTexture; }
 	UMaterialInstanceDynamic* GetGroundMaterial() const { return GroundMaterial; }
@@ -90,6 +98,8 @@ private:
 	TArray<uint8> Mirror;
 
 	int32 NumFullUploads = 0;
+	/** The sector the material's SectorRect shows now (-2: nothing was set yet). */
+	int32 ShownSector = -2;
 	float MissingHighlight = 0.f;
 
 	FDIAStateSubscription StateSub;

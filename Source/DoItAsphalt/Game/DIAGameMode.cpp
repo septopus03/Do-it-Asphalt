@@ -10,6 +10,7 @@
 #include "Player/DIACharacter.h"
 #include "Player/DIAPlayerController.h"
 #include "UI/DIAHUD.h"
+#include "World/DIAAutoPaver.h"
 #include "World/DIAEntryBoard.h"
 #include "World/DIAGroundActor.h"
 #include "World/DIALotEdge.h"
@@ -80,6 +81,48 @@ void ADIAGameMode::EnsureAllMovables()
 	{
 		EnsureMovable(static_cast<ELotMovable>(I));
 	}
+	EnsureAutoPaver();
+}
+
+void ADIAGameMode::EnsureAutoPaver()
+{
+	UWorld* World = GetWorld();
+	const UDIAWorldSubsystem* Subsystem = UDIAWorldSubsystem::Get(this);
+	if (!World || !Subsystem)
+	{
+		return;
+	}
+	const bool bOwned = Subsystem->GetGame().Owns(ELotItem::AutoPaver);
+	ADIAAutoPaver* Kept = nullptr;
+	TArray<ADIAAutoPaver*> Surplus;
+	for (TActorIterator<ADIAAutoPaver> It(World); It; ++It)
+	{
+		if (It->IsActorBeingDestroyed())
+		{
+			continue;
+		}
+		if (bOwned && !Kept)
+		{
+			Kept = *It;
+		}
+		else
+		{
+			Surplus.Add(*It);
+		}
+	}
+	for (ADIAAutoPaver* Actor : Surplus)
+	{
+		Actor->Destroy();
+	}
+	if (!bOwned || Kept)
+	{
+		return;
+	}
+	// It appears where the core has it (the actor puts itself there in BeginPlay).
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	const FVector2D Pos = Subsystem->GetGame().GetAutoPaverPos();
+	World->SpawnActor<ADIAAutoPaver>(FVector(Pos.X, Pos.Y, 0.0), FRotator::ZeroRotator, Params);
 }
 
 void ADIAGameMode::EnsureMovable(ELotMovable Kind)
