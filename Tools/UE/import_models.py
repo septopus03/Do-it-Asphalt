@@ -7,7 +7,7 @@ Prints `DIA_OK /Game/Models/<Name> <sizeX> <sizeY> <sizeZ>` per mesh (bounding b
 Result per model (see docs/03-3d-modely.md):
   - static mesh /Game/Models/<Name>, 1 unit = 1 cm, game axes (+X forward, +Y right, +Z up);
   - every material slot, named after the GLB material (e.g. DIA_Yellow), assigned to /Game/Materials/MI_<slot name>;
-  - simple convex collision (18-DOP), no lightmap UV generation, no Nanite, no extra assets in /Game/Models
+  - simple convex collision (18-DOP), except SM_Mall: one box over its envelope (BOX_COLLISION_MODELS); no lightmap UV generation, no Nanite, no extra assets in /Game/Models
     (materials/textures Interchange creates are deleted again, last; any other unexpected asset fails the run).
 
 Idempotent: an existing mesh is re-imported in place (same asset path, so references to it survive), the
@@ -25,6 +25,8 @@ import unreal
 MODELS_DIR = "/Game/Models"
 MATERIAL_DIR = "/Game/Materials"
 asset_lib = unreal.EditorAssetLibrary
+# Models whose collision is one box over the envelope instead of the convex hull (the mall is a 100 x 100 m block).
+BOX_COLLISION_MODELS = {"SM_Mall"}
 
 
 def source_files():
@@ -106,12 +108,35 @@ def assign_palette(path, mesh):
         mesh.set_material(index, material)
 
 
+def apply_box_collision(name, mesh):
+    """Replaces the generated collision of a BOX_COLLISION_MODELS model by one box over the bounding box."""
+    if name not in BOX_COLLISION_MODELS:
+        return
+    body_setup = mesh.get_editor_property("body_setup")
+    geom = body_setup.get_editor_property("agg_geom")
+    box = mesh.get_bounding_box()
+    size = box.max - box.min
+    elem = unreal.KBoxElem()
+    elem.set_editor_property("center", (box.max + box.min) * 0.5)
+    elem.set_editor_property("x", size.x)
+    elem.set_editor_property("y", size.y)
+    elem.set_editor_property("z", size.z)
+    geom.set_editor_property("convex_elems", [])
+    geom.set_editor_property("box_elems", [elem])
+    body_setup.set_editor_property("agg_geom", geom)
+    mesh.modify()
+
+
 def check_collision(path, mesh):
     geom = mesh.get_editor_property("body_setup").get_editor_property("agg_geom")
     convex = len(geom.get_editor_property("convex_elems"))
     print("DIA_INFO %s collision convex=%d box=%d sphere=%d" % (
         path, convex, len(geom.get_editor_property("box_elems")), len(geom.get_editor_property("sphere_elems"))))
-    if convex < 1:
+    boxes = len(geom.get_editor_property("box_elems"))
+    if path.rsplit("/", 1)[-1] in BOX_COLLISION_MODELS:
+        if boxes != 1 or convex != 0:
+            raise RuntimeError("%s needs exactly one box collision (got %d box, %d convex)" % (path, boxes, convex))
+    elif convex < 1:
         raise RuntimeError("%s has no convex collision" % path)
 
 
@@ -186,6 +211,7 @@ def build():
     results = []
     for name, path, mesh in meshes:
         assign_palette(path, mesh)
+        apply_box_collision(name, mesh)
         check_collision(path, mesh)
         triangles = check_winding(path, mesh, reference_volume)
         if not asset_lib.save_asset(path, only_if_is_dirty=False):

@@ -51,7 +51,7 @@ bool FAxisTestImportedTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-// Every one of the 30 models of docs/03-3d-modely.md is imported: /Game/Models/<Name> is a real mesh (not the placeholder shape
+// Every one of the 30 models of docs/03-3d-modely.md and the 12 of docs/04-plan-zmien-asphalt-self.md (chapter 4.1) is imported: /Game/Models/<Name> is a real mesh (not the placeholder shape
 // of the game) whose envelope matches the manifest of the model generator (metres there, centimetres in the engine).
 DIA_TEST(FAllModelsImportedTest, "DoItAsphalt.Game.AllModelsImported")
 
@@ -73,8 +73,11 @@ namespace
 		TEXT("SM_Kiosk"), TEXT("SM_Lock"), TEXT("SM_RoadStub"), TEXT("SM_Barrier"), TEXT("SM_ExitGate_Frame"), TEXT("SM_ExitGate_Barrier"),
 		TEXT("SM_AutoPaver"), TEXT("SM_PaverCar"),
 		TEXT("SM_Fence"), TEXT("SM_Cone"), TEXT("SM_Barrel"), TEXT("SM_Lamp"), TEXT("SM_DirtPile"),
+		// Asphalt-self (docs/04, chapter 4.1): hand tools, containers, finisher, trough, curb, wide bar, mall.
+		TEXT("SM_Spoon"), TEXT("SM_Bowl"), TEXT("SM_Trowel"), TEXT("SM_Scoop"), TEXT("SM_Bucket"), TEXT("SM_Suitcase"),
+		TEXT("SM_Cart"), TEXT("SM_Finisher"), TEXT("SM_Trough"), TEXT("SM_Curb"), TEXT("SM_PaverCar_WideBar"), TEXT("SM_Mall"),
 	};
-	constexpr int32 AssetsTestNumModels = 30;
+	constexpr int32 AssetsTestNumModels = 42;
 
 	bool AssetsTestReadVector(const TSharedPtr<FJsonObject>& Entry, const TCHAR* Field, FVector& Out)
 	{
@@ -90,7 +93,7 @@ namespace
 
 bool FAllModelsImportedTest::RunTest(const FString& Parameters)
 {
-	TestEqual(TEXT("the model list has 30 names"), static_cast<int32>(UE_ARRAY_COUNT(AssetsTestModelNames)), AssetsTestNumModels);
+	TestEqual(TEXT("the model list has 42 names"), static_cast<int32>(UE_ARRAY_COUNT(AssetsTestModelNames)), AssetsTestNumModels);
 
 	const FString ManifestPath = FPaths::Combine(FPaths::ProjectDir(), TEXT("Tools/ModelGen/manifest.json"));
 	FString Text;
