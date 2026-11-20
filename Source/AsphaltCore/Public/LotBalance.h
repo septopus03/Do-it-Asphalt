@@ -97,7 +97,7 @@ namespace LotBalance
 	// ---- Not fixed by the specification ----
 
 	/** Seconds of one scoop or trowel stroke. */
-	inline constexpr double ScoopCycleSeconds = 0.6; // tunable
+	inline constexpr double ScoopCycleSeconds = 0.5; // tunable
 	/** Litres per second poured from the bowl and the scoop. */
 	inline constexpr double HandPourRateLPerS = 1.0; // tunable
 	/** Footprint radius of the pour, indexed by ELotHand. */
@@ -106,7 +106,7 @@ namespace LotBalance
 	/** Seconds a tool swap takes before the quick swap is unlocked (afterwards 0). */
 	inline constexpr double SwapSeconds = 1.5; // tunable
 	/** Width of the trowel. */
-	inline constexpr double TrowelWidthCm = 30.0; // tunable
+	inline constexpr double TrowelWidthCm = 40.0; // tunable
 	/** Farthest distance from the player at which the aim point works. */
 	inline constexpr double ReachCm = 250.0; // tunable
 	/** Litres per second through the suitcase flap. */
@@ -123,9 +123,9 @@ namespace LotBalance
 	/** Speed while pulling the suitcase. */
 	inline constexpr double SuitcasePullSpeedCmS = 350.0; // tunable
 	/** Speed while pushing the cart. */
-	inline constexpr double CartPushSpeedCmS = 250.0; // tunable
+	inline constexpr double CartPushSpeedCmS = 400.0; // tunable
 	/** Speed while pushing the cart and laying asphalt. */
-	inline constexpr double CartLaySpeedCmS = 100.0; // tunable
+	inline constexpr double CartLaySpeedCmS = 200.0; // tunable
 	/** Speed with which the auto paver moves into its sector. */
 	inline constexpr double AutoPaverSpeedCmS = 600.0; // tunable
 	/** Most litres the auto paver may hold as work budget; stops a long wait from storing a burst. */
@@ -139,6 +139,9 @@ namespace LotBalance
 
 	/** Largest simulation step in seconds; longer spans are split into steps of this size. */
 	inline constexpr double MaxStepSeconds = 0.25;
+	/** Ties the tunable budget cap to the sub-step so that tuning cannot clip the top auto paver rate. */
+	static_assert(AutoPaverRateCellsPerMin[2] * LitresPerCell * CompletionThreshold / 60.0 * MaxStepSeconds <= AutoPaverBudgetCapL,
+		"AutoPaverBudgetCapL must hold the litres the top auto paver rate earns in one sub-step");
 	/** Both ends of a pouring stamp are extended by this much. */
 	inline constexpr double StampPadCm = 5.0;
 	/** How close the player must be to interact with an object. */

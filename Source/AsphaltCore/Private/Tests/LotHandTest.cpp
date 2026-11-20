@@ -52,11 +52,11 @@ bool FLotHandSpoonStrokesTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("new game holds the bowl"), G.GetHand(), ELotHand::Bowl);
 	TestEqual(TEXT("bowl starts empty"), G.GetHandLitres(ELotHand::Bowl), 0.0);
 	TestEqual(TEXT("bowl capacity"), G.GetHandCapacity(ELotHand::Bowl), 2.5);
-	TestEqual(TEXT("no stroke yet"), G.ScoopFromTrough(0.59), 0.0);
+	TestEqual(TEXT("no stroke yet"), G.ScoopFromTrough(LotBalance::ScoopCycleSeconds - 0.01), 0.0);
 	TestNearlyEqual(TEXT("first stroke"), G.ScoopFromTrough(0.02), 0.25, Tolerance);
 	TestNearlyEqual(TEXT("stock after the stroke"), G.GetPlantStock(), 79.75, Tolerance);
-	G.ScoopFromTrough(5.49);
-	TestNearlyEqual(TEXT("bowl full after 6.1 s"), G.GetHandLitres(ELotHand::Bowl), 2.5, Tolerance);
+	G.ScoopFromTrough(9.0 * LotBalance::ScoopCycleSeconds + 0.1);
+	TestNearlyEqual(TEXT("bowl full after ten strokes"), G.GetHandLitres(ELotHand::Bowl), 2.5, Tolerance);
 	TestEqual(TEXT("full bowl takes nothing"), G.ScoopFromTrough(1.0), 0.0);
 	TestNearlyEqual(TEXT("stock"), G.GetPlantStock(), 77.5, Tolerance);
 	return true;
@@ -238,7 +238,8 @@ bool FLotHandTrowelTest::RunTest(const FString& Parameters)
 	const FVector2D B = P + FVector2D(40.0, 0.0);
 	G.GetGrid().Stamp(A, B, 60.0, 100.0, ELotTexel::Raw);
 	const FVector2D Inside = P + FVector2D(2.5, 12.5);
-	const FVector2D Outside = P + FVector2D(2.5, 17.5);
+	// The raw strip is 60 cm wide; just outside the trowel's width it stays raw.
+	const FVector2D Outside = P + FVector2D(2.5, LotBalance::TrowelWidthCm * 0.5 + 2.5);
 	TestTrue(TEXT("raw inside before"), TexelAt(G, Inside) == ELotTexel::Raw);
 
 	TestEqual(TEXT("bowl in hand: no effect"), G.Trowel(A, B).LitresPoured, 0.0);
@@ -250,7 +251,7 @@ bool FLotHandTrowelTest::RunTest(const FString& Parameters)
 	const FLotEvents E = G.Trowel(A, B);
 	TestTrue(TEXT("under the trowel: finished"), TexelAt(G, Inside) == ELotTexel::Done);
 	TestTrue(TEXT("beside the trowel: still raw"), TexelAt(G, Outside) == ELotTexel::Raw);
-	TestTrue(TEXT("other side: still raw"), TexelAt(G, P + FVector2D(2.5, -17.5)) == ELotTexel::Raw);
+	TestTrue(TEXT("other side: still raw"), TexelAt(G, P + FVector2D(2.5, -(LotBalance::TrowelWidthCm * 0.5 + 2.5))) == ELotTexel::Raw);
 	TestEqual(TEXT("smoothing costs nothing"), E.LitresPoured, 0.0);
 	TestEqual(TEXT("total litres unchanged"), G.GetTotalLitres(), Litres);
 	TestNearlyEqual(TEXT("bowl untouched"), G.GetHandLitres(ELotHand::Bowl), 2.5, Tolerance);
