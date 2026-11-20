@@ -38,9 +38,6 @@ namespace
 		FVector CentreCm() const { return (BoundsMin + BoundsMax) * 0.5; }
 	};
 
-	/** E measures the range from the capsule's centre to the origin of the held actor (no collision): in 3D, the origin being on the ground. */
-	static_assert(FMath::Square(DIAMovableHold::FinisherAheadCm) + FMath::Square(static_cast<double>(DIACharacter::CapsuleHalfHeightCm)) < FMath::Square(LotBalance::InteractionRangeCm), "a held finisher must stay within reach of E");
-
 	FKindSpec SpecOf(ELotMovable Kind)
 	{
 		switch (Kind)
@@ -250,27 +247,6 @@ void ADIAMovable::TickAfter(ADIACharacter* Character)
 	}
 }
 
-FVector2D ADIAMovable::ClearOfPlayer(FVector2D Where, const ADIACharacter* Player) const
-{
-	if (!Player)
-	{
-		// A release without a player (a cheat) has nobody to keep clear of.
-		return Where;
-	}
-	const FVector PlayerLocation = Player->GetActorLocation();
-	const FVector2D PlayerAt(PlayerLocation.X, PlayerLocation.Y);
-	const double Needed = DIACharacter::CapsuleRadiusCm + DIAMovable::ReleaseClearanceCm;
-	// It is held straight ahead of (or behind) the player, so the footprint is measured along its own X axis: the gap from the player to
-	// the face of the footprint that faces the player, negative when the player stands inside it (the handles of a held finisher).
-	const FVector2D Local = (PlayerAt - Where).GetRotated(-GetActorRotation().Yaw);
-	const double CentreX = Collision->GetRelativeLocation().X;
-	const double HalfX = Collision->GetUnscaledBoxExtent().X;
-	const double Gap = Local.X < CentreX ? (CentreX - HalfX) - Local.X : Local.X - (CentreX + HalfX);
-	const double Shortfall = Needed - Gap;
-	const FVector2D Away = (Where - PlayerAt).GetSafeNormal();
-	return Shortfall > 0.0 ? Where + Away * Shortfall : Where;
-}
-
 FVector2D ADIAMovable::GetMouthPoint() const
 {
 	const FKindSpec Spec = SpecOf(Kind);
@@ -368,8 +344,8 @@ bool ADIAMovable::TryRelease(ADIACharacter* By)
 	{
 		return false;
 	}
-	// It is set down where it is held now, upright, and clear of the player (the finisher's handles are inside the player's body while held).
-	const FVector2D Where = ClearOfPlayer(FVector2D(GetActorLocation().X, GetActorLocation().Y), By);
+	// It is set down exactly where it is held now, upright.
+	const FVector2D Where(GetActorLocation().X, GetActorLocation().Y);
 	const double YawDeg = FRotator::NormalizeAxis(GetActorRotation().Yaw);
 	if (!HasRoomAt(Where, YawDeg, By))
 	{

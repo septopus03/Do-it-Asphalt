@@ -5,9 +5,10 @@
 
 #include "AsphaltTest.h"
 #include "Camera/CameraComponent.h"
-#include "Components/CapsuleComponent.h"
 #include "Components/BoxComponent.h"
+#include "Components/CapsuleComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Engine/CollisionProfile.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "Game/DIAGameMode.h"
@@ -25,6 +26,7 @@
 #include "Tests/DIATestWorld.h"
 #include "UI/DIAFormat.h"
 #include "UI/DIAHUD.h"
+#include "World/DIAInteractable.h"
 #include "World/DIAMovable.h"
 
 namespace MovableTestSupport
@@ -1285,7 +1287,7 @@ bool FMovableTicksAfterTheCharacterTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-/** The held finisher: bar ahead and across the view, in reach of E; let go, it stands clear of the player, who can walk away in every direction. */
+/** The held finisher: bar ahead and across the view, its rear edge clear of the player's capsule already while held; let go, it stays where it was held and the player can walk away in every direction. */
 DIA_TEST(FMovableFinisherReleaseClearOfPlayerTest, "DoItAsphalt.Game.Movable.FinisherReleaseClearOfPlayer")
 
 bool FMovableFinisherReleaseClearOfPlayerTest::RunTest(const FString& Parameters)
@@ -1313,12 +1315,15 @@ bool FMovableFinisherReleaseClearOfPlayerTest::RunTest(const FString& Parameters
 		TestNearlyEqual(TEXT("the machine points the way the player walks"), static_cast<double>(FVector2D::DotProduct(FVector2D(Finisher->GetActorForwardVector()), Forward)), 1.0, 1e-3);
 		TestTrue(TEXT("the bar's centre is the machine's origin"), Finisher->GetMouthPoint().Equals(Where(Finisher), 1e-3));
 
-		// E reaches it while it is held: the held actor has no collision, so the range is measured to its origin.
+		// The footprint is clear of the capsule while held, so that letting go needs no push forward.
+		TestTrue(TEXT("held: the rear edge is clear of the capsule"), Finisher->GetDistanceToFootprint(Where(Character)) >= DIACharacter::CapsuleRadiusCm);
 		AActor* Found = nullptr;
 		TestTrue(TEXT("E finds the held finisher"), Subsystem->FindInteractable(Character, &Found) != nullptr && Found == Finisher);
 
+		const FVector2D HeldAt = Where(Finisher);
 		Finisher->Interact(Character);
 		TestTrue(TEXT("let go"), Game.GetHeld() == ELotMovable::Count);
+		TestTrue(TEXT("it stands where it was held"), Where(Finisher).Equals(HeldAt, 0.1));
 		const FVector Centre = Character->GetActorLocation();
 		TestFalse(TEXT("the player's capsule does not overlap the finisher"), Finisher->GetCollision()->OverlapComponent(Centre, FQuat::Identity, Capsule->GetCollisionShape()));
 		TestTrue(TEXT("and E reaches it again"), Subsystem->FindInteractable(Character, &Found) != nullptr && Found == Finisher);
@@ -1332,6 +1337,137 @@ bool FMovableFinisherReleaseClearOfPlayerTest::RunTest(const FString& Parameters
 			TestFalse(*FString::Printf(TEXT("yaw %.0f, direction %d: not stuck in the finisher"), YawDeg, Direction), Hit.bStartPenetrating && Hit.GetActor() == Finisher);
 		}
 	}
+	return true;
+}
+
+namespace MovableTestSupport
+{
+	/** An interactable of someone else with a prompt of its own, standing in range of the player. */
+	struct FOtherThing : public IDIAInteractable
+	{
+		int32 Uses = 0;
+		virtual FText GetPrompt(const ADIACharacter* By) const override { return FText::FromString(TEXT("E - Other")); }
+		virtual void Interact(ADIACharacter* By) override { ++Uses; }
+	};
+
+	/** A blocking box of half side HalfCm on the ground at Where (a wall, a crate). */
+	AActor* SpawnBlock(UWorld* World, FVector2D Where, double HalfCm)
+	{
+		FActorSpawnParameters Params;
+		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		AActor* Actor = World->SpawnActor<AActor>(AActor::StaticClass(), FTransform(FVector(Where.X, Where.Y, 0.0)), Params);
+		if (!Actor)
+		{
+			return nullptr;
+		}
+		UBoxComponent* Box = NewObject<UBoxComponent>(Actor, TEXT("Box"));
+		Box->SetBoxExtent(FVector(HalfCm, HalfCm, 100.0));
+		Box->SetCollisionProfileName(UCollisionProfile::BlockAll_ProfileName);
+		Actor->SetRootComponent(Box);
+		Box->RegisterComponent();
+		Actor->SetActorLocation(FVector(Where.X, Where.Y, 100.0));
+		return Actor;
+	}
+}
+
+/** While something is held, E addresses the held movable: whatever the player looks at, whatever else is in range. */
+DIA_TEST(FMovableHeldIsAlwaysAddressedTest, "DoItAsphalt.Game.Movable.HeldIsAlwaysAddressed")
+
+bool FMovableHeldIsAlwaysAddressedTest::RunTest(const FString& Parameters)
+{
+	DIA_MOVABLE_FIXTURE()
+	TestTrue(TEXT("buy the cart"), Buy(ELotItem::Cart));
+	TestTrue(TEXT("grant the finisher"), Grant(Subsystem, ELotItem::Finisher));
+	ADIAMovable* Cart = FindMovable(World, ELotMovable::Cart);
+	ADIAMovable* Finisher = FindMovable(World, ELotMovable::Finisher);
+	ADIAHUD* Hud = Possess(World, Character);
+	if (!TestNotNull(TEXT("the cart"), Cart) || !TestNotNull(TEXT("the finisher"), Finisher) || !TestNotNull(TEXT("a HUD"), Hud))
+	{
+		return false;
+	}
+	ADIAPlayerController* Controller = Cast<ADIAPlayerController>(Character->GetController());
+	if (!TestNotNull(TEXT("the controller"), Controller))
+	{
+		return false;
+	}
+	// Someone else's interactable stands right beside the player, nearer than anything held.
+	const FVector2D Spot = MiddleOfLot();
+	AActor* OtherActor = SpawnBlock(World, Spot + FVector2D(0.0, 90.0), 20.0);
+	FOtherThing Other;
+	if (!TestNotNull(TEXT("the other actor"), OtherActor))
+	{
+		return false;
+	}
+	Subsystem->RegisterInteractable(OtherActor, &Other);
+
+	for (ADIAMovable* Movable : {Cart, Finisher})
+	{
+		const FString Name = Movable == Cart ? TEXT("cart") : TEXT("finisher");
+		// Each round on fresh ground (what was let go in the round before stands in the way), the other thing beside the player.
+		const FVector2D Here = Spot + FVector2D(0.0, 1000.0 * (Movable == Cart ? 0 : 1));
+		Place(Character, Here, 0.0, 0.0);
+		OtherActor->SetActorLocation(FVector(Here.X, Here.Y + 90.0, 100.0));
+		Wrapper.TickTestWorld(TickSeconds);
+		TestTrue(*(Name + TEXT(": the other thing is offered when nothing is held")), Controller->FindInteractable() == &Other);
+		Movable->Interact(Character);
+		TestTrue(*(Name + TEXT(": held")), Game.GetHeld() == Movable->GetKind());
+		for (const double Pitch : {-89.0, 0.0, 89.0})
+		{
+			Character->GetCamera()->SetWorldRotation(FRotator(Pitch, 0.0, 0.0));
+			Wrapper.TickTestWorld(TickSeconds);
+			IDIAInteractable* Found = Controller->FindInteractable();
+			TestTrue(*FString::Printf(TEXT("%s, pitch %.0f: E addresses the held movable"), *Name, Pitch), Found == static_cast<IDIAInteractable*>(Movable));
+			TestEqual(*FString::Printf(TEXT("%s, pitch %.0f: the prompt is its own"), *Name, Pitch), Found ? Found->GetPrompt(Character).ToString() : FString(), FString(TEXT("E – Let go")));
+		}
+		Character->GetCamera()->SetWorldRotation(FRotator(-89.0, 0.0, 0.0));
+		Controller->OnInteract();
+		TestTrue(*(Name + TEXT(": E let it go")), Game.GetHeld() == ELotMovable::Count);
+		TestEqual(*(Name + TEXT(": the other thing was not used")), Other.Uses, 0);
+	}
+	// A menu covers the screen: nothing is used behind it, the held movable included.
+	Place(Character, Spot, 0.0, 0.0);
+	Cart->Interact(Character);
+	Controller->SetMenuInput(true);
+	TestTrue(TEXT("with the menu open nothing can be used"), Controller->FindInteractable() == nullptr);
+	Controller->SetMenuInput(false);
+	Subsystem->UnregisterInteractable(OtherActor);
+	return true;
+}
+
+/** The station is pulled behind the player with its handle towards the player; letting go uses the same free-footprint check. */
+DIA_TEST(FMovableStationIsPulledBehindTest, "DoItAsphalt.Game.Movable.StationIsPulledBehind")
+
+bool FMovableStationIsPulledBehindTest::RunTest(const FString& Parameters)
+{
+	DIA_MOVABLE_FIXTURE()
+	TestTrue(TEXT("grant the station"), Grant(Subsystem, ELotItem::Station));
+	ADIAMovable* Station = FindMovable(World, ELotMovable::Station);
+	if (!TestNotNull(TEXT("the station"), Station))
+	{
+		return false;
+	}
+	const FVector2D Spot = MiddleOfLot();
+	Place(Character, Spot, 0.0, 0.0);
+	Wrapper.TickTestWorld(TickSeconds);
+	Station->Interact(Character);
+	Wrapper.TickTestWorld(TickSeconds);
+	TestTrue(TEXT("holding the station"), Game.GetHeld() == ELotMovable::Station);
+	TestTrue(TEXT("it is behind the player"), (Where(Station) - Where(Character)).X < -50.0);
+	TestTrue(TEXT("its handle (model -X) points to the player"), Station->GetActorForwardVector().X < -0.99);
+	TestTrue(TEXT("it is clear of the capsule"), Station->GetDistanceToFootprint(Where(Character)) >= DIACharacter::CapsuleRadiusCm);
+
+	// Something stands where it would be set down: it stays held and the player is told.
+	AActor* Block = SpawnBlock(World, Where(Station), 30.0);
+	if (!TestNotNull(TEXT("a block"), Block))
+	{
+		return false;
+	}
+	Station->Interact(Character);
+	TestTrue(TEXT("no room behind: still held"), Game.GetHeld() == ELotMovable::Station);
+	Block->Destroy();
+	Station->Interact(Character);
+	TestTrue(TEXT("room: let go"), Game.GetHeld() == ELotMovable::Count);
+	TestTrue(TEXT("it stands behind the player"), (Where(Station) - Where(Character)).X < -50.0);
 	return true;
 }
 

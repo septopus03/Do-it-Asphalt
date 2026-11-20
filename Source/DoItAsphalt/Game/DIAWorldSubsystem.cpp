@@ -300,6 +300,18 @@ IDIAInteractable* UDIAWorldSubsystem::FindInteractable(const ADIACharacter* Who,
 	{
 		return nullptr;
 	}
+	// What the player holds in the hands comes first: E lets it go, whatever else is in range and however far its origin is.
+	for (const FInteractableEntry& Entry : Interactables)
+	{
+		if (Entry.Actor.IsValid() && Entry.Interactable->IsHeldByPlayer())
+		{
+			if (OutActor)
+			{
+				*OutActor = Entry.Actor.Get();
+			}
+			return Entry.Interactable;
+		}
+	}
 	const FVector Point = Who->GetActorLocation();
 	IDIAInteractable* Best = nullptr;
 	double BestDistance = LotBalance::InteractionRangeCm;
