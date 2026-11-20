@@ -1,5 +1,8 @@
 // Copyright Do it Asphalt. All Rights Reserved.
 
+// Tests are not part of a Shipping build.
+#if WITH_DEV_AUTOMATION_TESTS
+
 #include "AsphaltBalance.h"
 #include "AsphaltLayout.h"
 #include "AsphaltTest.h"
@@ -289,3 +292,5 @@ bool FStationTextTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("no room"), DIAFormat::StationNoRoomToast().ToString(), FString(TEXT("No room here")));
 	return true;
 }
+
+#endif // WITH_DEV_AUTOMATION_TESTS

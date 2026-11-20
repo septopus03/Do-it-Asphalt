@@ -1,5 +1,8 @@
 // Copyright Do it Asphalt. All Rights Reserved.
 
+// Tests are not part of a Shipping build.
+#if WITH_DEV_AUTOMATION_TESTS
+
 #include "AsphaltTest.h"
 #include "AsphaltBalance.h"
 #include "AsphaltGame.h"
@@ -317,3 +320,5 @@ bool FExitTotalRewardsTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("all complete"), G.GetGrid().NumCompleteCells(), 499);
 	return true;
 }
+
+#endif // WITH_DEV_AUTOMATION_TESTS

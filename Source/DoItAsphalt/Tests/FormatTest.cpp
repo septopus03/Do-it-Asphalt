@@ -1,5 +1,8 @@
 // Copyright Do it Asphalt. All Rights Reserved.
 
+// Tests are not part of a Shipping build.
+#if WITH_DEV_AUTOMATION_TESTS
+
 #include "AsphaltBalance.h"
 #include "AsphaltGame.h"
 #include "AsphaltLayout.h"
@@ -149,3 +152,5 @@ bool FHudToastsTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("out of range alpha is zero"), Toasts.GetAlpha(99), 0.f);
 	return true;
 }
+
+#endif // WITH_DEV_AUTOMATION_TESTS

@@ -1,5 +1,8 @@
 // Copyright Do it Asphalt. All Rights Reserved.
 
+// Tests are not part of a Shipping build.
+#if WITH_DEV_AUTOMATION_TESTS
+
 #include "AsphaltBalance.h"
 #include "AsphaltLayout.h"
 #include "AsphaltTest.h"
@@ -330,3 +333,5 @@ bool FPlantPlacedTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("marker has no collision"), static_cast<int32>(Marker->GetCollisionEnabled()), static_cast<int32>(ECollisionEnabled::NoCollision));
 	return true;
 }
+
+#endif // WITH_DEV_AUTOMATION_TESTS

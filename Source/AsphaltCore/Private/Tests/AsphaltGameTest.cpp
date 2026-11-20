@@ -1,5 +1,8 @@
 // Copyright Do it Asphalt. All Rights Reserved.
 
+// Tests are not part of a Shipping build.
+#if WITH_DEV_AUTOMATION_TESTS
+
 #include "AsphaltTest.h"
 #include "AsphaltBalance.h"
 #include "AsphaltGame.h"
@@ -398,3 +401,5 @@ bool FGameEventsAppendTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("exit"), A.bExitOpened);
 	return true;
 }
+
+#endif // WITH_DEV_AUTOMATION_TESTS

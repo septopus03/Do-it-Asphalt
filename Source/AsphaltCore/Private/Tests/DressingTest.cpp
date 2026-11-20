@@ -1,5 +1,8 @@
 // Copyright Do it Asphalt. All Rights Reserved.
 
+// Tests are not part of a Shipping build.
+#if WITH_DEV_AUTOMATION_TESTS
+
 #include "AsphaltTest.h"
 #include "AsphaltDressing.h"
 #include "AsphaltLayout.h"
@@ -164,3 +167,5 @@ bool FDressingTest::RunTest(const FString& Parameters)
 	}
 	return true;
 }
+
+#endif // WITH_DEV_AUTOMATION_TESTS

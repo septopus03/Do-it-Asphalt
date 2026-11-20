@@ -1,5 +1,8 @@
 // Copyright Do it Asphalt. All Rights Reserved.
 
+// Tests are not part of a Shipping build.
+#if WITH_DEV_AUTOMATION_TESTS
+
 #include "AsphaltTest.h"
 #include "Algo/Count.h"
 #include "AsphaltBalance.h"
@@ -213,3 +216,5 @@ bool FAssetFallbackTest::RunTest(const FString& Parameters)
 	TestNull(TEXT("unknown palette material"), DIAAssets::Palette(TEXT("DoesNotExist")));
 	return true;
 }
+
+#endif // WITH_DEV_AUTOMATION_TESTS

@@ -1,5 +1,8 @@
 // Copyright Do it Asphalt. All Rights Reserved.
 
+// Tests are not part of a Shipping build.
+#if WITH_DEV_AUTOMATION_TESTS
+
 #include "AsphaltTest.h"
 #include "AsphaltLayout.h"
 #include "HexMap.h"
@@ -143,3 +146,5 @@ bool FMapLayoutTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("spawn0"), AsphaltLayout::SpecialSpawn(0).Equals(FVector2D(707, -408), 1.0));
 	return true;
 }
+
+#endif // WITH_DEV_AUTOMATION_TESTS
