@@ -500,13 +500,39 @@ def join(objects, name):
     return obj
 
 
-def finish(parts, name):
+def tub(top_xy, bottom_xy, z0, z1, wall, floor, center_xy, mat):
+    """Open-topped rectangular container with sloping walls: troughs, hoppers, bins.
+    `top_xy` / `bottom_xy` are the OUTER sizes (x, y) at z1 / z0, `wall` the wall
+    thickness measured horizontally, `floor` the thickness of the bottom.
+    Visible from inside and outside. 36 triangles."""
+    cx, cy = center_xy
+    corners = ((-1, -1), (1, -1), (1, 1), (-1, 1))  # counter-clockwise seen from above
+
+    def loop(size, shrink, z):
+        return [(cx + sx * (size[0] / 2.0 - shrink), cy + sy * (size[1] / 2.0 - shrink), z)
+                for sx, sy in corners]
+
+    # Outer size at the height of the inner floor, so the wall keeps its thickness.
+    t = floor / (z1 - z0)
+    mid = (bottom_xy[0] + (top_xy[0] - bottom_xy[0]) * t, bottom_xy[1] + (top_xy[1] - bottom_xy[1]) * t)
+    verts = (loop(bottom_xy, 0.0, z0) + loop(top_xy, 0.0, z1) + loop(top_xy, wall, z1)
+             + loop(mid, wall, z0 + floor))
+    faces = [(3, 2, 1, 0), (12, 13, 14, 15)]          # underside, inner floor
+    for i in range(4):
+        j = (i + 1) % 4
+        faces.append((i, j, 4 + j, 4 + i))            # outer wall
+        faces.append((4 + i, 4 + j, 8 + j, 8 + i))    # rim
+        faces.append((8 + i, 8 + j, 12 + j, 12 + i))  # inner wall
+    return mesh(verts, faces, mat)
+
+
+def finish(parts, name, silhouette=True, **preview_options):
     """The usual end of a model script: check the winding of every part, join them
     into the mesh `name`, write the GLB and render the previews. Returns the object."""
     assert_outward(parts)
     obj = join(parts, name)
     export(obj, name)
-    render_previews(obj, name)
+    render_previews(obj, name, silhouette, **preview_options)
     return obj
 
 
@@ -637,11 +663,15 @@ def _setup_workbench(scene):
     shading.show_cavity = True
 
 
-def render_previews(obj, name):
+def render_previews(obj, name, silhouette=True, front=(1.0, 0.75, 0.55)):
     """Render SourceAssets/Previews/<name>_a.png (three-quarter front, perspective),
     _b.png (right side, orthographic) and _c.png (top, orthographic, +X up),
     800x600, with a dark grey 1.8 m figure standing behind-right of the model
     (models smaller than 0.4 m are framed with only its lower 1.0 m).
+    `silhouette=False` leaves the figure out and frames the model alone: for hand
+    tools, which would otherwise be a few pixels next to it.
+    `front` is where the camera of view "a" stands relative to the model (game
+    axes), for models whose interesting side is not +X / +Y.
     The scene is left as it was; nothing from here reaches the GLB."""
     os.makedirs(PREVIEWS_DIR, exist_ok=True)
     scene = bpy.context.scene
@@ -655,11 +685,15 @@ def render_previews(obj, name):
     temp = []
     twin = _mirrored_copy(obj, name + ".preview")
     temp.append(twin)
-    temp.append(_silhouette(_game_to_blender(sil_game)))
 
     # What the cameras must frame, as flat Blender coordinates.
-    lo = (min(mn[0], sil_game[0] - 0.10), min(mn[1], sil_game[1] - 0.28), floor)
-    hi = (max(mx[0], sil_game[0] + 0.12), max(mx[1], sil_game[1] + 0.28), max(mx[2], sil_top))
+    if silhouette:
+        temp.append(_silhouette(_game_to_blender(sil_game)))
+        lo = (min(mn[0], sil_game[0] - 0.10), min(mn[1], sil_game[1] - 0.28), floor)
+        hi = (max(mx[0], sil_game[0] + 0.12), max(mx[1], sil_game[1] + 0.28), max(mx[2], sil_top))
+    else:
+        lo = (mn[0], mn[1], floor)
+        hi = (mx[0], mx[1], mx[2])
     corners = [_game_to_blender((x, y, z)) for x in (lo[0], hi[0]) for y in (lo[1], hi[1])
                for z in (lo[2], hi[2])]
     flat = [c for p in corners for c in p]
@@ -732,7 +766,7 @@ def render_previews(obj, name):
         o.hide_render = True
 
     views = (  # suffix, camera position relative to the subject (game axes), type, up hint
-        ("a", (1.0, 0.75, 0.55), "PERSP", (0, 0, 1)),
+        ("a", front, "PERSP", (0, 0, 1)),
         ("b", (0.0, 1.0, 0.12), "ORTHO", (0, 0, 1)),
         ("c", (0.0, 0.0, 1.0), "ORTHO", None),
     )

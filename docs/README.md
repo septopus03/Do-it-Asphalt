@@ -8,6 +8,8 @@
 | 2 | [Technický návrh](02-technicky-navrh.md) | Architektúra v Unreal Engine 5.8, moduly, kľúčové riešenia, testovanie, riziká. |
 | 3 | [3D modely](03-3d-modely.md) | Zoznam 30 modelov s rozmermi, paleta, postup tvorby. |
 | 4 | [Implementačný plán](superpowers/plans/2026-11-19-do-it-asphalt.md) | 27 úloh krok za krokom, pri každej určený model. |
+| 5 | [Plán zmien na Asphalt-self](04-plan-zmien-asphalt-self.md) | Návrh na schválenie: čo sa mení podľa `../Do_it_Asphalt-self.md`, čo ostáva, 12 nových modelov, postup a otvorené otázky. Dokumenty 1 – 4 popisujú hru v1. |
+| 6 | [Implementačný plán Asphalt-self](superpowers/plans/2026-11-20-asphalt-self.md) | 20 úloh krok za krokom: nové jadro (1 – 9), engine vrstva (10 – 20). |
 
 Pôvodná špecka: `../Do it Asphalt - dokumentacia.docx`.
 

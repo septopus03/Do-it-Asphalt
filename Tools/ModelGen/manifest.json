@@ -28,5 +28,17 @@
   {"name": "SM_Lamp", "min": [-0.2, -0.2, 0], "max": [0.2, 1.0, 5.0], "max_tris": 300, "tolerance": 0.02},
   {"name": "SM_DirtPile", "min": [-1.0, -1.0, 0], "max": [1.0, 1.0, 1.0], "max_tris": 300, "tolerance": 0.02},
   {"name": "SM_AutoPaver", "min": [-0.5, -0.4, 0], "max": [0.5, 0.4, 0.6], "max_tris": 1500, "tolerance": 0.02},
-  {"name": "SM_PaverCar", "min": [-2.3, -1.5, 0], "max": [2.3, 1.5, 2.4], "max_tris": 8000, "tolerance": 0.02}
+  {"name": "SM_PaverCar", "min": [-2.3, -1.5, 0], "max": [2.3, 1.5, 2.4], "max_tris": 8000, "tolerance": 0.02},
+  {"name": "SM_Spoon", "min": [-0.055, -0.0225, -0.016], "max": [0.144, 0.0225, 0.002], "max_tris": 200, "tolerance": 0.003},
+  {"name": "SM_Bowl", "min": [-0.125, -0.125, 0], "max": [0.125, 0.125, 0.09], "max_tris": 400, "tolerance": 0.003},
+  {"name": "SM_Trowel", "min": [-0.14, -0.06, -0.075], "max": [0.14, 0.06, 0.017], "max_tris": 250, "tolerance": 0.003},
+  {"name": "SM_Scoop", "min": [-0.07, -0.06, -0.035], "max": [0.27, 0.06, 0.035], "max_tris": 250, "tolerance": 0.003},
+  {"name": "SM_Bucket", "min": [-0.144, -0.155, 0], "max": [0.144, 0.155, 0.385], "max_tris": 600, "tolerance": 0.005},
+  {"name": "SM_Suitcase", "min": [-0.05, -0.254, 0], "max": [0.37, 0.254, 1.055], "max_tris": 1000, "tolerance": 0.01},
+  {"name": "SM_Cart", "min": [-0.65, -0.335, 0], "max": [0.61, 0.335, 0.99], "max_tris": 1500, "tolerance": 0.01},
+  {"name": "SM_Finisher", "min": [-1.22, -0.536, 0], "max": [0.10, 0.536, 1.0], "max_tris": 2000, "tolerance": 0.01},
+  {"name": "SM_Trough", "min": [-0.64, -0.30, 0], "max": [0.64, 0.30, 0.50], "max_tris": 400, "tolerance": 0.02},
+  {"name": "SM_Curb", "min": [-0.075, -1.0, 0], "max": [0.075, 1.0, 0.12], "max_tris": 40, "tolerance": 0.005},
+  {"name": "SM_PaverCar_WideBar", "min": [-2.32, -1.75, 0.02], "max": [-2.16, 1.75, 0.20], "max_tris": 400, "tolerance": 0.02},
+  {"name": "SM_Mall", "min": [-50, -50, 0], "max": [50, 50, 14.3], "max_tris": 4000, "tolerance": 0.05}
 ]
