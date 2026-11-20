@@ -10,6 +10,7 @@
 #include "Game/DIAAssets.h"
 #include "Game/DIAModelSizes.h"
 #include "Game/DIARefill.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/PlayerController.h"
 #include "Materials/MaterialInterface.h"
 #include "Player/DIACharacter.h"
@@ -20,9 +21,8 @@
 namespace
 {
 	/**
-	 * What differs between the four kinds: the model, its envelope (model axes, cm; Tools/ModelGen/manifest.json), where the mouth is
-	 * and how it is held. A forward-held kind has its back edge HandleClearanceCm in front of the player (the capsule is 34 cm wide); the
-	 * suitcase is pulled behind the player, turned the other way round and tilted about its wheel axis.
+	 * What differs between the four kinds: the model, its envelope (model axes, cm; Tools/ModelGen/manifest.json) and where the mouth
+	 * is. How it is held is DIAMovableHold's.
 	 */
 	struct FKindSpec
 	{
@@ -32,40 +32,28 @@ namespace
 		/** The flap or the outlet in model axes; ignored unless bHasMouth. */
 		FVector Mouth;
 		bool bHasMouth;
-		/** Held pose: the origin's distance in front of the player (negative = behind), the turn against the player's yaw and the tilt about Y. */
-		double HeldAheadCm;
-		double HeldYawDeg;
-		double HeldTiltDeg;
 
 		FVector SizeCm() const { return BoundsMax - BoundsMin; }
 		/** The middle of the envelope in model axes. */
 		FVector CentreCm() const { return (BoundsMin + BoundsMax) * 0.5; }
 	};
 
-	constexpr double HandleClearanceCm = 45.0;
-	/** The suitcase's origin (below its wheel axis) is this far behind the player; its handle then lies right behind the player's back. */
-	constexpr double SuitcaseBehindCm = 62.0;
-	constexpr double SuitcaseTiltDeg = 25.0;
-	/**
-	 * The finisher is 1.32 m long, so its origin would be out of reach: a held actor has no collision and the interaction range is measured
-	 * to its origin, so it must stay within LotBalance::InteractionRangeCm of the player for E to let it go. Its handles end up inside the body.
-	 */
-	constexpr double FinisherAheadCm = 140.0;
-	static_assert(FinisherAheadCm < LotBalance::InteractionRangeCm, "a held finisher must stay within reach of E");
+	/** E measures the range from the capsule's centre to the origin of the held actor (no collision): in 3D, the origin being on the ground. */
+	static_assert(FMath::Square(DIAMovableHold::FinisherAheadCm) + FMath::Square(static_cast<double>(DIACharacter::CapsuleHalfHeightCm)) < FMath::Square(LotBalance::InteractionRangeCm), "a held finisher must stay within reach of E");
 
 	FKindSpec SpecOf(ELotMovable Kind)
 	{
 		switch (Kind)
 		{
 		case ELotMovable::Suitcase:
-			return {TEXT("SM_Suitcase"), FVector(-5.0, -25.4, 0.0), FVector(37.0, 25.4, 105.5), DIAModelSizes::SuitcaseMouthCm, true, -SuitcaseBehindCm, 180.0, SuitcaseTiltDeg};
+			return {TEXT("SM_Suitcase"), FVector(-5.0, -25.4, 0.0), FVector(37.0, 25.4, 105.5), DIAModelSizes::SuitcaseMouthCm, true};
 		case ELotMovable::Station:
-			return {TEXT("SM_PortableStation"), FVector(-60.0, -40.0, 0.0), FVector(60.0, 40.0, 130.0), FVector::ZeroVector, false, HandleClearanceCm + 60.0, 0.0, 0.0};
+			return {TEXT("SM_PortableStation"), FVector(-60.0, -40.0, 0.0), FVector(60.0, 40.0, 130.0), FVector::ZeroVector, false};
 		case ELotMovable::Finisher:
-			return {TEXT("SM_Finisher"), FVector(-122.0, -53.6, 0.0), FVector(10.0, 53.6, 100.0), FVector::ZeroVector, false, FinisherAheadCm, 0.0, 0.0};
+			return {TEXT("SM_Finisher"), FVector(-122.0, -53.6, 0.0), FVector(10.0, 53.6, 100.0), FVector::ZeroVector, false};
 		case ELotMovable::Cart:
 		default:
-			return {TEXT("SM_Cart"), FVector(-65.0, -33.5, 0.0), FVector(61.0, 33.5, 99.0), DIAModelSizes::CartMouthCm, true, HandleClearanceCm + 65.0, 0.0, 0.0};
+			return {TEXT("SM_Cart"), FVector(-65.0, -33.5, 0.0), FVector(61.0, 33.5, 99.0), DIAModelSizes::CartMouthCm, true};
 		}
 	}
 
@@ -206,8 +194,9 @@ void ADIAMovable::SyncFromCore()
 			Collision->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		}
 		// The pose is the player's; the core's position is only written when it is let go.
-		if (const ADIACharacter* Player = GetPlayer())
+		if (ADIACharacter* Player = GetPlayer())
 		{
+			TickAfter(Player);
 			FollowPlayer(Player);
 		}
 		return;
@@ -226,18 +215,60 @@ void ADIAMovable::PlaceStanding(FVector2D Where, double YawDeg)
 {
 	bShownHeld = false;
 	bLaying = false;
+	TickAfter(nullptr);
 	SetActorLocationAndRotation(FVector(Where.X, Where.Y, 0.0), FRotator(0.0, YawDeg, 0.0));
 	Collision->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 }
 
 void ADIAMovable::FollowPlayer(const ADIACharacter* Player)
 {
-	const FKindSpec Spec = SpecOf(Kind);
+	const DIAMovableHold::FHold Hold = DIAMovableHold::Of(Kind);
 	const FVector Location = Player->GetActorLocation();
 	const double Yaw = Player->GetActorRotation().Yaw;
 	const FVector2D Forward = FVector2D(FMath::Cos(FMath::DegreesToRadians(Yaw)), FMath::Sin(FMath::DegreesToRadians(Yaw)));
-	const FVector2D Origin = FVector2D(Location.X, Location.Y) + Forward * Spec.HeldAheadCm;
-	SetActorLocationAndRotation(FVector(Origin.X, Origin.Y, 0.0), FRotator(Spec.HeldTiltDeg, FRotator::NormalizeAxis(Yaw + Spec.HeldYawDeg), 0.0));
+	const FVector2D Origin = FVector2D(Location.X, Location.Y) + Forward * Hold.AheadCm;
+	SetActorLocationAndRotation(FVector(Origin.X, Origin.Y, 0.0), FRotator(Hold.TiltDeg, FRotator::NormalizeAxis(Yaw + Hold.YawDeg), 0.0));
+}
+
+void ADIAMovable::TickAfter(ADIACharacter* Character)
+{
+	if (TickedAfter.Get() == Character)
+	{
+		return;
+	}
+	if (ADIACharacter* Old = TickedAfter.Get())
+	{
+		RemoveTickPrerequisiteActor(Old);
+		RemoveTickPrerequisiteComponent(Old->GetCharacterMovement());
+	}
+	TickedAfter = Character;
+	if (Character)
+	{
+		// The character moves in its own tick and in its movement component's: the pose followed here must be after both.
+		AddTickPrerequisiteActor(Character);
+		AddTickPrerequisiteComponent(Character->GetCharacterMovement());
+	}
+}
+
+FVector2D ADIAMovable::ClearOfPlayer(FVector2D Where, const ADIACharacter* Player) const
+{
+	if (!Player)
+	{
+		// A release without a player (a cheat) has nobody to keep clear of.
+		return Where;
+	}
+	const FVector PlayerLocation = Player->GetActorLocation();
+	const FVector2D PlayerAt(PlayerLocation.X, PlayerLocation.Y);
+	const double Needed = DIACharacter::CapsuleRadiusCm + DIAMovable::ReleaseClearanceCm;
+	// It is held straight ahead of (or behind) the player, so the footprint is measured along its own X axis: the gap from the player to
+	// the face of the footprint that faces the player, negative when the player stands inside it (the handles of a held finisher).
+	const FVector2D Local = (PlayerAt - Where).GetRotated(-GetActorRotation().Yaw);
+	const double CentreX = Collision->GetRelativeLocation().X;
+	const double HalfX = Collision->GetUnscaledBoxExtent().X;
+	const double Gap = Local.X < CentreX ? (CentreX - HalfX) - Local.X : Local.X - (CentreX + HalfX);
+	const double Shortfall = Needed - Gap;
+	const FVector2D Away = (Where - PlayerAt).GetSafeNormal();
+	return Shortfall > 0.0 ? Where + Away * Shortfall : Where;
 }
 
 FVector2D ADIAMovable::GetMouthPoint() const
@@ -337,8 +368,8 @@ bool ADIAMovable::TryRelease(ADIACharacter* By)
 	{
 		return false;
 	}
-	// It is set down exactly where it is held now, upright.
-	const FVector2D Where(GetActorLocation().X, GetActorLocation().Y);
+	// It is set down where it is held now, upright, and clear of the player (the finisher's handles are inside the player's body while held).
+	const FVector2D Where = ClearOfPlayer(FVector2D(GetActorLocation().X, GetActorLocation().Y), By);
 	const double YawDeg = FRotator::NormalizeAxis(GetActorRotation().Yaw);
 	if (!HasRoomAt(Where, YawDeg, By))
 	{
@@ -372,34 +403,50 @@ void ADIAMovable::Interact(ADIACharacter* By)
 	}
 }
 
-void ADIAMovable::LayStrip(UDIAWorldSubsystem& Subsystem, const ADIACharacter* Player, float DeltaSeconds)
+bool ADIAMovable::NextToolPath(const ADIACharacter* Player, float DeltaSeconds, double SpeedCmS, FVector2D& OutFrom, FVector2D& OutTo)
 {
 	if (!Player || !Player->IsUsing())
 	{
 		bLaying = false;
-		return;
+		return false;
 	}
 	const FVector2D Current = GetMouthPoint();
+	const float LastSeconds = PreviousWorkSeconds;
+	PreviousWorkSeconds = DeltaSeconds;
 	if (!bLaying)
 	{
-		// The first tick of a press: the previous point is the current one, so nothing is laid yet.
+		// The first tick of a press: the previous point is the current one, so nothing is done yet.
 		bLaying = true;
 		PreviousMouth = Current;
-		return;
+		return false;
 	}
 	if (Current.Equals(PreviousMouth, DIAMovable::MouthMoveToleranceCm))
 	{
-		// A cart that stands still lays nothing, and a slow one adds up its steps.
-		return;
+		// A tool that stands still works nothing, and a slow one adds up its steps.
+		return false;
 	}
-	if (FVector2D::Distance(Current, PreviousMouth) > LotBalance::CartLaySpeedCmS * DeltaSeconds * DIAMovable::LayJumpSlack)
+	if (FVector2D::Distance(Current, PreviousMouth) > SpeedCmS * FMath::Max(DeltaSeconds, LastSeconds) * DIAMovable::LayJumpSlack)
 	{
-		// More than the cart can have travelled at the laying speed: it jumped (a teleport) or swung (a quick turn). The path starts again here.
+		// More than a walk at the working speed can have covered: it jumped (a teleport) or swung (a quick turn). The path starts again here.
 		PreviousMouth = Current;
-		return;
+		return false;
 	}
-	Subsystem.Dispatch(Subsystem.GetGame().LayCartStrip(PreviousMouth, Current));
+	OutFrom = PreviousMouth;
+	OutTo = Current;
 	PreviousMouth = Current;
+	return true;
+}
+
+void ADIAMovable::WorkTheStrip(UDIAWorldSubsystem& Subsystem, const ADIACharacter* Player, float DeltaSeconds)
+{
+	const bool bCart = Kind == ELotMovable::Cart;
+	FVector2D From;
+	FVector2D To;
+	if (NextToolPath(Player, DeltaSeconds, bCart ? LotBalance::CartLaySpeedCmS : LotBalance::FinisherSpeedCmS(), From, To))
+	{
+		FLotGame& Game = Subsystem.GetGame();
+		Subsystem.Dispatch(bCart ? Game.LayCartStrip(From, To) : Game.FinisherPass(From, To));
+	}
 }
 
 void ADIAMovable::UpdateLevel()
@@ -458,9 +505,9 @@ void ADIAMovable::Tick(float DeltaSeconds)
 
 	if (IsHeld())
 	{
-		if (Kind == ELotMovable::Cart)
+		if (Kind == ELotMovable::Cart || Kind == ELotMovable::Finisher)
 		{
-			LayStrip(*Subsystem, Player, DeltaSeconds);
+			WorkTheStrip(*Subsystem, Player, DeltaSeconds);
 		}
 	}
 	else

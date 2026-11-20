@@ -249,7 +249,8 @@ void ADIACharacter::UpdateMovementSettings()
 		Speed = LotBalance::StationCarrySpeedCmS;
 		break;
 	case ELotMovable::Finisher:
-		Speed = LotBalance::FinisherPushSpeedCmS;
+		// Bar lowered (Use held): the finishing speed, sprint does nothing; raised: pushed along at the pushing speed.
+		Speed = bUsing ? LotBalance::FinisherSpeedCmS() : LotBalance::FinisherPushSpeedCmS;
 		break;
 	default:
 		if (bSprinting && Game && Game->IsUnlocked(ELotUnlock::Sprint))

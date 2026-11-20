@@ -304,6 +304,68 @@ namespace DIACheats
 		}
 	}
 
+	/** Finishes the raw asphalt of a strip of the finisher's width through the core, from the point towards +X, as if the finisher had been guided there; the finisher stays where it was. */
+	void FinishStrip(const TArray<FString>& Args, UWorld* World)
+	{
+		if (!Usage(Args.Num() >= 2 && Args.Num() <= 3, TEXT("dia.FinishStrip <x> <y> [lengthM=4]")))
+		{
+			return;
+		}
+		UDIAWorldSubsystem* S = GetSubsystem(World);
+		if (!S)
+		{
+			return;
+		}
+		FLotGame& Game = S->GetGame();
+		if (Game.GetHeld() != ELotMovable::Count)
+		{
+			UE_LOG(LogDoItAsphalt, Warning, TEXT("dia.FinishStrip: something is held; let go of it first (dia.Drop)"));
+			return;
+		}
+		ProvideMovable(*S, ELotMovable::Finisher);
+		const FLotMovable Before = Game.World().Movables[static_cast<int32>(ELotMovable::Finisher)];
+		const FVector2D From(FCString::Atod(*Args[0]), FCString::Atod(*Args[1]));
+		const double LengthCm = (Args.Num() == 3 ? FCString::Atod(*Args[2]) : 4.0) * 100.0;
+		if (Game.Grab(ELotMovable::Finisher))
+		{
+			S->Dispatch(Game.FinisherPass(From, From + FVector2D(LengthCm, 0.0)));
+			Game.Release(Before.Pos, Before.YawDeg);
+			S->Dispatch(FLotEvents());
+		}
+	}
+
+	/** Gives the player the movable (if needed) and sets it down at the point, turned by the yaw; the actor follows the core. */
+	void Place(const TArray<FString>& Args, UWorld* World)
+	{
+		static const TCHAR* Usage_ = TEXT("dia.Place <Suitcase|Cart|Station|Finisher> <x> <y> [yaw]");
+		if (!Usage(Args.Num() >= 3 && Args.Num() <= 4, Usage_))
+		{
+			return;
+		}
+		const ELotMovable Movable = ParseMovable(Args[0]);
+		if (!Usage(Movable != ELotMovable::Count, Usage_))
+		{
+			return;
+		}
+		UDIAWorldSubsystem* S = GetSubsystem(World);
+		if (!S)
+		{
+			return;
+		}
+		FLotGame& Game = S->GetGame();
+		if (Game.GetHeld() != ELotMovable::Count)
+		{
+			UE_LOG(LogDoItAsphalt, Warning, TEXT("dia.Place: something is held; let go of it first (dia.Drop)"));
+			return;
+		}
+		ProvideMovable(*S, Movable);
+		if (Game.Grab(Movable))
+		{
+			Game.Release(FVector2D(FCString::Atod(*Args[1]), FCString::Atod(*Args[2])), Args.Num() == 4 ? FCString::Atod(*Args[3]) : 0.0);
+			S->Dispatch(FLotEvents());
+		}
+	}
+
 	void Teleport(const TArray<FString>& Args, UWorld* World)
 	{
 		if (!Usage(Args.Num() >= 2 && Args.Num() <= 4, TEXT("dia.Teleport <x> <y> [yaw] [pitch]")))
@@ -616,6 +678,8 @@ namespace DIACheats
 	FAutoConsoleCommandWithWorldAndArgs GrabCommand(TEXT("dia.Grab"), TEXT("dia.Grab <Suitcase|Cart|Station|Finisher>: gives the player the movable if needed, fills a suitcase or cart and takes it in the hands"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Grab));
 	FAutoConsoleCommandWithWorldAndArgs DropCommand(TEXT("dia.Drop"), TEXT("dia.Drop: lets go of the held movable where it is, if there is room"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Drop));
 	FAutoConsoleCommandWithWorldAndArgs RawStripCommand(TEXT("dia.RawStrip"), TEXT("dia.RawStrip <x> <y> [lengthM=4]: lays a raw strip of the cart's width from the point towards +X through the core (gives and fills the cart)"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&RawStrip));
+	FAutoConsoleCommandWithWorldAndArgs FinishStripCommand(TEXT("dia.FinishStrip"), TEXT("dia.FinishStrip <x> <y> [lengthM=4]: finishes the raw asphalt of a strip of the finisher's width from the point towards +X through the core (gives the finisher)"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&FinishStrip));
+	FAutoConsoleCommandWithWorldAndArgs PlaceCommand(TEXT("dia.Place"), TEXT("dia.Place <Suitcase|Cart|Station|Finisher> <x> <y> [yaw]: gives the movable if needed and sets it down at the point"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Place));
 	FAutoConsoleCommandWithWorldAndArgs PlantCommand(TEXT("dia.Plant"), TEXT("dia.Plant <0..5>: sets the plant level"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Plant));
 	FAutoConsoleCommandWithWorldAndArgs TeleportCommand(TEXT("dia.Teleport"), TEXT("dia.Teleport <x> <y> [yaw] [pitch]"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Teleport));
 	FAutoConsoleCommandWithWorldAndArgs PromptCommand(TEXT("dia.Prompt"), TEXT("dia.Prompt <text>: sets the contextual prompt (no text hides it)"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Prompt));

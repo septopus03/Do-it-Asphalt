@@ -65,8 +65,8 @@ namespace DIAFormat
 	DOITASPHALT_API FText ExitToast();
 
 	/**
-	 * The prompt of a suitcase, cart, station or finisher: "E – Pull" (suitcase, station) or "E – Push" (cart, finisher) while it stands,
-	 * "E – Let go" while it is held; a standing suitcase adds "F – Open flap" on a second line. Empty for an invalid kind.
+	 * The prompt of a suitcase, cart, station or finisher: "E – Pull" (suitcase), "E – Push" (cart), "E – Carry" (station) or "E – Guide" (finisher) while it
+	 * stands, "E – Let go" while it is held ("E – Put down" for the station); a standing suitcase adds "F – Open flap" on a second line. Empty for an invalid kind.
 	 */
 	DOITASPHALT_API FText MovablePrompt(ELotMovable Movable, bool bHeld);
 	/** The toast when a held movable cannot be set down because something is in the way. */

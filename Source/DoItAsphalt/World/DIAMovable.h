@@ -27,6 +27,49 @@ namespace DIAMovable
 	inline constexpr double SyncToleranceDeg = 0.5;
 	/** Content below this shows nothing. */
 	inline constexpr double LevelMinLitres = 1e-4;
+	/** A machine put down is moved forward until its footprint is this far (beyond the capsule) from the player's centre: the player never stands inside what was let go. */
+	inline constexpr double ReleaseClearanceCm = 4.0;
+}
+
+/**
+ * How each kind is held: presentation, not game numbers. Ahead is the origin's distance in front of the player along the player's
+ * facing (negative = behind), Yaw the turn against the player's yaw, Tilt the pitch about Y. A forward-held kind has its back edge
+ * HandleClearanceCm in front of the player (the capsule is 34 cm wide); the suitcase is pulled behind the player, turned the other
+ * way round and tilted about its wheel axis.
+ *
+ * A held actor has no collision, so E measures the range to its origin in 3D, from the capsule's centre (90 cm up): the origin must
+ * stay within LotBalance::InteractionRangeCm of that point or the player could not let go. The finisher is 1.32 m long and so cannot
+ * be held clear of the player's body inside that reach; its handles end up inside the player, and on release it is moved forward
+ * out of the capsule (DIAMovable::ReleaseClearanceCm).
+ */
+namespace DIAMovableHold
+{
+	struct FHold
+	{
+		double AheadCm;
+		double YawDeg;
+		double TiltDeg;
+	};
+
+	inline constexpr double HandleClearanceCm = 45.0;
+	/** The suitcase's origin (below its wheel axis) is this far behind the player; its handle then lies right behind the player's back. */
+	inline constexpr double SuitcaseBehindCm = 62.0;
+	inline constexpr double SuitcaseTiltDeg = 25.0;
+	/** The finisher's origin (the middle of its bar) ahead of the player: as far as E still reaches (sqrt(110^2 + 90^2) = 142 cm). */
+	inline constexpr double FinisherAheadCm = 110.0;
+
+	/** The pose of the kind while held. */
+	constexpr FHold Of(ELotMovable Kind)
+	{
+		switch (Kind)
+		{
+		case ELotMovable::Suitcase: return {-SuitcaseBehindCm, 180.0, SuitcaseTiltDeg};
+		case ELotMovable::Station: return {HandleClearanceCm + 60.0, 0.0, 0.0};
+		case ELotMovable::Finisher: return {FinisherAheadCm, 0.0, 0.0};
+		case ELotMovable::Cart:
+		default: return {HandleClearanceCm + 65.0, 0.0, 0.0};
+		}
+	}
 }
 
 /**
@@ -95,8 +138,19 @@ private:
 	/** True when nothing blocks the footprint standing at Where (the movable itself and the character do not count). */
 	bool HasRoomAt(FVector2D Where, double YawDeg, const ADIACharacter* By) const;
 	void ShowNoRoomToast(const ADIACharacter* By) const;
-	/** The held cart lays a raw strip from where its mouth was to where it is now. */
-	void LayStrip(UDIAWorldSubsystem& Subsystem, const ADIACharacter* Player, float DeltaSeconds);
+	/**
+	 * The path of the held cart's mouth or the finisher's bar in this tick while Use is down: from where it was to where it is now.
+	 * False (and no path) on the first tick of a press, when it did not move, and when it moved further than a walk at SpeedCmS allows
+	 * (a teleport, a hitch, a spin): the path then starts again where it is. The bound is the larger of this tick's and the previous
+	 * tick's length, so that one long frame followed by a short one does not drop a segment of an honest walk.
+	 */
+	bool NextToolPath(const ADIACharacter* Player, float DeltaSeconds, double SpeedCmS, FVector2D& OutFrom, FVector2D& OutTo);
+	/** The held cart lays a raw strip, the held finisher finishes the raw asphalt under its bar. */
+	void WorkTheStrip(UDIAWorldSubsystem& Subsystem, const ADIACharacter* Player, float DeltaSeconds);
+	/** The held actor ticks after this character and its movement (null: after nobody), so that its pose is this frame's. */
+	void TickAfter(ADIACharacter* Character);
+	/** Moves the pose to be set down forward until it is clear of the player's capsule. */
+	FVector2D ClearOfPlayer(FVector2D Where, const ADIACharacter* Player) const;
 	/** Shows the content of the cart or the suitcase; the work is skipped while it did not change. */
 	void UpdateLevel();
 
@@ -113,9 +167,13 @@ private:
 
 	/** The actor shows the held pose (collision off, tilted), as opposed to standing. */
 	bool bShownHeld = false;
-	/** The held cart is laying: Use is down and the mouth had a point before. */
+	/** The held cart or finisher is working: Use is down and the mouth had a point before. */
 	bool bLaying = false;
 	FVector2D PreviousMouth = FVector2D::ZeroVector;
+	/** The length of the previous tick of the work, for the bound on how far the mouth may have moved. */
+	float PreviousWorkSeconds = 0.0f;
+	/** The character this actor was ordered to tick after. */
+	TWeakObjectPtr<ADIACharacter> TickedAfter;
 	/** Content the level shows now, to skip the work when nothing changed. */
 	double ShownLitres = -1.0;
 

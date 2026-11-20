@@ -364,14 +364,14 @@ FText DIAFormat::MovablePrompt(ELotMovable Movable, bool bHeld)
 {
 	if (bHeld)
 	{
-		return LOCTEXT("PromptLetGo", "E – Let go");
+		return Movable == ELotMovable::Station ? LOCTEXT("PromptPutDown", "E – Put down") : LOCTEXT("PromptLetGo", "E – Let go");
 	}
 	switch (Movable)
 	{
 	case ELotMovable::Suitcase: return LOCTEXT("PromptPullFlap", "E – Pull\nF – Open flap");
-	case ELotMovable::Station: return LOCTEXT("PromptPull", "E – Pull");
-	case ELotMovable::Cart:
-	case ELotMovable::Finisher: return LOCTEXT("PromptPush", "E – Push");
+	case ELotMovable::Station: return LOCTEXT("PromptCarry", "E – Carry");
+	case ELotMovable::Cart: return LOCTEXT("PromptPush", "E – Push");
+	case ELotMovable::Finisher: return LOCTEXT("PromptGuide", "E – Guide");
 	default: return FText::GetEmpty();
 	}
 }

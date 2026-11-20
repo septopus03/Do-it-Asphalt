@@ -5,6 +5,7 @@
 
 #include "AsphaltTest.h"
 #include "Camera/CameraComponent.h"
+#include "Components/CapsuleComponent.h"
 #include "Components/BoxComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/World.h"
@@ -188,6 +189,75 @@ namespace MovableTestSupport
 		}
 		return CountRawTexels(Game);
 	}
+
+	/**
+	 * Lays a raw strip of the cart's width through the core's cart API, from the point LengthCm towards +X, and gives the cart back
+	 * where it stood (no cart actor is involved; a cart that is owned already keeps its place and its content).
+	 */
+	void LayRawStripThroughCore(FLotGame& Game, FVector2D From, double LengthCm)
+	{
+		if (!Game.OwnsMovable(ELotMovable::Cart))
+		{
+			Game.DebugGrantItem(ELotItem::Cart);
+		}
+		FillTo(Game, ELotMovable::Cart, 150.0);
+		const FLotMovable Before = Game.World().Movables[static_cast<int32>(ELotMovable::Cart)];
+		Game.Grab(ELotMovable::Cart);
+		Game.LayCartStrip(From, From + FVector2D(LengthCm, 0.0));
+		Game.Release(Before.Pos, Before.YawDeg);
+	}
+
+	/** Gives the player the item without the unlock the shop would ask for, and announces it like a purchase (the actor appears). */
+	bool Grant(UDIAWorldSubsystem* Subsystem, ELotItem Item)
+	{
+		Subsystem->GetGame().DebugGrantItem(Item);
+		Subsystem->OnItemBought.Broadcast(Item);
+		Subsystem->OnStateChanged.Broadcast();
+		return Subsystem->GetGame().Owns(Item);
+	}
+
+	/** The start of the raw strip the finisher tests use: on a cell edge in the middle of the lot, so that 5 m of it are exactly 5 cells. */
+	FVector2D RawStripStart()
+	{
+		return MiddleOfLot() - FVector2D(AsphaltLot::CellCm * 0.5, 0.0);
+	}
+
+	/**
+	 * Walks the character DistanceCm along +X at the speed, with tick sizes taken in turn from Steps. Each tick moves the character by
+	 * what the speed allows for the PREVIOUS tick: the held actor then samples a pose one frame old, as it would when it ticked before
+	 * the character (a long frame followed by a short one is the worst case).
+	 */
+	void WalkWithLaggedPose(FTestWorldWrapper& Wrapper, ADIACharacter* Character, double SpeedCmS, double DistanceCm, const TArray<double>& Steps)
+	{
+		double PreviousStep = Steps[0];
+		double Walked = 0.0;
+		for (int32 I = 0; Walked < DistanceCm; ++I)
+		{
+			const double Step = Steps[I % Steps.Num()];
+			const double Distance = FMath::Min(SpeedCmS * PreviousStep, DistanceCm - Walked);
+			Move(Character, FVector2D(Distance, 0.0));
+			Walked += Distance;
+			Wrapper.TickTestWorld(static_cast<float>(Step));
+			PreviousStep = Step;
+		}
+	}
+
+	/** Counts the cells the game announces as completed (what the HUD and the sounds listen to). */
+	struct FCompletedCounter
+	{
+		explicit FCompletedCounter(UDIAWorldSubsystem* InSubsystem)
+			: Subsystem(InSubsystem)
+		{
+			Handle = Subsystem->OnCellsCompleted.AddLambda([this](const TArray<int32>& Cells) { Count += Cells.Num(); });
+		}
+		~FCompletedCounter()
+		{
+			Subsystem->OnCellsCompleted.Remove(Handle);
+		}
+		UDIAWorldSubsystem* Subsystem;
+		FDelegateHandle Handle;
+		int32 Count = 0;
+	};
 }
 
 using namespace MovableTestSupport;
@@ -923,6 +993,370 @@ bool FMovableWalkingSpeedTest::RunTest(const FString& Parameters)
 	const double Laying = Walk(true);
 	TestTrue(*FString::Printf(TEXT("pushing the cart: %.0f cm in a second"), Pushing), FMath::Abs(Pushing - LotBalance::CartPushSpeedCmS) <= LotBalance::CartPushSpeedCmS * 0.1);
 	TestTrue(*FString::Printf(TEXT("laying a strip: %.0f cm in a second"), Laying), FMath::Abs(Laying - LotBalance::CartLaySpeedCmS) <= LotBalance::CartLaySpeedCmS * 0.1);
+	return true;
+}
+
+/** The portable station: set down it is an outlet and a refill zone like the trough; held it is neither and walks at the carrying speed. */
+DIA_TEST(FMovableStationMakesRefillZoneTest, "DoItAsphalt.Game.Movable.StationMakesRefillZone")
+
+bool FMovableStationMakesRefillZoneTest::RunTest(const FString& Parameters)
+{
+	DIA_MOVABLE_FIXTURE()
+	TestTrue(TEXT("buy the station"), Grant(Subsystem, ELotItem::Station));
+	TestTrue(TEXT("buy the cart"), Buy(ELotItem::Cart));
+	ADIAMovable* Station = FindMovable(World, ELotMovable::Station);
+	ADIAMovable* Cart = FindMovable(World, ELotMovable::Cart);
+	if (!TestNotNull(TEXT("the station"), Station) || !TestNotNull(TEXT("the cart"), Cart))
+	{
+		return false;
+	}
+	// Set down far from the trough (the middle of the lot is some 70 m away).
+	const FVector2D StationAt = MiddleOfLot();
+	TestTrue(TEXT("far from the trough"), FVector2D::Distance(StationAt, LotLayout::TroughPos) > 5000.0);
+	SetCorePos(Game, ELotMovable::Station, StationAt);
+	Game.DebugSetPlantStock(Game.GetPlantStorage());
+	Wrapper.TickTestWorld(TickSeconds);
+	TestTrue(TEXT("the station is placed"), DIARefill::IsStationPlaced(Game));
+
+	// A player with the bucket aims at it: Use fills the bucket as at the trough.
+	Game.DebugGrantItem(ELotItem::Bucket);
+	TestTrue(TEXT("take the bucket"), Character->SelectHand(ELotHand::Bucket));
+	TickFor(Wrapper, LotBalance::SwapSeconds + 0.5);
+	const double Pitch = -FMath::RadiansToDegrees(FMath::Atan2(DIACharacter::EyeHeightCm, 100.0));
+	Place(Character, StationAt - FVector2D(100.0, 0.0), Pitch, 0.0);
+	TestTrue(TEXT("the aim is on the station"), Station->ContainsPoint(Character->GetAimPoint()));
+	TestEqual(TEXT("the bucket is empty"), Game.GetHandLitres(ELotHand::Bucket), 0.0);
+	Character->SetUsing(true);
+	TickFor(Wrapper, 1.0);
+	Character->SetUsing(false);
+	TestTrue(TEXT("one second at the station fills the bucket"), Game.GetHandLitres(ELotHand::Bucket) > 1.0);
+
+	// A cart set down within the refill radius fills itself.
+	SetCorePos(Game, ELotMovable::Cart, StationAt + FVector2D(0.0, LotLayout::RefillRadiusCm - 50.0));
+	Wrapper.TickTestWorld(TickSeconds);
+	TestTrue(TEXT("the cart is in the refill zone"), DIARefill::IsInZone(Game, Where(Cart)));
+	const double Before = Game.GetMovableLitres(ELotMovable::Cart);
+	TickFor(Wrapper, 5.0);
+	TestTrue(TEXT("the cart fills itself beside the station"), Game.GetMovableLitres(ELotMovable::Cart) > Before + 1.0);
+
+	// Held, the station is no outlet and no zone: the cart beside it stays as full as it is.
+	Place(Character, StationAt - FVector2D(100.0, 0.0), 0.0, 0.0);
+	Wrapper.TickTestWorld(TickSeconds);
+	Station->Interact(Character);
+	TestTrue(TEXT("holding the station"), Game.GetHeld() == ELotMovable::Station);
+	TestFalse(TEXT("a held station is no outlet"), DIARefill::IsAtOutlet(Game, StationAt));
+	TestFalse(TEXT("and no refill zone"), DIARefill::IsInZone(Game, StationAt));
+	const double Held = Game.GetMovableLitres(ELotMovable::Cart);
+	TickFor(Wrapper, 5.0);
+	TestEqual(TEXT("a cart no longer fills beside a held station"), Game.GetMovableLitres(ELotMovable::Cart), Held);
+
+	// Carried at the carrying speed; sprint does nothing.
+	Character->SetSprinting(true);
+	Wrapper.TickTestWorld(TickSeconds);
+	TestNearlyEqual(TEXT("carrying the station"), static_cast<double>(Character->GetCharacterMovement()->MaxWalkSpeed), LotBalance::StationCarrySpeedCmS, 0.01);
+	return true;
+}
+
+/** The finisher finishes only with the bar lowered (held and Use down); its walking speed is capped then, whatever the player does. */
+DIA_TEST(FMovableFinisherSpeedCapTest, "DoItAsphalt.Game.Movable.FinisherSpeedCap")
+
+bool FMovableFinisherSpeedCapTest::RunTest(const FString& Parameters)
+{
+	DIA_MOVABLE_FIXTURE()
+	TestTrue(TEXT("buy the finisher"), Grant(Subsystem, ELotItem::Finisher));
+	ADIAMovable* Finisher = FindMovable(World, ELotMovable::Finisher);
+	if (!TestNotNull(TEXT("the finisher"), Finisher))
+	{
+		return false;
+	}
+	// The sprint is open, so that sprinting could be told apart from walking.
+	for (int32 I = 0; I < AsphaltLot::CellsPerEntry; ++I)
+	{
+		Game.DebugCompleteCell(AsphaltLot::EntryCell(1, I));
+	}
+	Game.DebugCompleteCells(LotBalance::UnlockCells[static_cast<int32>(ELotUnlock::Sprint)]);
+	TestTrue(TEXT("sprint is unlocked"), Game.IsUnlocked(ELotUnlock::Sprint));
+
+	const UCharacterMovementComponent* Movement = Character->GetCharacterMovement();
+	Character->SetSprinting(true);
+	Finisher->Interact(Character);
+	Wrapper.TickTestWorld(TickSeconds);
+	TestTrue(TEXT("holding the finisher"), Game.GetHeld() == ELotMovable::Finisher);
+	TestNearlyEqual(TEXT("bar raised: pushed at the pushing speed, sprint does not help"), static_cast<double>(Movement->MaxWalkSpeed), LotBalance::FinisherPushSpeedCmS, 0.01);
+	Character->SetUsing(true);
+	TestNearlyEqual(TEXT("bar lowered: capped at the finishing speed"), static_cast<double>(Movement->MaxWalkSpeed), LotBalance::FinisherSpeedCmS(), 0.01);
+	TestNearlyEqual(TEXT("about 141.7 cm/s"), static_cast<double>(Movement->MaxWalkSpeed), 141.7, 0.1);
+	Character->SetSprinting(false);
+	TestNearlyEqual(TEXT("not sprinting: the same"), static_cast<double>(Movement->MaxWalkSpeed), LotBalance::FinisherSpeedCmS(), 0.01);
+	Character->SetUsing(false);
+	TestNearlyEqual(TEXT("bar raised again"), static_cast<double>(Movement->MaxWalkSpeed), LotBalance::FinisherPushSpeedCmS, 0.01);
+	return true;
+}
+
+/** A raw strip 1 x 5 m, a player guiding the finisher over it with Use down: five finished cells and their credits. */
+DIA_TEST(FMovableFinisherCompletesRawStripTest, "DoItAsphalt.Game.Movable.FinisherCompletesRawStrip")
+
+bool FMovableFinisherCompletesRawStripTest::RunTest(const FString& Parameters)
+{
+	DIA_MOVABLE_FIXTURE()
+	TestTrue(TEXT("buy the finisher"), Grant(Subsystem, ELotItem::Finisher));
+	ADIAMovable* Finisher = FindMovable(World, ELotMovable::Finisher);
+	if (!TestNotNull(TEXT("the finisher"), Finisher))
+	{
+		return false;
+	}
+	const FVector2D Start = RawStripStart();
+	LayRawStripThroughCore(Game, Start, 5.0 * AsphaltLot::CellCm);
+	TestTrue(TEXT("the strip is raw"), CountRawTexels(Game) > 0);
+	TestEqual(TEXT("raw asphalt completes nothing"), Game.GetCompletedCells(), 0);
+
+	// The player stands behind the start of the strip, the bar ahead of the player, and walks the strip with the bar lowered.
+	Place(Character, Start - FVector2D(300.0, 0.0), 0.0, 0.0);
+	Wrapper.TickTestWorld(TickSeconds);
+	Finisher->Interact(Character);
+	Wrapper.TickTestWorld(TickSeconds);
+	FCompletedCounter Counter(Subsystem);
+	const double CreditsBefore = Game.GetCredits();
+	Character->SetUsing(true);
+	Wrapper.TickTestWorld(TickSeconds);
+	const double Reach = (Where(Finisher) - Where(Character)).X;
+	const double Walk = 300.0 + 5.0 * AsphaltLot::CellCm + 200.0 - Reach;
+	for (int32 I = 0; I < FMath::RoundToInt32(Walk / 10.0); ++I)
+	{
+		Move(Character, FVector2D(10.0, 0.0));
+		Wrapper.TickTestWorld(TickSeconds);
+	}
+	Character->SetUsing(false);
+	TestEqual(TEXT("five cells are finished"), Game.GetCompletedCells(), 5);
+	TestEqual(TEXT("and announced"), Counter.Count, 5);
+	TestNearlyEqual(TEXT("they pay 10 credits each"), Game.GetCredits() - CreditsBefore, 5.0 * LotBalance::CreditsPerCell, 1e-6);
+	TestEqual(TEXT("nothing raw is left"), CountRawTexels(Game), 0);
+	return true;
+}
+
+/** The same walk with the bar raised finishes nothing. */
+DIA_TEST(FMovableFinisherBarRaisedFinishesNothingTest, "DoItAsphalt.Game.Movable.FinisherBarRaisedFinishesNothing")
+
+bool FMovableFinisherBarRaisedFinishesNothingTest::RunTest(const FString& Parameters)
+{
+	DIA_MOVABLE_FIXTURE()
+	TestTrue(TEXT("buy the finisher"), Grant(Subsystem, ELotItem::Finisher));
+	ADIAMovable* Finisher = FindMovable(World, ELotMovable::Finisher);
+	if (!TestNotNull(TEXT("the finisher"), Finisher))
+	{
+		return false;
+	}
+	const FVector2D Start = RawStripStart();
+	LayRawStripThroughCore(Game, Start, 5.0 * AsphaltLot::CellCm);
+	const int32 Raw = CountRawTexels(Game);
+	Place(Character, Start - FVector2D(300.0, 0.0), 0.0, 0.0);
+	Wrapper.TickTestWorld(TickSeconds);
+	Finisher->Interact(Character);
+	Wrapper.TickTestWorld(TickSeconds);
+	for (int32 I = 0; I < 90; ++I)
+	{
+		Move(Character, FVector2D(10.0, 0.0));
+		Wrapper.TickTestWorld(TickSeconds);
+	}
+	TestTrue(TEXT("the bar went over the whole strip"), Where(Finisher).X > Start.X + 5.0 * AsphaltLot::CellCm);
+	TestEqual(TEXT("raised, it finishes nothing"), CountRawTexels(Game), Raw);
+	TestEqual(TEXT("no cell is complete"), Game.GetCompletedCells(), 0);
+
+	// Let go with the button down: a finisher that stands finishes nothing either.
+	Character->SetUsing(true);
+	Finisher->Interact(Character);
+	TestTrue(TEXT("let go"), Game.GetHeld() == ELotMovable::Count);
+	Move(Character, FVector2D(-600.0, 0.0));
+	TickFor(Wrapper, 1.0);
+	TestEqual(TEXT("a standing finisher finishes nothing"), CountRawTexels(Game), Raw);
+	return true;
+}
+
+/** The bar teleported over a raw strip (a jump, not a walk) finishes nothing on the way: the finisher has the cart's bound. */
+DIA_TEST(FMovableFinisherNoPassOnATeleportTest, "DoItAsphalt.Game.Movable.FinisherNoPassOnATeleport")
+
+bool FMovableFinisherNoPassOnATeleportTest::RunTest(const FString& Parameters)
+{
+	DIA_MOVABLE_FIXTURE()
+	TestTrue(TEXT("buy the finisher"), Grant(Subsystem, ELotItem::Finisher));
+	ADIAMovable* Finisher = FindMovable(World, ELotMovable::Finisher);
+	if (!TestNotNull(TEXT("the finisher"), Finisher))
+	{
+		return false;
+	}
+	const FVector2D Start = RawStripStart();
+	LayRawStripThroughCore(Game, Start, 5.0 * AsphaltLot::CellCm);
+	const int32 Raw = CountRawTexels(Game);
+	Place(Character, Start - FVector2D(1000.0, 0.0), 0.0, 0.0);
+	Wrapper.TickTestWorld(TickSeconds);
+	Finisher->Interact(Character);
+	Character->SetUsing(true);
+	Wrapper.TickTestWorld(TickSeconds);
+	Wrapper.TickTestWorld(TickSeconds);
+	// Ten metres in one tick, straight over the strip.
+	Move(Character, FVector2D(1200.0, 0.0));
+	Wrapper.TickTestWorld(TickSeconds);
+	TestEqual(TEXT("a jump over the strip finishes nothing"), CountRawTexels(Game), Raw);
+	TestEqual(TEXT("no cell is complete"), Game.GetCompletedCells(), 0);
+	return true;
+}
+
+/** A walk at the capped speed whose ticks alternate long and short, with the pose one frame old: no segment is dropped (cart and finisher). */
+DIA_TEST(FMovableToolsSurviveUnevenTicksTest, "DoItAsphalt.Game.Movable.ToolsSurviveUnevenTicks")
+
+bool FMovableToolsSurviveUnevenTicksTest::RunTest(const FString& Parameters)
+{
+	const TArray<double> Uneven = {0.1, 0.016};
+	{
+		DIA_MOVABLE_FIXTURE()
+		TestTrue(TEXT("buy the cart"), Buy(ELotItem::Cart));
+		ADIAMovable* Cart = FindMovable(World, ELotMovable::Cart);
+		if (!TestNotNull(TEXT("the cart"), Cart))
+		{
+			return false;
+		}
+		FillTo(Game, ELotMovable::Cart, 100.0);
+		Wrapper.TickTestWorld(TickSeconds);
+		Cart->Interact(Character);
+		Character->SetUsing(true);
+		Wrapper.TickTestWorld(static_cast<float>(Uneven[0]));
+		WalkWithLaggedPose(Wrapper, Character, LotBalance::CartLaySpeedCmS, 600.0, Uneven);
+		const double TexelsPerSquareMetre = 1.0e4 / FMath::Square(FLotGrid::TexelCm);
+		const double Expected = 6.0 * (LotBalance::CartStripWidthCm / 100.0) * TexelsPerSquareMetre;
+		TestTrue(*FString::Printf(TEXT("the cart's strip has no gaps (%d of about %.0f texels)"), CountRawTexels(Game), Expected), FMath::Abs(CountRawTexels(Game) - Expected) <= Expected * 0.1);
+	}
+	{
+		DIA_MOVABLE_FIXTURE()
+		TestTrue(TEXT("buy the finisher"), Grant(Subsystem, ELotItem::Finisher));
+		ADIAMovable* Finisher = FindMovable(World, ELotMovable::Finisher);
+		if (!TestNotNull(TEXT("the finisher"), Finisher))
+		{
+			return false;
+		}
+		const FVector2D Start = RawStripStart();
+		LayRawStripThroughCore(Game, Start, 5.0 * AsphaltLot::CellCm);
+		Place(Character, Start - FVector2D(300.0, 0.0), 0.0, 0.0);
+		Wrapper.TickTestWorld(TickSeconds);
+		Finisher->Interact(Character);
+		Character->SetUsing(true);
+		Wrapper.TickTestWorld(static_cast<float>(Uneven[0]));
+		WalkWithLaggedPose(Wrapper, Character, LotBalance::FinisherSpeedCmS(), 1000.0, Uneven);
+		TestEqual(TEXT("the finisher finishes the whole strip"), Game.GetCompletedCells(), 5);
+		TestEqual(TEXT("with no raw texel left"), CountRawTexels(Game), 0);
+	}
+	return true;
+}
+
+/** The held actor ticks after the character (and its movement), so that the pose it follows is this frame's; letting go removes the order. */
+DIA_TEST(FMovableTicksAfterTheCharacterTest, "DoItAsphalt.Game.Movable.TicksAfterTheCharacter")
+
+bool FMovableTicksAfterTheCharacterTest::RunTest(const FString& Parameters)
+{
+	DIA_MOVABLE_FIXTURE()
+	TestTrue(TEXT("buy the cart"), Buy(ELotItem::Cart));
+	ADIAMovable* Cart = FindMovable(World, ELotMovable::Cart);
+	if (!TestNotNull(TEXT("the cart"), Cart))
+	{
+		return false;
+	}
+	auto Follows = [&](const FTickFunction& Function)
+	{
+		for (const FTickPrerequisite& Prerequisite : Cart->PrimaryActorTick.GetPrerequisites())
+		{
+			if (Prerequisite.Get() == &Function)
+			{
+				return true;
+			}
+		}
+		return false;
+	};
+	TestFalse(TEXT("a standing cart waits for nobody"), Follows(Character->PrimaryActorTick));
+	Wrapper.TickTestWorld(TickSeconds);
+	Cart->Interact(Character);
+	TestTrue(TEXT("held: after the character"), Follows(Character->PrimaryActorTick));
+	TestTrue(TEXT("and after its movement"), Follows(Character->GetCharacterMovement()->PrimaryComponentTick));
+	Wrapper.TickTestWorld(TickSeconds);
+	Move(Character, FVector2D(-500.0, 0.0));
+	Wrapper.TickTestWorld(TickSeconds);
+	Cart->Interact(Character);
+	TestTrue(TEXT("let go"), Game.GetHeld() == ELotMovable::Count);
+	TestFalse(TEXT("let go: no order any more"), Follows(Character->PrimaryActorTick));
+	TestFalse(TEXT("nor on the movement"), Follows(Character->GetCharacterMovement()->PrimaryComponentTick));
+	return true;
+}
+
+/** The held finisher: bar ahead and across the view, in reach of E; let go, it stands clear of the player, who can walk away in every direction. */
+DIA_TEST(FMovableFinisherReleaseClearOfPlayerTest, "DoItAsphalt.Game.Movable.FinisherReleaseClearOfPlayer")
+
+bool FMovableFinisherReleaseClearOfPlayerTest::RunTest(const FString& Parameters)
+{
+	DIA_MOVABLE_FIXTURE()
+	TestTrue(TEXT("buy the finisher"), Grant(Subsystem, ELotItem::Finisher));
+	ADIAMovable* Finisher = FindMovable(World, ELotMovable::Finisher);
+	if (!TestNotNull(TEXT("the finisher"), Finisher))
+	{
+		return false;
+	}
+	const UCapsuleComponent* Capsule = Character->GetCapsuleComponent();
+	for (const double YawDeg : {0.0, 90.0, 215.0})
+	{
+		Place(Character, MiddleOfLot(), 0.0, YawDeg);
+		Character->SetActorRotation(FRotator(0.0, YawDeg, 0.0));
+		Wrapper.TickTestWorld(TickSeconds);
+		Finisher->Interact(Character);
+		Wrapper.TickTestWorld(TickSeconds);
+		TestTrue(TEXT("holding the finisher"), Game.GetHeld() == ELotMovable::Finisher);
+
+		// The bar is ahead of the player and across the direction of walking.
+		const FVector2D Forward(FMath::Cos(FMath::DegreesToRadians(YawDeg)), FMath::Sin(FMath::DegreesToRadians(YawDeg)));
+		TestTrue(TEXT("the bar is ahead of the player"), FVector2D::DotProduct(Where(Finisher) - Where(Character), Forward) > 50.0);
+		TestNearlyEqual(TEXT("the machine points the way the player walks"), static_cast<double>(FVector2D::DotProduct(FVector2D(Finisher->GetActorForwardVector()), Forward)), 1.0, 1e-3);
+		TestTrue(TEXT("the bar's centre is the machine's origin"), Finisher->GetMouthPoint().Equals(Where(Finisher), 1e-3));
+
+		// E reaches it while it is held: the held actor has no collision, so the range is measured to its origin.
+		AActor* Found = nullptr;
+		TestTrue(TEXT("E finds the held finisher"), Subsystem->FindInteractable(Character, &Found) != nullptr && Found == Finisher);
+
+		Finisher->Interact(Character);
+		TestTrue(TEXT("let go"), Game.GetHeld() == ELotMovable::Count);
+		const FVector Centre = Character->GetActorLocation();
+		TestFalse(TEXT("the player's capsule does not overlap the finisher"), Finisher->GetCollision()->OverlapComponent(Centre, FQuat::Identity, Capsule->GetCollisionShape()));
+		TestTrue(TEXT("and E reaches it again"), Subsystem->FindInteractable(Character, &Found) != nullptr && Found == Finisher);
+		for (int32 Direction = 0; Direction < 8; ++Direction)
+		{
+			const double Angle = FMath::DegreesToRadians(45.0 * Direction);
+			const FVector Step = FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.0) * 40.0;
+			FHitResult Hit;
+			FCollisionQueryParams Params(SCENE_QUERY_STAT(MovableWalkAway), false, Character);
+			World->SweepSingleByChannel(Hit, Centre, Centre + Step, FQuat::Identity, ECC_Pawn, Capsule->GetCollisionShape(), Params);
+			TestFalse(*FString::Printf(TEXT("yaw %.0f, direction %d: not stuck in the finisher"), YawDeg, Direction), Hit.bStartPenetrating && Hit.GetActor() == Finisher);
+		}
+	}
+	return true;
+}
+
+/** The prompts of the two machines. */
+DIA_TEST(FMovableMachinePromptsTest, "DoItAsphalt.Game.Movable.MachinePrompts")
+
+bool FMovableMachinePromptsTest::RunTest(const FString& Parameters)
+{
+	DIA_MOVABLE_FIXTURE()
+	TestTrue(TEXT("buy the station"), Grant(Subsystem, ELotItem::Station));
+	TestTrue(TEXT("buy the finisher"), Grant(Subsystem, ELotItem::Finisher));
+	ADIAMovable* Station = FindMovable(World, ELotMovable::Station);
+	ADIAMovable* Finisher = FindMovable(World, ELotMovable::Finisher);
+	if (!TestNotNull(TEXT("the station"), Station) || !TestNotNull(TEXT("the finisher"), Finisher))
+	{
+		return false;
+	}
+	TestEqual(TEXT("a standing station"), Station->GetPrompt(Character).ToString(), FString(TEXT("E – Carry")));
+	TestEqual(TEXT("a standing finisher"), Finisher->GetPrompt(Character).ToString(), FString(TEXT("E – Guide")));
+	Station->Interact(Character);
+	TestEqual(TEXT("a held station"), Station->GetPrompt(Character).ToString(), FString(TEXT("E – Put down")));
+	TestTrue(TEXT("nothing else can be taken meanwhile"), Finisher->GetPrompt(Character).IsEmpty());
+	Station->Interact(Character);
+	Finisher->Interact(Character);
+	TestEqual(TEXT("a held finisher"), Finisher->GetPrompt(Character).ToString(), FString(TEXT("E – Let go")));
 	return true;
 }
 
