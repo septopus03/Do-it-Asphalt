@@ -7,7 +7,6 @@
 #include "GameFramework/Actor.h"
 #include "Kismet/GameplayStatics.h"
 #include "LotBalance.h"
-#include <limits>
 #include "Misc/CommandLine.h"
 #include "PlatformFeatures.h"
 #include "SaveGameSystem.h"
@@ -218,13 +217,19 @@ TArray<uint8> UDIAWorldSubsystem::MakeSaveBlob() const
 		{
 			if (It->GetKind() == Held && !It->IsActorBeingDestroyed())
 			{
-				Where = FVector2D(It->GetActorLocation().X, It->GetActorLocation().Y);
-				YawDeg = FRotator::NormalizeAxis(It->GetActorRotation().Yaw);
+				// Only where a release would be allowed (the very same test): a held box can poke into a wall or stand outside the site.
+				if (It->CanBePutDownHere())
+				{
+					Where = FVector2D(It->GetActorLocation().X, It->GetActorLocation().Y);
+					YawDeg = FRotator::NormalizeAxis(It->GetActorRotation().Yaw);
+				}
 				break;
 			}
 		}
 	}
-	// Without an actor the core's own record of the movable stays (a non-finite place keeps it).
+	// Without an actor, or where it could not be put down, the core's own record of the movable stays (a non-finite place keeps it): the pose
+	// of its last release, or the place it was bought at, both legal. A copy, not Release/Grab on the live game: Grab also zeroes the suitcase's
+	// dose budget (a standing suitcase can dose while the cart is held), so the live game would not be identical afterwards.
 	FLotGame Copy = Game;
 	Copy.Release(Where, YawDeg);
 	return Copy.SaveToBytes();

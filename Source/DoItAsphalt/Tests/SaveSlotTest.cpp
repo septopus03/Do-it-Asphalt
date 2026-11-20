@@ -5,6 +5,7 @@
 
 #include "AsphaltTest.h"
 #include "Components/BoxComponent.h"
+#include "Engine/CollisionProfile.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "Game/DIAGameMode.h"
@@ -1124,7 +1125,7 @@ bool FSaveLoadMovesEverythingTest::RunTest(const FString& Parameters)
 	const int32 UploadsBefore = Ground->GetNumFullUploads();
 	TestTrue(TEXT("LoadGame"), Scene.Subsystem->LoadGame());
 	CheckAll(TEXT("as the load returns"), true);
-	TestEqual(TEXT("the paver's position is the saved one"), Game.GetAutoPaverPos().X, PaverSaved.X, MovedCm);
+	TestTrue(TEXT("the paver's position is the saved one"), Game.GetAutoPaverPos().Equals(PaverSaved, MovedCm));
 	const ADIAAutoPaver* LoadedPaver = Scene.Only<ADIAAutoPaver>();
 	if (TestNotNull(TEXT("the paver actor"), LoadedPaver))
 	{
@@ -1415,6 +1416,119 @@ bool FSaveSavedWhileDrivingTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("visible"), Scene.Character->IsHidden());
 	TestTrue(TEXT("collides"), Scene.Character->GetActorEnableCollision());
 	TestTrue(TEXT("at the start"), SaveTestWhere(Scene.Character).Equals(LotLayout::PlayerStart, MovedCm));
+	return true;
+}
+
+namespace SaveWorldTestSupport
+{
+	constexpr double WallHalfCm = 200.0;
+
+	/** A solid block (a wall, for the purpose) standing on the ground at the point; it blocks like the site's walls and buildings. */
+	AActor* SpawnWall(UWorld* World, FVector2D At)
+	{
+		FActorSpawnParameters Params;
+		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		AActor* Actor = World->SpawnActor<AActor>(FVector(At.X, At.Y, WallHalfCm), FRotator::ZeroRotator, Params);
+		if (Actor)
+		{
+			UBoxComponent* Box = NewObject<UBoxComponent>(Actor, TEXT("Wall"));
+			Box->SetBoxExtent(FVector(WallHalfCm, WallHalfCm, WallHalfCm * 2.0));
+			Box->SetCollisionProfileName(UCollisionProfile::BlockAll_ProfileName);
+			Actor->SetRootComponent(Box);
+			Box->RegisterComponent();
+			Box->SetWorldLocation(FVector(At.X, At.Y, WallHalfCm * 2.0));
+		}
+		return Actor;
+	}
+
+	/** One kind through the three cases: held in a legal place, held against a wall never released, held against a wall after a legal release. */
+	void CheckHeldKind(FAutomationTestBase& Test, ELotMovable Kind, ELotItem Item, const TCHAR* Name)
+	{
+		const FString Label(Name);
+		FSaveTestSlot Slot;
+		FSaveWorldScene Scene;
+		if (!Scene.Start(Test, FVector2D(500.0, -3000.0)))
+		{
+			return;
+		}
+		FLotGame& Game = Scene.Game();
+		Scene.Grant(Item);
+		ADIAMovable* Movable = Scene.Movable(Kind);
+		if (!Test.TestNotNull(*(Label + TEXT(": the actor")), Movable))
+		{
+			return;
+		}
+		const FVector2D Spawn = LotLayout::ItemSpawn(Item);
+		const double SpawnYaw = Game.World().Movables[static_cast<int32>(Kind)].YawDeg;
+
+		// Held against a wall, never released since it was bought: saved at the place the game gave it, which is a legal one.
+		Movable->Interact(Scene.Character);
+		Scene.TickFor(0.3);
+		const FVector2D HeldAt = SaveTestWhere(Movable);
+		AActor* Wall = SpawnWall(Scene.World, HeldAt);
+		Test.TestFalse(*(Label + TEXT(": held in the wall, it could not be put down")), Movable->CanBePutDownHere(Scene.Character));
+		Scene.Subsystem->SaveGame();
+		Test.TestTrue(*(Label + TEXT(": saving leaves it held")), Game.GetHeld() == Kind && Movable->IsHeld());
+		Test.TestTrue(*(Label + TEXT(": the live record is untouched")), Game.World().Movables[static_cast<int32>(Kind)].bHeld);
+		Test.TestTrue(*(Label + TEXT(": load")), Scene.Subsystem->LoadGame());
+		Scene.TickFor(0.2);
+		ADIAMovable* Loaded = Scene.Movable(Kind);
+		if (!Test.TestNotNull(*(Label + TEXT(": the loaded actor")), Loaded))
+		{
+			return;
+		}
+		Test.TestTrue(*(Label + TEXT(": nothing is held after the load")), Game.GetHeld() == ELotMovable::Count);
+		Test.TestTrue(*(Label + TEXT(": it stands at the place the game gave it, not in the wall")), SaveTestWhere(Loaded).Equals(Spawn, MovedCm));
+		Test.TestTrue(*(Label + TEXT(": and there it could be put down")), Loaded->CanBePutDownHere(Scene.Character));
+		Test.TestEqual(*(Label + TEXT(": turned as the game gave it")), FMath::Abs(FMath::FindDeltaAngleDegrees(Loaded->GetActorRotation().Yaw, SpawnYaw)) < MovedCm, true);
+		Wall->Destroy();
+
+		// Held in a legal place: saved there.
+		Scene.StandAt(FVector2D(500.0, -3000.0));
+		Loaded->Interact(Scene.Character);
+		Scene.TickFor(0.3);
+		const FVector2D LegalAt = SaveTestWhere(Loaded);
+		Test.TestTrue(*(Label + TEXT(": held in the open it could be put down")), Loaded->CanBePutDownHere(Scene.Character));
+		Scene.Subsystem->SaveGame();
+		Test.TestTrue(*(Label + TEXT(": load again")), Scene.Subsystem->LoadGame());
+		Scene.TickFor(0.2);
+		Loaded = Scene.Movable(Kind);
+		if (!Test.TestNotNull(*(Label + TEXT(": the actor again")), Loaded))
+		{
+			return;
+		}
+		Test.TestTrue(*(Label + TEXT(": saved where it was held")), SaveTestWhere(Loaded).Equals(LegalAt, MovedCm));
+
+		// Held against a wall after that: saved at the last legal place.
+		Scene.StandAt(FVector2D(-3000.0, 3000.0));
+		Loaded->Interact(Scene.Character);
+		Scene.TickFor(0.3);
+		const FVector2D WallAt = SaveTestWhere(Loaded);
+		Test.TestTrue(*(Label + TEXT(": a different place")), FVector2D::Distance(WallAt, LegalAt) > 500.0);
+		SpawnWall(Scene.World, WallAt);
+		Scene.Subsystem->SaveGame();
+		Test.TestTrue(*(Label + TEXT(": still held")), Game.GetHeld() == Kind);
+		Test.TestTrue(*(Label + TEXT(": load the third time")), Scene.Subsystem->LoadGame());
+		Scene.TickFor(0.2);
+		Loaded = Scene.Movable(Kind);
+		if (!Test.TestNotNull(*(Label + TEXT(": the actor a third time")), Loaded))
+		{
+			return;
+		}
+		Test.TestTrue(*(Label + TEXT(": saved at the last legal place")), SaveTestWhere(Loaded).Equals(LegalAt, MovedCm));
+		Test.TestTrue(*(Label + TEXT(": where it could be put down")), Loaded->CanBePutDownHere(Scene.Character));
+	}
+}
+
+DIA_TEST(FSaveHeldNeedsRoomTest, "DoItAsphalt.Game.SaveSlot.HeldPoseNeedsRoom")
+
+bool FSaveHeldNeedsRoomTest::RunTest(const FString& Parameters)
+{
+	using namespace SaveWorldTestSupport;
+	CheckHeldKind(*this, ELotMovable::Cart, ELotItem::Cart, TEXT("cart"));
+	CheckHeldKind(*this, ELotMovable::Suitcase, ELotItem::Suitcase, TEXT("suitcase"));
+	CheckHeldKind(*this, ELotMovable::Finisher, ELotItem::Finisher, TEXT("finisher"));
+	CheckHeldKind(*this, ELotMovable::Station, ELotItem::Station, TEXT("station"));
 	return true;
 }
 

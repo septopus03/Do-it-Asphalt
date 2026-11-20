@@ -875,6 +875,8 @@ bool FMovableSaveLoadWhileHoldingTest::RunTest(const FString& Parameters)
 	Move(Character, HeldAt + FVector2D(-120.0, 0.0));
 	Loaded->Interact(Character);
 	TestTrue(TEXT("it can be grabbed again"), Game.GetHeld() == ELotMovable::Cart);
+	TestTrue(TEXT("the actor is held again"), Loaded->IsHeld());
+	TestEqual(TEXT("and has no collision"), Loaded->GetCollision()->GetCollisionEnabled(), ECollisionEnabled::NoCollision);
 	return true;
 }
 

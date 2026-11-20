@@ -343,6 +343,12 @@ void ADIAMovable::ShowNoRoomToast(const ADIACharacter* By) const
 	}
 }
 
+bool ADIAMovable::CanBePutDownHere(const ADIACharacter* By) const
+{
+	// It is set down exactly where it is now, upright.
+	return HasRoomAt(FVector2D(GetActorLocation().X, GetActorLocation().Y), FRotator::NormalizeAxis(GetActorRotation().Yaw), By ? By : GetPlayer());
+}
+
 bool ADIAMovable::TryRelease(ADIACharacter* By)
 {
 	UDIAWorldSubsystem* Subsystem = GetSubsystem();
@@ -350,14 +356,13 @@ bool ADIAMovable::TryRelease(ADIACharacter* By)
 	{
 		return false;
 	}
-	// It is set down exactly where it is held now, upright.
-	const FVector2D Where(GetActorLocation().X, GetActorLocation().Y);
-	const double YawDeg = FRotator::NormalizeAxis(GetActorRotation().Yaw);
-	if (!HasRoomAt(Where, YawDeg, By))
+	if (!CanBePutDownHere(By))
 	{
 		ShowNoRoomToast(By);
 		return false;
 	}
+	const FVector2D Where(GetActorLocation().X, GetActorLocation().Y);
+	const double YawDeg = FRotator::NormalizeAxis(GetActorRotation().Yaw);
 	Subsystem->GetGame().Release(Where, YawDeg);
 	PlaceStanding(Where, YawDeg);
 	Holder.Reset();

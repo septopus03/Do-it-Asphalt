@@ -99,6 +99,11 @@ public:
 
 	/** Lets go of the held movable at the pose it has; false (nothing written, a toast shown) if the footprint is not free there. */
 	bool TryRelease(ADIACharacter* By);
+	/**
+	 * True if the movable could be set down at the pose it has now: the very test a release makes (walls, mall, plant, the car and other
+	 * movables block; the movable itself and the character, By or the player's, do not).
+	 */
+	bool CanBePutDownHere(const ADIACharacter* By = nullptr) const;
 	/** The core says the player holds this one. */
 	bool IsHeld() const;
 	virtual bool IsHeldByPlayer() const override { return IsHeld(); }
