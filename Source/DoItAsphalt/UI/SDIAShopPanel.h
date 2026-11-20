@@ -7,10 +7,26 @@
 #include "Styling/SlateTypes.h"
 #include "UI/DIAFormat.h"
 #include "UI/DIAHudStyle.h"
+#include "Widgets/Input/SButton.h"
 #include "Widgets/SCompoundWidget.h"
 
 class ADIAHUD;
 class UDIAWorldSubsystem;
+
+/**
+ * The buy button. A double click is swallowed: Slate would deliver its second press as an ordinary press, and the button
+ * would click twice (SButton::OnMouseButtonDoubleClick treats it as a single click). Here the second press never starts, so the
+ * second release finds no press and clicks nothing: one click sequence buys at most one thing.
+ */
+class SDIAShopButton : public SButton
+{
+public:
+	using FArguments = SButton::FArguments;
+
+	void Construct(const FArguments& InArgs) { SButton::Construct(InArgs); }
+
+	virtual FReply OnMouseButtonDoubleClick(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override { return FReply::Handled(); }
+};
 
 /**
  * The shop: a scrolling list of the plant and the eleven items, each with its value, its price and a button (Buy,
@@ -33,6 +49,9 @@ public:
 	void Unbind();
 
 	const FDIAShopModel& GetModel() const { return Model; }
+
+	/** Sorts the rows (owned last); the HUD calls it when the shop opens. They keep their places until it closes. */
+	void Resort();
 
 private:
 	void HandleStateChanged();

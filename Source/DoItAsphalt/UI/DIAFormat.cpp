@@ -489,9 +489,9 @@ bool FDIAShopModel::Update(const FLotGame& Game)
 	++RebuildCount;
 
 	// The rows in their natural order: the plant, then the items.
-	FDIAShopRow Natural[NumRows];
 	{
 		FDIAShopRow& Row = Natural[0];
+		Row = FDIAShopRow();
 		Row.bPlant = true;
 		Row.Name = LOCTEXT("ShopPlant", "Plant");
 		Row.Value = bPlantMax ? FText::Format(LOCTEXT("ShopRate", "{0} {1}"), Whole(PlantRate(NewKey.PlantLevel)), PerMinuteLitres())
@@ -503,6 +503,7 @@ bool FDIAShopModel::Update(const FLotGame& Game)
 	{
 		const ELotItem Item = static_cast<ELotItem>(I);
 		FDIAShopRow& Row = Natural[1 + I];
+		Row = FDIAShopRow();
 		Row.Item = Item;
 		Row.Name = DIAFormat::ItemName(Item);
 		Row.Value = ItemValue(Item);
@@ -517,19 +518,37 @@ bool FDIAShopModel::Update(const FLotGame& Game)
 		}
 	}
 
+	// The shown rows keep their places; only the first pass sorts.
+	if (RebuildCount == 1)
+	{
+		Resort();
+	}
+	else
+	{
+		for (int32 I = 0; I < NumRows; ++I)
+		{
+			Rows[I] = Natural[Order[I]];
+		}
+	}
+	return true;
+}
+
+void FDIAShopModel::Resort()
+{
 	// What can be bought stays on top; the owned rows follow in their own order.
 	int32 Next = 0;
 	for (const bool bOwnedPass : {false, true})
 	{
-		for (const FDIAShopRow& Row : Natural)
+		for (int32 I = 0; I < NumRows; ++I)
 		{
-			if ((Row.State == EDIAShopState::Owned) == bOwnedPass)
+			if ((Natural[I].State == EDIAShopState::Owned) == bOwnedPass)
 			{
-				Rows[Next++] = Row;
+				Order[Next] = I;
+				Rows[Next] = Natural[I];
+				++Next;
 			}
 		}
 	}
-	return true;
 }
 
 FDIAShopTarget FDIAShopModel::TargetOf(int32 Index, const FLotGame& Game) const
@@ -546,20 +565,15 @@ FDIAShopTarget FDIAShopModel::TargetOf(int32 Index, const FLotGame& Game) const
 	return Target;
 }
 
-bool FDIAShopModel::Buy(const FDIAShopTarget& Target, UDIAWorldSubsystem& Subsystem, double NowSeconds)
+bool FDIAShopModel::Buy(const FDIAShopTarget& Target, UDIAWorldSubsystem& Subsystem)
 {
-	if (!Target.bValid || NowSeconds - LastBuySeconds < AsphaltHud::ShopClickGuardSeconds)
+	if (!Target.bValid)
 	{
 		return false;
 	}
 	// The game decides, not the rows: they may be older than the click.
 	const FLotGame& Game = Subsystem.GetGame();
-	const bool bBought = Target.bPlant ? (Game.GetPlantLevel() == Target.PlantLevel && Subsystem.BuyPlant()) : Subsystem.BuyItem(Target.Item);
-	if (bBought)
-	{
-		LastBuySeconds = NowSeconds;
-	}
-	return bBought;
+	return Target.bPlant ? (Game.GetPlantLevel() == Target.PlantLevel && Subsystem.BuyPlant()) : Subsystem.BuyItem(Target.Item);
 }
 
 int32 FDIAWinModel::ItemsBought(const FLotGame& Game)

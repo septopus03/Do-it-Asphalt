@@ -22,7 +22,7 @@
 #include "UI/DIAFormat.h"
 #include "World/DIAMovable.h"
 
-namespace
+namespace MovableTestSupport
 {
 	constexpr float TickSeconds = 0.1f;
 
@@ -106,6 +106,8 @@ namespace
 		return Count;
 	}
 }
+
+using namespace MovableTestSupport;
 
 /** A game world with the mode, the subsystem, the core and a character in the middle of the lot; the bought items are announced like a purchase. */
 #define DIA_MOVABLE_FIXTURE() \

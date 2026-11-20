@@ -55,6 +55,11 @@ void ADIAHUD::SetShopOpen(bool bOpen)
 	bShopOpen = bOpen;
 	if (ShopPanel.IsValid())
 	{
+		if (bShopOpen)
+		{
+			// The rows are sorted as the shop opens and keep their places until it closes.
+			ShopPanel->Resort();
+		}
 		ShopPanel->SetVisibility(bShopOpen ? EVisibility::SelfHitTestInvisible : EVisibility::Collapsed);
 	}
 	// The cursor and the mouse go to the panel (and back to the camera); the controller also lets go of what is held.

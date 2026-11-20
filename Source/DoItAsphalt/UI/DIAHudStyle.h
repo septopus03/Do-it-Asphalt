@@ -95,8 +95,6 @@ namespace AsphaltHud
 	inline constexpr float ShopRowSpacing = 6.f;
 	inline constexpr float ShopPadding = 26.f;
 	inline constexpr float ShopMaxListHeight = 760.f;
-	/** After a purchase the shop refuses another for this long: a double click is one click sequence and buys one thing. */
-	inline constexpr float ShopClickGuardSeconds = 0.4f;
 	/** Distance of the toasts from the top edge. */
 	inline constexpr float ToastTop = 110.f;
 }

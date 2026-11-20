@@ -113,6 +113,16 @@ void SDIAShopPanel::Unbind()
 	StateHandle.Reset();
 }
 
+void SDIAShopPanel::Resort()
+{
+	Pressed = FDIAShopTarget();
+	if (const UDIAWorldSubsystem* S = Subsystem.Get())
+	{
+		Model.Update(S->GetGame());
+	}
+	Model.Resort();
+}
+
 void SDIAShopPanel::HandleStateChanged()
 {
 	// Fires every tick; the model builds new rows only when a shown value changed.
@@ -135,11 +145,11 @@ FReply SDIAShopPanel::HandleBuy(int32 Row)
 {
 	if (UDIAWorldSubsystem* S = Subsystem.Get())
 	{
-		// A click without a press that was seen (it should not happen) buys what the row shows now.
-		const FDIAShopTarget Target = Pressed.bValid ? Pressed : Model.TargetOf(Row, S->GetGame());
+		// Only what was pressed is bought; a release without a press that was seen buys nothing.
+		const FDIAShopTarget Target = Pressed;
 		Pressed = FDIAShopTarget();
 		// Buying goes through the subsystem, which broadcasts it: an item gives its toast, the model and the character refresh.
-		if (Model.Buy(Target, *S, FPlatformTime::Seconds()) && Target.bPlant)
+		if (FDIAShopModel::Buy(Target, *S) && Target.bPlant)
 		{
 			if (ADIAHUD* H = Hud.Get())
 			{
@@ -203,7 +213,7 @@ TSharedRef<SWidget> SDIAShopPanel::BuildRow(int32 Row)
 			[
 				SNew(SBox).WidthOverride(AsphaltHud::ShopButtonWidth)
 				[
-					SNew(SButton)
+					SNew(SDIAShopButton)
 					.ButtonStyle(&ButtonStyle)
 					// Focus would take the Tab key from the game and the shop could not be closed with it.
 					.IsFocusable(false)
