@@ -11,6 +11,7 @@
 #include "Game/DIAAssets.h"
 #include "Game/DIAModelSizes.h"
 #include "HexMap.h"
+#include "Materials/MaterialInterface.h"
 #include "Player/DIACharacter.h"
 #include "UI/DIAFormat.h"
 #include "World/DIAPaverCar.h"
@@ -43,7 +44,7 @@ ADIAExitGate::ADIAExitGate()
 
 	// Only the columns are solid; the passage and the beam above it are not.
 	const double PostY = DIAModelSizes::ExitGateBarrierCm.Y * 0.5 + DIAExitGate::PostCm.Y * 0.5;
-	for (int32 Side = 0; Side < 2; ++Side)
+	for (int32 Side = 0; Side < DIAExitGate::ColumnCount; ++Side)
 	{
 		UBoxComponent* Post = CreateDefaultSubobject<UBoxComponent>(*FString::Printf(TEXT("Post%d"), Side));
 		Post->SetupAttachment(Root);
@@ -72,17 +73,21 @@ ADIAExitGate::ADIAExitGate()
 	ArmCollision->SetCollisionResponseToChannel(ECC_Camera, ECR_Ignore);
 
 	// The word EXIT on both faces of the sign board: first the face towards the lot (-X), then the one towards the road (+X).
-	for (int32 Side = 0; Side < 2; ++Side)
+	for (int32 Side = 0; Side < DIAExitGate::SignFaceCount; ++Side)
 	{
 		const double Facing = Side == 0 ? -1.0 : 1.0;
 		UTextRenderComponent* Sign = CreateDefaultSubobject<UTextRenderComponent>(*FString::Printf(TEXT("SignText%d"), Side));
 		Sign->SetupAttachment(Root);
 		Sign->SetRelativeLocationAndRotation(FVector(Facing * (DIAExitGate::SignFaceXCm + DIAExitGate::SignTextOffsetCm), 0.0, DIAExitGate::SignCentreZCm),
-			FRotator(0.0, Side == 0 ? 180.0 : 0.0, 0.0));
+			FRotator(0.0, Side == 0 ? DIAExitGate::LotFaceYawDeg : 0.0, 0.0));
 		Sign->SetHorizontalAlignment(EHTA_Center);
 		Sign->SetVerticalAlignment(EVRTA_TextCenter);
 		Sign->SetWorldSize(static_cast<float>(DIAExitGate::SignTextSizeCm));
-		Sign->SetTextRenderColor(FColor(198, 40, 40));
+		Sign->SetTextRenderColor(DIAExitGate::SignColor);
+		if (UMaterialInterface* TextMaterial = DIAAssets::TextMaterial())
+		{
+			Sign->SetTextMaterial(TextMaterial);
+		}
 		Sign->SetCastShadow(false);
 		SignTexts.Add(Sign);
 	}

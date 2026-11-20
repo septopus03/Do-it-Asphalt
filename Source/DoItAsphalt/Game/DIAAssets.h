@@ -35,4 +35,10 @@ namespace DIAAssets
 
 	/** Loads the palette material instance /Game/Materials/MI_<Name>; null if it does not exist. */
 	DOITASPHALT_API UMaterialInterface* Palette(FName Name);
+
+	/**
+	 * Loads /Game/Materials/M_DIA_Text, the unlit text material for UTextRenderComponent (the engine's default one is lit and its specular
+	 * haze turns dark letters pale in daylight); null if it does not exist, then the component keeps its default material.
+	 */
+	DOITASPHALT_API UMaterialInterface* TextMaterial();
 }

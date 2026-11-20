@@ -35,8 +35,22 @@ namespace DIACharacter
 	 * Offsets of the pivots from their bones, in the bone's axes (X up, Y front, Z right). Backpack: on the back plane
 	 * of the chest; helmet: where the lower edge of the helmet meets the head.
 	 */
-	inline const FVector BackpackBoneOffsetCm(10.0, -13.0, 0.0);
+	inline const FVector BackpackBoneOffsetCm(0.0, -13.0, 0.0);
 	inline const FVector HelmetBoneOffsetCm(2.0, 2.0, 0.0);
+
+	/**
+	 * The backpack models are drawn to the sizes of the model list, which look small on the Mannequin's broad back; the pivot scales them
+	 * evenly about the back plane they rest on (so they still touch the back, and the largest one still fits between the shoulders and the hips).
+	 */
+	inline constexpr double BackpackScale = 1.15;
+
+	/**
+	 * The spreader is pushed in front of the body: its bar lies at the nozzle point and the handle rises towards the hands. The Mannequin's arms
+	 * hang at its sides (there is no hand IK), so the whole spreader is tipped about its bar by this angle (the handle towards the body) to bring
+	 * the grip to waist height just in front of the hands. It turns about the bar's own axis, so the bar stays on the ground exactly where the
+	 * nozzle point (AsphaltBalance::NozzleAheadCm) says the asphalt is laid.
+	 */
+	inline constexpr double SpreaderTiltDeg = 8.0;
 }
 
 /**

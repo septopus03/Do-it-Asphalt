@@ -21,6 +21,8 @@ namespace DIAKiosk
 	/** Free area of the board (60 x 30 cm) that the name may fill. */
 	inline constexpr double BoardTextWidthCm = 54.0;
 	inline constexpr double BoardTextMaxHeightCm = 14.0;
+	/** Colour of the name (shown through the unlit M_DIA_Text material): an amber that reads clearly on the blue screen of the board. */
+	inline const FColor BoardTextColor(210, 80, 0);
 	/** The lock hangs in front of the screen (the screen's centre is about X = 9, Z = 138 on the sloping panel). */
 	inline const FVector LockCm(16.0, 0.0, 140.0);
 }

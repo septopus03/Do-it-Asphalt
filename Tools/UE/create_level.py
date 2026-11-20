@@ -14,6 +14,15 @@ import unreal
 
 MAP_PATH = "/Game/Maps/L_Main"
 
+# Must equal AsphaltLayout::PlayerStartYawDeg (this script runs inside Unreal and cannot read the C++ constant; the game
+# also sets the same yaw in code, so the map and the code agree on where the player looks at the start).
+PLAYER_START_YAW_DEG = 180.0
+
+SUN_INTENSITY_LUX = 10.0
+# Bloom (default 0.675) smears the glare of the bright, sun-lit surfaces over the dark letters of the signs and washes them out.
+BLOOM_INTENSITY = 0.1
+SKY_LIGHT_INTENSITY = 1.0
+
 
 def spawn(actor_class, location=None, rotation=None, label=None):
     subsystem = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
@@ -42,11 +51,24 @@ def build():
         raise RuntimeError("new_level failed for %s" % MAP_PATH)
 
     sun = spawn(unreal.DirectionalLight, rotation=unreal.Rotator(roll=0.0, pitch=-50.0, yaw=30.0), label="Sun")
-    sun.get_component_by_class(unreal.DirectionalLightComponent).set_editor_property("intensity", 10.0)
+    sun.get_component_by_class(unreal.DirectionalLightComponent).set_editor_property("intensity", SUN_INTENSITY_LUX)
     spawn(unreal.SkyAtmosphere, label="SkyAtmosphere")
-    spawn(unreal.SkyLight, location=unreal.Vector(x=0.0, y=0.0, z=500.0), label="SkyLight")
+    # Dynamic lighting only (r.AllowStaticLighting=False), so the sky light must be movable and re-capture the sky by itself,
+    # otherwise it has no cubemap and the shaded sides of everything are black.
+    sky_light = spawn(unreal.SkyLight, location=unreal.Vector(x=0.0, y=0.0, z=500.0), label="SkyLight")
+    sky_light_component = sky_light.get_component_by_class(unreal.SkyLightComponent)
+    sky_light_component.set_mobility(unreal.ComponentMobility.MOVABLE)
+    sky_light_component.set_editor_property("real_time_capture", True)
+    sky_light_component.set_editor_property("intensity", SKY_LIGHT_INTENSITY)
     spawn(unreal.ExponentialHeightFog, label="HeightFog")
-    spawn(unreal.PlayerStart, location=unreal.Vector(x=-1600.0, y=0.0, z=100.0), label="PlayerStart")
+    post_process = spawn(unreal.PostProcessVolume, label="PostProcess")
+    post_process.set_editor_property("unbound", True)
+    post_settings = post_process.get_editor_property("settings")
+    post_settings.set_editor_property("override_bloom_intensity", True)
+    post_settings.set_editor_property("bloom_intensity", BLOOM_INTENSITY)
+    post_process.set_editor_property("settings", post_settings)
+    spawn(unreal.PlayerStart, location=unreal.Vector(x=-1600.0, y=0.0, z=100.0),
+          rotation=unreal.Rotator(roll=0.0, pitch=0.0, yaw=PLAYER_START_YAW_DEG), label="PlayerStart")
 
     if not level_subsystem.save_current_level():
         raise RuntimeError("save_current_level failed")

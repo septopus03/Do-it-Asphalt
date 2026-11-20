@@ -10,6 +10,7 @@
 #include "Game/DIAAssets.h"
 #include "Game/DIAModelSizes.h"
 #include "Game/DIAWorldSubsystem.h"
+#include "Materials/MaterialInterface.h"
 #include "UI/DIAFormat.h"
 
 ADIAKioskActor::ADIAKioskActor()
@@ -42,7 +43,11 @@ ADIAKioskActor::ADIAKioskActor()
 	BoardText->SetRelativeLocation(DIAKiosk::BoardTextCm);
 	BoardText->SetHorizontalAlignment(EHTA_Center);
 	BoardText->SetVerticalAlignment(EVRTA_TextCenter);
-	BoardText->SetTextRenderColor(FColor(230, 90, 0));
+	BoardText->SetTextRenderColor(DIAKiosk::BoardTextColor);
+	if (UMaterialInterface* TextMaterial = DIAAssets::TextMaterial())
+	{
+		BoardText->SetTextMaterial(TextMaterial);
+	}
 	BoardText->SetCastShadow(false);
 }
 

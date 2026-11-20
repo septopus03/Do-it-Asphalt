@@ -32,8 +32,18 @@ namespace DIAExitGate
 	inline constexpr double SignFaceXCm = 11.0;
 	inline constexpr double SignTextOffsetCm = 0.6;
 	inline constexpr double SignCentreZCm = 275.0;
-	/** Height of the letters; the word fills about half of the board's width. */
-	inline constexpr double SignTextSizeCm = 40.0;
+	/** Height of the letters (the board is 50 cm high); the word fills about half of the board's width. */
+	inline constexpr double SignTextSizeCm = 44.0;
+	/** The gate has two columns (one each side of the passage) and its sign is written on two faces (towards the lot, towards the road). */
+	inline constexpr int32 ColumnCount = 2;
+	inline constexpr int32 SignFaceCount = 2;
+	/** Yaw of the text on the face towards the lot (-X); the one towards the road (+X) needs none. */
+	inline constexpr double LotFaceYawDeg = 180.0;
+	/**
+	 * Colour of the letters (shown through the unlit M_DIA_Text material). A deep red: the letters keep a little of the surrounding glare,
+	 * so a lighter red turns salmon against the white board.
+	 */
+	inline const FColor SignColor(150, 0, 0);
 }
 
 /**

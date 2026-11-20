@@ -55,6 +55,16 @@ namespace DIAAssets
 		const FString ObjectPath = FString::Printf(TEXT("%s.MI_%s"), *Package, *Name.ToString());
 		return LoadObject<UMaterialInterface>(nullptr, *ObjectPath, nullptr, LOAD_Quiet | LOAD_NoWarn);
 	}
+
+	UMaterialInterface* TextMaterial()
+	{
+		static const TCHAR* const Package = TEXT("/Game/Materials/M_DIA_Text");
+		if (!FPackageName::DoesPackageExist(Package))
+		{
+			return nullptr;
+		}
+		return LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Materials/M_DIA_Text.M_DIA_Text"), nullptr, LOAD_Quiet | LOAD_NoWarn);
+	}
 }
 
 namespace DIAAssets

@@ -191,6 +191,18 @@ bool FCharacterEquipmentTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("spreader pivot is the nozzle on the ground"),
 		Pivot.Equals(FVector(-1200.0 + AsphaltBalance::NozzleAheadCm, 0.0, 0.0), 0.1));
 
+	// The spreader is tipped about its bar (handle towards the body) and the backpack is drawn larger, but the bar still lies exactly on the
+	// nozzle point, which is where the asphalt is laid.
+	{
+		const FVector Bar = Character->GetSpreaderMesh()->GetComponentLocation();
+		const FVector2D Nozzle = Character->GetNozzlePoint();
+		TestTrue(TEXT("the visible bar is at the nozzle point"), FVector2D(Bar.X, Bar.Y).Equals(Nozzle, 1.0) && FMath::Abs(Bar.Z) < 5.0);
+		TestTrue(TEXT("the spreader leans its handle towards the body"),
+			FMath::IsNearlyEqual(Character->GetSpreaderMesh()->GetAttachParent()->GetRelativeRotation().Pitch, DIACharacter::SpreaderTiltDeg, 0.01));
+		TestTrue(TEXT("the backpack pivot carries the backpack scale"),
+			Character->GetBackpackPivot()->GetRelativeScale3D().Equals(FVector(DIACharacter::BackpackScale), 0.001));
+	}
+
 	// Placeholders (no models yet): box 8 x W x 8 cm, W = tool width.
 	const UStaticMeshComponent* Spreader = Character->GetSpreaderMesh();
 	const bool bPlaceholder = Spreader->GetStaticMesh()->GetPathName().StartsWith(TEXT("/Engine/BasicShapes/"));

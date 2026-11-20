@@ -131,7 +131,8 @@ bool FExitSignTextTest::RunTest(const FString& Parameters)
 		return false;
 	}
 	// The sign board has the word on both faces; each text looks away from the beam, towards the lot (-X) and towards the road (+X).
-	for (int32 Side = 0; Side < 2; ++Side)
+	TestNull(TEXT("no sign beyond the faces"), Gate->GetSignText(DIAExitGate::SignFaceCount));
+	for (int32 Side = 0; Side < DIAExitGate::SignFaceCount; ++Side)
 	{
 		const UTextRenderComponent* Sign = Gate->GetSignText(Side);
 		if (!TestNotNull(TEXT("sign text"), Sign))
@@ -146,6 +147,8 @@ bool FExitSignTextTest::RunTest(const FString& Parameters)
 			FMath::IsNearlyEqual(FVector::DotProduct(Sign->GetComponentLocation() - Gate->GetActorLocation(), Gate->GetActorForwardVector() * Facing),
 				DIAExitGate::SignFaceXCm + DIAExitGate::SignTextOffsetCm, DressTestToleranceCm));
 		TestEqual(TEXT("at the middle of the board"), Sign->GetComponentLocation().Z, DIAExitGate::SignCentreZCm, DressTestToleranceCm);
+		TestEqual(TEXT("the letters have the sign colour"), Sign->TextRenderColor, DIAExitGate::SignColor);
+		TestEqual(TEXT("the letters have the sign height"), static_cast<double>(Sign->WorldSize), DIAExitGate::SignTextSizeCm, 0.01);
 	}
 	return true;
 }

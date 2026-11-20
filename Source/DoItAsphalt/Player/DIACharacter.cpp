@@ -131,11 +131,13 @@ ADIACharacter::ADIACharacter()
 	// Equipment pivots. The spreader's origin lies on the ground under the middle of the bar, NozzleAheadCm in front.
 	SpreaderPivot = CreateDefaultSubobject<USceneComponent>(TEXT("SpreaderPivot"));
 	SpreaderPivot->SetupAttachment(GetCapsuleComponent());
-	SpreaderPivot->SetRelativeLocation(FVector(AsphaltBalance::NozzleAheadCm, 0.0, -DIACharacter::CapsuleHalfHeightCm));
+	SpreaderPivot->SetRelativeLocationAndRotation(FVector(AsphaltBalance::NozzleAheadCm, 0.0, -DIACharacter::CapsuleHalfHeightCm),
+		FRotator(DIACharacter::SpreaderTiltDeg, 0.0, 0.0));
 
 	BackpackPivot = CreateDefaultSubobject<USceneComponent>(TEXT("BackpackPivot"));
 	BackpackPivot->SetupAttachment(BodyMesh, BackpackBone);
 	BackpackPivot->SetRelativeLocationAndRotation(DIACharacter::BackpackBoneOffsetCm, DIACharacter::BoneToCharacter);
+	BackpackPivot->SetRelativeScale3D(FVector(DIACharacter::BackpackScale));
 
 	HelmetPivot = CreateDefaultSubobject<USceneComponent>(TEXT("HelmetPivot"));
 	HelmetPivot->SetupAttachment(BodyMesh, HelmetBone);

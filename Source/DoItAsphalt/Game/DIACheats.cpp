@@ -14,6 +14,7 @@
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
+#include "GameFramework/SpringArmComponent.h"
 #include "GameFramework/PlayerController.h"
 #include "Game/DIAWorldSubsystem.h"
 #include "UI/DIAHUD.h"
@@ -26,6 +27,8 @@ namespace DIACheats
 {
 	/** Height of the top view camera above the centre of the site. */
 	constexpr double TopViewHeightCm = 4500.0;
+	/** Yaw of the top view camera: turned so that the plant (towards -X) is on the left of the picture and the roads fan out to the right. */
+	constexpr double TopViewYawDeg = -90.0;
 	/** Longest time ShotAndQuit waits for shaders and assets to finish compiling, in seconds. */
 	constexpr double CompileTimeoutSeconds = 300.0;
 	/** Quiet time after compiling finished before the picture is taken (frames need to show the final materials). */
@@ -278,6 +281,28 @@ namespace DIACheats
 		}
 	}
 
+	/** Puts the third-person camera <distance> cm behind the player, turned by <yawOffset> from the player's heading (for close-ups of the equipment). */
+	void CameraCommand(const TArray<FString>& Args, UWorld* World)
+	{
+		if (!Usage(Args.Num() >= 1 && Args.Num() <= 3, TEXT("dia.Camera <distanceCm> [yawOffsetDeg] [pitchDeg]")))
+		{
+			return;
+		}
+		APlayerController* PC = GetPlayerController(World);
+		APawn* Pawn = PC ? PC->GetPawn() : nullptr;
+		USpringArmComponent* Boom = Pawn ? Pawn->FindComponentByClass<USpringArmComponent>() : nullptr;
+		if (!Boom)
+		{
+			UE_LOG(LogDoItAsphalt, Warning, TEXT("dia.Camera: the player has no camera boom"));
+			return;
+		}
+		Boom->TargetArmLength = static_cast<float>(FCString::Atod(*Args[0]));
+		const double YawOffset = Args.Num() >= 2 ? FCString::Atod(*Args[1]) : 0.0;
+		const double Pitch = Args.Num() >= 3 ? FCString::Atod(*Args[2]) : 0.0;
+		PC->SetControlRotation(FRotator(Pitch, Pawn->GetActorRotation().Yaw + YawOffset, 0.0));
+		PC->SetViewTarget(Pawn);
+	}
+
 	TWeakObjectPtr<ACameraActor> TopViewCamera;
 
 	void TopView(const TArray<FString>& Args, UWorld* World)
@@ -292,7 +317,7 @@ namespace DIACheats
 		{
 			FActorSpawnParameters Params;
 			Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-			TopViewCamera = PlayWorld->SpawnActor<ACameraActor>(FVector(0.0, 0.0, TopViewHeightCm), FRotator(-90.0, 0.0, 0.0), Params);
+			TopViewCamera = PlayWorld->SpawnActor<ACameraActor>(FVector(0.0, 0.0, TopViewHeightCm), FRotator(-90.0, TopViewYawDeg, 0.0), Params);
 		}
 		if (TopViewCamera.IsValid())
 		{
@@ -386,6 +411,7 @@ namespace DIACheats
 	FAutoConsoleCommandWithWorldAndArgs ToastCommand(TEXT("dia.Toast"), TEXT("dia.Toast <text>: shows a toast"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Toast));
 	FAutoConsoleCommandWithWorldAndArgs ShopCommand(TEXT("dia.Shop"), TEXT("dia.Shop: opens the shop (Tab closes it)"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Shop));
 	FAutoConsoleCommandWithWorldAndArgs SkipMenuCommand(TEXT("dia.SkipMenu"), TEXT("dia.SkipMenu: closes the main menu without choosing anything (the game starts as it is; screenshots use it)"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&SkipMenu));
+	FAutoConsoleCommandWithWorldAndArgs CameraConsoleCommand(TEXT("dia.Camera"), TEXT("dia.Camera <distanceCm> [yawOffsetDeg] [pitchDeg]: third-person camera distance and angle relative to the player's heading"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&CameraCommand));
 	FAutoConsoleCommandWithWorldAndArgs TopViewCommand(TEXT("dia.TopView"), TEXT("dia.TopView: camera 45 m above the centre, looking straight down"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&TopView));
 	FAutoConsoleCommandWithWorldAndArgs ShotAndQuitCommand(TEXT("dia.ShotAndQuit"), TEXT("dia.ShotAndQuit <seconds> <name>: saves Saved/Screenshots/<name>.png and quits"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&ShotAndQuit));
 }

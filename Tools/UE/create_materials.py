@@ -18,6 +18,9 @@ import unreal
 
 MATERIAL_DIR = "/Game/Materials"
 
+# Factor on the (linear) letter colour in M_DIA_Text, see build_text.
+TEXT_BRIGHTNESS = 0.5
+
 # name -> (hex sRGB colour, metallic, roughness)
 PALETTE = {
     "DIA_Yellow":    ("#F2B705", 0.0, 0.6),
@@ -240,6 +243,46 @@ def build_flat():
     return mat
 
 
+def build_text():
+    """/Game/Materials/M_DIA_Text: the text material for UTextRenderComponent (kiosk boards, exit sign), unlit.
+
+    The engine's DefaultTextMaterialOpaque is a lit material: its specular term adds a grey haze, so black letters
+    come out mid-grey and dark red ones pale pink in the sun. This copy keeps its wiring (Font parameter, masked,
+    two-sided, vertex colour from the component's text colour) but is Unlit with the vertex colour as emissive, so the
+    letters show the colour they were given. Reported as DIA_AUX (a support asset), like T_Mask_Black.
+    """
+    src = "/Engine/EngineMaterials/DefaultTextMaterialOpaque"
+    path = "%s/M_DIA_Text" % MATERIAL_DIR
+    if not unreal.EditorAssetLibrary.does_asset_exist(path):
+        if unreal.EditorAssetLibrary.duplicate_asset(src, path) is None:
+            raise RuntimeError("could not duplicate %s to %s" % (src, path))
+    mat = unreal.EditorAssetLibrary.load_asset(path)
+    if mat is None:
+        raise RuntimeError("could not load %s" % path)
+    mat.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
+    vertex_colour = None
+    for expr in mel.get_material_expressions(mat):
+        if isinstance(expr, unreal.MaterialExpressionVertexColor):
+            vertex_colour = expr
+    if vertex_colour is None:
+        raise RuntimeError("%s has no vertex colour node" % path)
+    # Emissive is measured in the same units as the lit scene, so an unscaled colour is far brighter than a sun-lit white
+    # board; the factor brings the letters down to the colour that was asked for (tuned by looking at daylight screenshots).
+    # Reuse the nodes of an earlier run (deleting expressions of an engine copy crashed the editor once), else create them.
+    existing = {type(e): e for e in mel.get_material_expressions(mat)}
+    brightness = existing.get(unreal.MaterialExpressionScalarParameter) or node(
+        mat, unreal.MaterialExpressionScalarParameter, -500, 200, parameter_name="TextBrightness", default_value=TEXT_BRIGHTNESS)
+    brightness.set_editor_property("default_value", TEXT_BRIGHTNESS)
+    scaled = existing.get(unreal.MaterialExpressionMultiply) or node(mat, unreal.MaterialExpressionMultiply, -300, 100)
+    link(vertex_colour, scaled, "A")
+    link(brightness, scaled, "B")
+    mel.connect_material_property(scaled, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    mel.recompile_material(mat)
+    if not unreal.EditorAssetLibrary.save_asset(path, only_if_is_dirty=False):
+        raise RuntimeError("could not save %s" % path)
+    print("DIA_AUX %s" % path)
+
+
 def build_instances(parent):
     for name, (hex_colour, metallic, roughness) in PALETTE.items():
         inst_name = "MI_" + name
@@ -257,6 +300,7 @@ def build():
     build_ground()
     parent = build_flat()
     build_instances(parent)
+    build_text()
 
 
 try:
