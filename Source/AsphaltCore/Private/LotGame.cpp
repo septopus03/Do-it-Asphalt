@@ -9,6 +9,8 @@ namespace
 	 * which would otherwise keep the loop running for ever; real callers pass a frame time.
 	 */
 	constexpr double MaxTickSeconds = 86400.0;
+	/** The tolerance with which FLotGrid turns litres into texels; a stream rest this close to a texel's price is payable. */
+	constexpr double StreamEpsilon = 1e-9;
 	constexpr int32 NumItems = static_cast<int32>(ELotItem::Count);
 	constexpr int32 NumUnlocks = static_cast<int32>(ELotUnlock::Count);
 	constexpr int32 MaxPlantLevel = static_cast<int32>(UE_ARRAY_COUNT(LotBalance::PlantRateLPerMin)) - 1;
@@ -19,6 +21,16 @@ namespace
 	bool IsValidItem(ELotItem Item)
 	{
 		return static_cast<int32>(Item) >= 0 && static_cast<int32>(Item) < NumItems;
+	}
+
+	bool IsValidHand(ELotHand Item)
+	{
+		return static_cast<int32>(Item) >= 0 && static_cast<int32>(Item) < static_cast<int32>(ELotHand::Count);
+	}
+
+	bool IsFinitePoint(const FVector2D& Point)
+	{
+		return FMath::IsFinite(Point.X) && FMath::IsFinite(Point.Y);
 	}
 
 	bool IsValidUnlock(ELotUnlock Unlock)
@@ -183,6 +195,7 @@ FLotEvents FLotGame::Tick(double Dt)
 		const double Step = FMath::Min(Remaining, LotBalance::MaxStepSeconds);
 		PlaytimeSeconds += Step;
 		PlantStock = FMath::Min(PlantStock + GetPlantRatePerMin() / 60.0 * Step, GetPlantStorage());
+		SwapRemaining = FMath::Max(0.0, SwapRemaining - Step);
 		Remaining -= Step;
 	}
 	return Events;
@@ -254,6 +267,168 @@ FLotEvents FLotGame::DebugCompleteCells(int32 Count)
 		--Count;
 	}
 	return ApplyPour(Total);
+}
+
+bool FLotGame::CanSelectHand(ELotHand NewHand) const
+{
+	switch (NewHand)
+	{
+	case ELotHand::Bowl:
+	case ELotHand::Trowel:
+		return true;
+	case ELotHand::Scoop:
+		return Owns(ELotItem::Scoop);
+	case ELotHand::Bucket:
+		return Owns(ELotItem::Bucket);
+	default:
+		return false;
+	}
+}
+
+bool FLotGame::SelectHand(ELotHand NewHand)
+{
+	if (!CanSelectHand(NewHand))
+	{
+		return false;
+	}
+	if (NewHand == Hand)
+	{
+		return true;
+	}
+	if (!HandsFree())
+	{
+		return false;
+	}
+	Hand = NewHand;
+	StreamBudget = 0.0;
+	StrokeTimer = 0.0;
+	SwapRemaining = IsUnlocked(ELotUnlock::QuickSwap) ? 0.0 : LotBalance::SwapSeconds;
+	return true;
+}
+
+double FLotGame::GetHandLitres(ELotHand Item) const
+{
+	return IsValidHand(Item) ? HandLitres[static_cast<int32>(Item)] : 0.0;
+}
+
+double FLotGame::GetHandCapacity(ELotHand Item) const
+{
+	return IsValidHand(Item) ? LotBalance::HandCapacityL[static_cast<int32>(Item)] : 0.0;
+}
+
+double FLotGame::ScoopFromTrough(double Dt)
+{
+	if (!(Dt > 0.0) || !FMath::IsFinite(Dt))
+	{
+		return 0.0;
+	}
+	const bool bVessel = Hand == ELotHand::Bowl || Hand == ELotHand::Scoop;
+	// The scoop in hand lifts a full scoop; the bowl is filled with the spoon, or with the scoop once it is owned.
+	const double Stroke = (Hand == ELotHand::Scoop || Owns(ELotItem::Scoop)) ? LotBalance::ScoopLitres : LotBalance::SpoonLitres;
+	double& Content = HandLitres[static_cast<int32>(Hand)];
+	if (!bVessel || !HandsFree() || Content >= GetHandCapacity(Hand) || !(PlantStock > 0.0))
+	{
+		StrokeTimer = 0.0;
+		return 0.0;
+	}
+
+	double Moved = 0.0;
+	StrokeTimer += FMath::Min(Dt, MaxTickSeconds);
+	while (StrokeTimer >= LotBalance::ScoopCycleSeconds)
+	{
+		StrokeTimer -= LotBalance::ScoopCycleSeconds;
+		const double Amount = FMath::Min3(Stroke, GetHandCapacity(Hand) - Content, PlantStock);
+		if (!(Amount > 0.0))
+		{
+			StrokeTimer = 0.0;
+			break;
+		}
+		Content += Amount;
+		PlantStock -= Amount;
+		Moved += Amount;
+	}
+	return Moved;
+}
+
+double FLotGame::GetSourceRate(ELotSource Source) const
+{
+	switch (Source)
+	{
+	case ELotSource::Plant:
+		return LotBalance::DispenseRateLPerS(PlantLevel);
+	default:
+		// The suitcase and the cart (TapRateLPerS) are completed together with them.
+		return 0.0;
+	}
+}
+
+double FLotGame::FillBucket(ELotSource Source, double Dt)
+{
+	if (!(Dt > 0.0) || !FMath::IsFinite(Dt) || !Owns(ELotItem::Bucket) || Hand == ELotHand::Bucket || !HandsFree())
+	{
+		return 0.0;
+	}
+	double& Content = HandLitres[static_cast<int32>(ELotHand::Bucket)];
+	const double Rate = GetSourceRate(Source);
+	double Available = Rate > 0.0 ? TNumericLimits<double>::Max() : 0.0;
+	if (Source == ELotSource::Plant)
+	{
+		Available = PlantStock;
+	}
+	const double Moved = FMath::Max(0.0, FMath::Min3(Rate * FMath::Min(Dt, MaxTickSeconds), GetHandCapacity(ELotHand::Bucket) - Content, Available));
+	Content += Moved;
+	if (Source == ELotSource::Plant)
+	{
+		PlantStock -= Moved;
+	}
+	return Moved;
+}
+
+FLotEvents FLotGame::PourHand(FVector2D Aim, FVector2D From, double Dt)
+{
+	const double Radius = (Hand == ELotHand::Bowl || Hand == ELotHand::Scoop) ? LotBalance::PourRadiusCm[static_cast<int32>(Hand)] : 0.0;
+	if (!(Radius > 0.0) || !HandsFree() || !(Dt > 0.0) || !FMath::IsFinite(Dt) || !IsFinitePoint(Aim) || !IsFinitePoint(From))
+	{
+		return FLotEvents();
+	}
+	double& Content = HandLitres[static_cast<int32>(Hand)];
+	StreamBudget = FMath::Min(StreamBudget + LotBalance::HandPourRateLPerS * FMath::Min(Dt, MaxTickSeconds), Content);
+	const FLotPour Pour = Grid.PourDisc(Aim, Radius, StreamBudget, From);
+	Content = FMath::Max(0.0, Content - Pour.LitresUsed);
+	StreamBudget = FMath::Max(0.0, StreamBudget - Pour.LitresUsed);
+	// A rest the grid could still pay for means the whole footprint is taken: the stream does not wait for it.
+	if (StreamBudget + StreamEpsilon >= FLotGrid::LitresPerTexel)
+	{
+		StreamBudget = 0.0;
+	}
+	return ApplyPour(Pour);
+}
+
+FLotEvents FLotGame::DumpBucket(FVector2D Aim, FVector2D From)
+{
+	double& Content = HandLitres[static_cast<int32>(ELotHand::Bucket)];
+	const int32 Cell = IsFinitePoint(Aim) ? AsphaltLot::CellAt(Aim) : INDEX_NONE;
+	if (Hand != ELotHand::Bucket || !HandsFree() || Cell == INDEX_NONE || !(Content > 0.0))
+	{
+		return FLotEvents();
+	}
+	const FLotPour Pour = Grid.DepositIntoCell(Cell, Content, From, ELotTexel::Done);
+	Content = FMath::Max(0.0, Content - Pour.LitresUsed);
+	return ApplyPour(Pour);
+}
+
+FLotEvents FLotGame::Trowel(FVector2D A, FVector2D B)
+{
+	if (Hand != ELotHand::Trowel || !HandsFree())
+	{
+		return FLotEvents();
+	}
+	return ApplyPour(Grid.FinishRaw(A, B, LotBalance::TrowelWidthCm));
+}
+
+bool FLotGame::HandsFree() const
+{
+	return !IsHandBusy();
 }
 
 FLotEvents FLotGame::ApplyPour(const FLotPour& Pour)

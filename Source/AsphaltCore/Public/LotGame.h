@@ -85,6 +85,39 @@ public:
 	/** Marks the game as won; ignored until the exit is open. */
 	void SetWon();
 
+	ELotHand GetHand() const { return Hand; }
+	/** True if the hand item can be taken: the bowl and the trowel always, the scoop and the bucket once bought. */
+	bool CanSelectHand(ELotHand NewHand) const;
+	/**
+	 * Takes another item into the hand and clears the pour stream. Returns true at once if it is already in hand;
+	 * false if it cannot be taken or the hands are busy. Without the quick swap the hands stay busy for SwapSeconds.
+	 */
+	bool SelectHand(ELotHand NewHand);
+	/** True while a swap is in progress; no hand action works meanwhile. */
+	bool IsHandBusy() const { return SwapRemaining > 0.0; }
+	/** Litres the item holds (each item keeps its own content); 0 for the trowel and an invalid item. */
+	double GetHandLitres(ELotHand Item) const;
+	double GetHandCapacity(ELotHand Item) const;
+
+	/**
+	 * Holding the scoop button for Dt seconds: every ScoopCycleSeconds one stroke moves litres from the plant stock
+	 * into the bowl (SpoonLitres, ScoopLitres once the scoop is owned) or the scoop in hand, as much as fits and as
+	 * the stock allows. A stroke that moves nothing resets the stroke timer. Returns the litres moved by this call.
+	 */
+	double ScoopFromTrough(double Dt);
+	/** Moves DispenseRateLPerS * Dt from the plant stock into the bucket; the bucket must be owned and not in hand. Returns litres moved. */
+	double FillBucket(ELotSource Source, double Dt);
+	/**
+	 * Pours from the bowl or the scoop in hand for Dt seconds: the stream budget grows by HandPourRateLPerS * Dt (at
+	 * most the content), is spent on PourDisc around Aim (nearest to From first) and the part below one texel's
+	 * price is carried to the next call.
+	 */
+	FLotEvents PourHand(FVector2D Aim, FVector2D From, double Dt);
+	/** Empties the bucket in hand into the cell under Aim; what does not fit stays in the bucket. */
+	FLotEvents DumpBucket(FVector2D Aim, FVector2D From);
+	/** Turns the raw asphalt under the strip A->B (TrowelWidthCm wide) into finished asphalt; trowel in hand only. */
+	FLotEvents Trowel(FVector2D A, FVector2D B);
+
 	void DebugGive(double CreditsToAdd);
 	void DebugGrantItem(ELotItem Item);
 	/** Sets the plant level; a level outside 0..5 is ignored. The stock is clipped to the new storage. */
@@ -96,6 +129,10 @@ public:
 	FLotEvents DebugCompleteCells(int32 Count);
 
 private:
+	/** True if hand actions are allowed: no swap in progress. */
+	bool HandsFree() const;
+	/** Litres moved per second from a source into the bucket; 0 for sources that are not available yet. */
+	double GetSourceRate(ELotSource Source) const;
 	/** Books a pour: pays credits, adds litres, compares the unlock state before and after. */
 	FLotEvents ApplyPour(const FLotPour& Pour);
 
@@ -107,4 +144,12 @@ private:
 	int32 PlantLevel = 0;
 	bool bOwned[static_cast<int32>(ELotItem::Count)] = {};
 	bool bWon = false;
+	ELotHand Hand = ELotHand::Bowl;
+	double HandLitres[static_cast<int32>(ELotHand::Count)] = {};
+	/** Seconds left of the current swap. */
+	double SwapRemaining = 0.0;
+	/** Seconds accumulated towards the next scoop stroke. */
+	double StrokeTimer = 0.0;
+	/** Litres of the pour stream earned but not yet spent (below one texel's price between calls). */
+	double StreamBudget = 0.0;
 };
