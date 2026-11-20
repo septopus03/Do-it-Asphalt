@@ -10,7 +10,7 @@ class UBoxComponent;
 class UStaticMeshComponent;
 class UDIAWorldSubsystem;
 
-/** Where the addons are built is AsphaltBalance::PlantAddonALevel / PlantAddonBLevel (levels are 0-based like AsphaltBalance::PlantRateLPerMin). */
+/** Where the addons are built is LotBalance::PlantAddonALevel / PlantAddonBLevel (plant levels 0..5). */
 namespace DIAPlant
 {
 	/** Where the addons stand, relative to the plant's origin (the centre of its footprint). */
@@ -19,10 +19,10 @@ namespace DIAPlant
 }
 
 /**
- * The asphalt plant at AsphaltLayout::PlantPos (it faces +X) with a flat disc on the ground that marks the refill
- * zone. The plant blocks the player; the zone is only a marker, the refilling itself is done by the character.
- * The plant grows with its upgrade: the second silo (SM_Plant_AddonA) from plant level 5 and the lying tank
- * (SM_Plant_AddonB) from level 10; they are there from the start but hidden (and without collision) until then.
+ * The asphalt plant at LotLayout::PlantPos, turned by LotLayout::PlantYawDeg so that its outlet faces the car park, and the
+ * trough (SM_Trough) at LotLayout::TroughPos under the outlet. Both block the player, but not the camera boom. The plant grows
+ * with its level: the second silo (SM_Plant_AddonA) from LotBalance::PlantAddonALevel and the lying tank (SM_Plant_AddonB) from
+ * LotBalance::PlantAddonBLevel; they are there from the start but hidden (and without collision) until then.
  */
 UCLASS(NotBlueprintable)
 class DOITASPHALT_API ADIAPlantActor : public AActor
@@ -33,7 +33,7 @@ public:
 	ADIAPlantActor();
 
 	UStaticMeshComponent* GetPlantMesh() const { return PlantMesh; }
-	UStaticMeshComponent* GetZoneMarker() const { return ZoneMarker; }
+	UStaticMeshComponent* GetTroughMesh() const { return TroughMesh; }
 	UBoxComponent* GetCollision() const { return Collision; }
 	UStaticMeshComponent* GetAddonA() const { return AddonA; }
 	UStaticMeshComponent* GetAddonB() const { return AddonB; }
@@ -55,8 +55,9 @@ private:
 	UPROPERTY()
 	TObjectPtr<UStaticMeshComponent> PlantMesh;
 
+	/** The trough under the outlet; placed in the world at TroughPos whatever the plant's own yaw is. */
 	UPROPERTY()
-	TObjectPtr<UStaticMeshComponent> ZoneMarker;
+	TObjectPtr<UStaticMeshComponent> TroughMesh;
 
 	UPROPERTY()
 	TObjectPtr<UStaticMeshComponent> AddonA;

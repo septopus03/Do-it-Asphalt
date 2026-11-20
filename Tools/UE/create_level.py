@@ -14,7 +14,7 @@ import unreal
 
 MAP_PATH = "/Game/Maps/L_Main"
 
-# Must equal AsphaltLayout::PlayerStartYawDeg (this script runs inside Unreal and cannot read the C++ constant; the game
+# Must equal LotLayout::PlayerStartYawDeg (this script runs inside Unreal and cannot read the C++ constant; the game
 # also sets the same yaw in code, so the map and the code agree on where the player looks at the start).
 PLAYER_START_YAW_DEG = 180.0
 

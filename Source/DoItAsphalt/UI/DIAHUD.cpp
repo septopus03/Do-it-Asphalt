@@ -1,7 +1,7 @@
 // Copyright Do it Asphalt. All Rights Reserved.
 
 #include "UI/DIAHUD.h"
-#include "AsphaltBalance.h"
+#include "LotBalance.h"
 #include "Engine/Engine.h"
 #include "Engine/GameViewportClient.h"
 #include "Engine/World.h"
@@ -13,7 +13,6 @@
 #include "Player/DIAPlayerController.h"
 #include "UI/SDIAHudOverlay.h"
 #include "UI/SDIAMenu.h"
-#include "UI/SDIAShopPanel.h"
 #include "UI/SDIAWinScreen.h"
 
 ADIAHUD::ADIAHUD()
@@ -37,37 +36,12 @@ void ADIAHUD::ShowToast(const FText& Text)
 	Toasts.Add(Text);
 }
 
-void ADIAHUD::ToggleShop()
-{
-	SetShopOpen(!bShopOpen);
-}
-
-void ADIAHUD::SetShopOpen(bool bOpen)
-{
-	// The win screen and the menu own the screen.
-	if (bShopOpen == bOpen || (bOpen && (bWinShown || IsMenuOpen())))
-	{
-		return;
-	}
-	bShopOpen = bOpen;
-	if (ShopPanel.IsValid())
-	{
-		ShopPanel->SetVisibility(bShopOpen ? EVisibility::SelfHitTestInvisible : EVisibility::Collapsed);
-	}
-	// The cursor and the mouse go to the panel (and back to the camera); the controller also stops pouring.
-	if (ADIAPlayerController* Controller = Cast<ADIAPlayerController>(GetOwningPlayerController()))
-	{
-		Controller->SetShopInput(bShopOpen);
-	}
-}
-
 void ADIAHUD::ShowWinScreen()
 {
 	if (bWinShown)
 	{
 		return;
 	}
-	SetShopOpen(false);
 	bWinShown = true;
 	if (const UDIAWorldSubsystem* Subsystem = BoundSubsystem.Get())
 	{
@@ -133,7 +107,6 @@ void ADIAHUD::OpenMenu(EDIAMenuMode Mode)
 	{
 		return;
 	}
-	SetShopOpen(false);
 	MenuMode = Mode;
 	if (Menu.IsValid())
 	{
@@ -207,8 +180,9 @@ void ADIAHUD::BeginPlay()
 	{
 		BoundSubsystem = Subsystem;
 		CellsHandle = Subsystem->OnCellsCompleted.AddUObject(this, &ADIAHUD::HandleCellsCompleted);
-		RoadHandle = Subsystem->OnRoadCompleted.AddUObject(this, &ADIAHUD::HandleRoadCompleted);
-		SpecialHandle = Subsystem->OnSpecialBought.AddUObject(this, &ADIAHUD::HandleSpecialBought);
+		EntryHandle = Subsystem->OnEntryCompleted.AddUObject(this, &ADIAHUD::HandleEntryCompleted);
+		UnlockHandle = Subsystem->OnUnlocked.AddUObject(this, &ADIAHUD::HandleUnlocked);
+		ItemHandle = Subsystem->OnItemBought.AddUObject(this, &ADIAHUD::HandleItemBought);
 		ExitHandle = Subsystem->OnExitOpened.AddUObject(this, &ADIAHUD::HandleExitOpened);
 		WonHandle = Subsystem->OnWon.AddUObject(this, &ADIAHUD::HandleWon);
 		ResetHandle = Subsystem->OnGameReset.AddUObject(this, &ADIAHUD::HandleGameReset);
@@ -221,14 +195,16 @@ void ADIAHUD::EndPlay(const EEndPlayReason::Type Reason)
 	if (UDIAWorldSubsystem* Subsystem = BoundSubsystem.Get())
 	{
 		Subsystem->OnCellsCompleted.Remove(CellsHandle);
-		Subsystem->OnRoadCompleted.Remove(RoadHandle);
-		Subsystem->OnSpecialBought.Remove(SpecialHandle);
+		Subsystem->OnEntryCompleted.Remove(EntryHandle);
+		Subsystem->OnUnlocked.Remove(UnlockHandle);
+		Subsystem->OnItemBought.Remove(ItemHandle);
 		Subsystem->OnExitOpened.Remove(ExitHandle);
 		Subsystem->OnWon.Remove(WonHandle);
 		Subsystem->OnGameReset.Remove(ResetHandle);
 	}
 	// The controller outlives the HUD's panels: give back what they took (the cursor, the input mode, the pause).
-	SetShopOpen(false);
+	// A win screen that is still up releases its input too.
+	HideWinScreen();
 	DismissMenu();
 	DestroyOverlay();
 	Super::EndPlay(Reason);
@@ -249,10 +225,6 @@ void ADIAHUD::CreateOverlay(UDIAWorldSubsystem* Subsystem)
 	}
 	Overlay = SNew(SDIAHudOverlay).Hud(this).Subsystem(Subsystem);
 	GEngine->GameViewport->AddViewportWidgetContent(Overlay.ToSharedRef(), AsphaltHud::ViewportZOrder);
-
-	ShopPanel = SNew(SDIAShopPanel).Subsystem(Subsystem);
-	ShopPanel->SetVisibility(bShopOpen ? EVisibility::SelfHitTestInvisible : EVisibility::Collapsed);
-	GEngine->GameViewport->AddViewportWidgetContent(ShopPanel.ToSharedRef(), AsphaltHud::ShopZOrder);
 
 	WinScreen = SNew(SDIAWinScreen)
 		.OnNewGame(FSimpleDelegate::CreateUObject(this, &ADIAHUD::NewGame))
@@ -288,15 +260,6 @@ void ADIAHUD::DestroyOverlay()
 		}
 		WinScreen.Reset();
 	}
-	if (ShopPanel.IsValid())
-	{
-		ShopPanel->Unbind();
-		if (GEngine && GEngine->GameViewport)
-		{
-			GEngine->GameViewport->RemoveViewportWidgetContent(ShopPanel.ToSharedRef());
-		}
-		ShopPanel.Reset();
-	}
 	if (Overlay.IsValid())
 	{
 		Overlay->Unbind();
@@ -310,17 +273,22 @@ void ADIAHUD::DestroyOverlay()
 
 void ADIAHUD::HandleCellsCompleted(const TArray<int32>& Cells)
 {
-	ShowToast(DIAFormat::ShardsToast(Cells.Num() * AsphaltBalance::ShardsPerCell));
+	ShowToast(DIAFormat::CreditsToast(Cells.Num() * LotBalance::CreditsPerCell));
 }
 
-void ADIAHUD::HandleRoadCompleted(int32 Road)
+void ADIAHUD::HandleEntryCompleted(int32 Entry)
 {
-	ShowToast(DIAFormat::RoadToast(Road));
+	ShowToast(DIAFormat::EntryToast(Entry));
 }
 
-void ADIAHUD::HandleSpecialBought(EAsphaltSpecial Special)
+void ADIAHUD::HandleUnlocked(ELotUnlock Unlock)
 {
-	ShowToast(DIAFormat::SpecialToast(Special));
+	ShowToast(DIAFormat::UnlockToast(Unlock));
+}
+
+void ADIAHUD::HandleItemBought(ELotItem Item)
+{
+	ShowToast(DIAFormat::ItemBoughtToast(Item));
 }
 
 void ADIAHUD::HandleExitOpened()

@@ -3,11 +3,11 @@
 // Tests are not part of a Shipping build.
 #if WITH_DEV_AUTOMATION_TESTS
 
-#include "AsphaltBalance.h"
-#include "AsphaltGame.h"
-#include "AsphaltLayout.h"
 #include "AsphaltTest.h"
 #include "Engine/World.h"
+#include "LotBalance.h"
+#include "LotGame.h"
+#include "LotMap.h"
 #include "UI/DIAFormat.h"
 #include "UI/DIAHudStyle.h"
 
@@ -20,105 +20,106 @@ bool FFormatTest::RunTest(const FString& Parameters)
 		TestEqual(What, Actual.ToString(), FString(Expected));
 	};
 
-	// Money: whole units, rounded down, thousands separated.
-	Is(TEXT("money 1234.7"), DIAFormat::Money(1234.7), TEXT("1,234"));
-	Is(TEXT("money 0"), DIAFormat::Money(0.0), TEXT("0"));
-	Is(TEXT("money 999.99"), DIAFormat::Money(999.99), TEXT("999"));
-	Is(TEXT("money 1234567"), DIAFormat::Money(1234567.0), TEXT("1,234,567"));
-	Is(TEXT("money negative never shows a minus"), DIAFormat::Money(-3.0), TEXT("0"));
+	// Credits: whole units, rounded down, thousands separated.
+	Is(TEXT("credits 1234.7"), DIAFormat::Credits(1234.7), TEXT("1,234"));
+	Is(TEXT("credits 0"), DIAFormat::Credits(0.0), TEXT("0"));
+	Is(TEXT("credits 999.99"), DIAFormat::Credits(999.99), TEXT("999"));
+	Is(TEXT("credits 1234567"), DIAFormat::Credits(1234567.0), TEXT("1,234,567"));
+	Is(TEXT("credits negative never shows a minus"), DIAFormat::Credits(-3.0), TEXT("0"));
 
 	// Litres: one decimal at most, rounded down so that "full" really means full.
 	Is(TEXT("litres 3.24 / 5"), DIAFormat::Litres(3.24, 5.0), TEXT("3.2 / 5 L"));
 	Is(TEXT("litres 200 / 200"), DIAFormat::Litres(200.0, 200.0), TEXT("200 / 200 L"));
-	Is(TEXT("litres 0 / 5"), DIAFormat::Litres(0.0, 5.0), TEXT("0 / 5 L"));
 	Is(TEXT("litres 4.99 / 5 is not shown as full"), DIAFormat::Litres(4.99, 5.0), TEXT("4.9 / 5 L"));
-	Is(TEXT("litres 42 / 60"), DIAFormat::Litres(42.0, 60.0), TEXT("42 / 60 L"));
 
 	// Progress: cells done / total and the percentage rounded down (100 % only when really done).
-	Is(TEXT("progress 137 / 499"), DIAFormat::Progress(137, 499), TEXT("137 / 499 · 27%"));
-	Is(TEXT("progress 0 / 499"), DIAFormat::Progress(0, 499), TEXT("0 / 499 · 0%"));
-	Is(TEXT("progress 499 / 499"), DIAFormat::Progress(499, 499), TEXT("499 / 499 · 100%"));
-	Is(TEXT("progress 498 / 499 is not 100"), DIAFormat::Progress(498, 499), TEXT("498 / 499 · 99%"));
+	Is(TEXT("progress 137 / 30,000"), DIAFormat::Progress(137, AsphaltLot::NumCells), TEXT("137 / 30,000 · 0%"));
+	Is(TEXT("progress 15,000 / 30,000"), DIAFormat::Progress(15000, AsphaltLot::NumCells), TEXT("15,000 / 30,000 · 50%"));
+	Is(TEXT("progress 30,000 / 30,000"), DIAFormat::Progress(AsphaltLot::NumCells, AsphaltLot::NumCells), TEXT("30,000 / 30,000 · 100%"));
+	Is(TEXT("progress 29,999 is not 100"), DIAFormat::Progress(AsphaltLot::NumCells - 1, AsphaltLot::NumCells), TEXT("29,999 / 30,000 · 99%"));
 	Is(TEXT("progress without cells does not divide by zero"), DIAFormat::Progress(0, 0), TEXT("0 / 0 · 0%"));
 
-	// Price: money, shards (singular and plural) and the maximum level.
-	Is(TEXT("price 25"), DIAFormat::Price(25.0, false), TEXT("25"));
-	Is(TEXT("price 600"), DIAFormat::Price(600.0, false), TEXT("600"));
-	Is(TEXT("price 1,200"), DIAFormat::Price(1200.0, false), TEXT("1,200"));
-	Is(TEXT("price 4 shards"), DIAFormat::Price(4.0, true), TEXT("4 shards"));
-	Is(TEXT("price 1 shard"), DIAFormat::Price(1.0, true), TEXT("1 shard"));
-	Is(TEXT("price MAX"), DIAFormat::Price(-1.0, false), TEXT("MAX"));
-	Is(TEXT("price MAX for shards too"), DIAFormat::Price(-1.0, true), TEXT("MAX"));
+	Is(TEXT("count"), DIAFormat::Count(1234567), TEXT("1,234,567"));
+	Is(TEXT("duration 754"), DIAFormat::Duration(754.0), TEXT("12:34"));
+	Is(TEXT("duration 3725"), DIAFormat::Duration(3725.0), TEXT("1:02:05"));
+	Is(TEXT("litres poured"), DIAFormat::LitresPoured(12345.9), TEXT("12,345 L"));
+	Is(TEXT("items owned"), DIAFormat::Items(8, 16), TEXT("8 / 16"));
 
 	// Toast and prompt texts.
-	Is(TEXT("toast 1 shard"), DIAFormat::ShardsToast(1), TEXT("+1 shard"));
-	Is(TEXT("toast 137 shards"), DIAFormat::ShardsToast(137), TEXT("+137 shards"));
-	Is(TEXT("toast road"), DIAFormat::RoadToast(2), TEXT("Road 3 complete"));
+	Is(TEXT("toast credits"), DIAFormat::CreditsToast(30.0), TEXT("+30 credits"));
+	Is(TEXT("toast one credit"), DIAFormat::CreditsToast(1.0), TEXT("+1 credit"));
+	Is(TEXT("toast entry"), DIAFormat::EntryToast(2), TEXT("Entry 3 complete"));
 	Is(TEXT("toast exit"), DIAFormat::ExitToast(), TEXT("The exit is open!"));
-	Is(TEXT("special name"), DIAFormat::SpecialName(EAsphaltSpecial::PortableStation), TEXT("Portable Station"));
-	Is(TEXT("special toast"), DIAFormat::SpecialToast(EAsphaltSpecial::Sprint), TEXT("Sprint unlocked"));
+	Is(TEXT("item name"), DIAFormat::ItemName(ELotItem::AutoPaver), TEXT("Auto Paver"));
+	Is(TEXT("item toast"), DIAFormat::ItemBoughtToast(ELotItem::Scoop), TEXT("Scoop bought"));
+	Is(TEXT("unlock name"), DIAFormat::UnlockName(ELotUnlock::Sprint), TEXT("Sprint"));
+	Is(TEXT("unlock toast"), DIAFormat::UnlockToast(ELotUnlock::Sprint), TEXT("Sprint unlocked"));
+	Is(TEXT("plant toast"), DIAFormat::PlantToast(3), TEXT("Plant level 3"));
+
+	// Every item and unlock has a name.
+	for (int32 I = 0; I < static_cast<int32>(ELotItem::Count); ++I)
+	{
+		TestFalse(*FString::Printf(TEXT("item %d has a name"), I), DIAFormat::ItemName(static_cast<ELotItem>(I)).IsEmpty());
+	}
+	for (int32 I = 0; I < static_cast<int32>(ELotUnlock::Count); ++I)
+	{
+		TestFalse(*FString::Printf(TEXT("unlock %d has a name"), I), DIAFormat::UnlockName(static_cast<ELotUnlock>(I)).IsEmpty());
+	}
 	return true;
 }
 
-DIA_TEST(FHudModelTest, "DoItAsphalt.Game.HudModel")
+DIA_TEST(FHudModelTest, "DoItAsphalt.Game.Hud.Model")
 
 bool FHudModelTest::RunTest(const FString& Parameters)
 {
-	FAsphaltGame Game;
-	for (int32 Cell = 0; Cell < 137; ++Cell)
-	{
-		Game.DebugCompleteCell(Cell);
-	}
-	// Completing cells paid out already; top up to exactly 1234.7 money and 17 shards.
-	Game.DebugGive(1234.7 - Game.GetMoney(), 17 - Game.GetShards());
-	// Far from every refill point.
-	Game.World().PlayerPos = FVector2D(0.0, 0.0);
+	FLotGame Game;
+	Game.DebugCompleteCells(137);
 
 	FDIAHudModel Model;
 	TestTrue(TEXT("the first update builds the view"), Model.Update(Game));
-	TestEqual(TEXT("money text"), Model.GetView().Money.ToString(), FString(TEXT("1,234")));
-	TestEqual(TEXT("shards text"), Model.GetView().Shards.ToString(), FString(TEXT("17")));
-	TestEqual(TEXT("progress text"), Model.GetView().Progress.ToString(), FString(TEXT("137 / 499 · 27%")));
-	TestEqual(TEXT("backpack text"), Model.GetView().Backpack.ToString(), FString(TEXT("0 / 5 L")));
-	TestFalse(TEXT("no stock far from the plant"), Model.GetView().bShowStock);
-	TestEqual(TEXT("progress bar"), Model.GetView().ProgressFraction, 137.f / 499.f, 1e-4f);
-	TestEqual(TEXT("empty backpack bar"), Model.GetView().BackpackFraction, 0.f);
+	TestEqual(TEXT("credits text"), Model.GetView().Credits.ToString(), FString(TEXT("1,370")));
+	TestTrue(TEXT("progress text"), Model.GetView().Progress.ToString().StartsWith(TEXT("137 / 30,000")));
+	TestEqual(TEXT("progress text in full"), Model.GetView().Progress.ToString(), FString(TEXT("137 / 30,000 · 0%")));
+	TestEqual(TEXT("progress bar"), Model.GetView().ProgressFraction, 137.f / 30000.f, 1e-6f);
 
-	// The plant keeps producing every tick; far from the plant the shown values do not change, so nothing is rebuilt.
+	// The plant keeps producing and the clock runs, but neither is shown: nothing is rebuilt.
 	const int32 Rebuilds = Model.GetRebuildCount();
 	for (int32 I = 0; I < 50; ++I)
 	{
 		Game.Tick(0.016);
 		TestFalse(TEXT("unchanged display is not rebuilt"), Model.Update(Game));
 	}
-	TestEqual(TEXT("no rebuild during production far from the plant"), Model.GetRebuildCount(), Rebuilds);
+	TestEqual(TEXT("no rebuild during production"), Model.GetRebuildCount(), Rebuilds);
 
-	// Near the plant the stock is shown: 15 l/min is 0.25 l/s, so a tenth of a litre per 0.4 s changes the text.
-	Game.World().PlayerPos = AsphaltLayout::RefillCenter + FVector2D(AsphaltHud::StockRadiusCm - 1.0, 0.0);
-	TestTrue(TEXT("entering the radius changes the view"), Model.Update(Game));
-	TestTrue(TEXT("stock shown within the radius"), Model.GetView().bShowStock);
-	const FString StockBefore = Model.GetView().Stock.ToString();
-	TestTrue(TEXT("stock text is litres of the plant storage"), StockBefore.EndsWith(FString::Printf(TEXT("/ %d L"), FMath::RoundToInt(Game.GetPlantStorage()))));
-	int32 Changes = 0;
-	for (int32 I = 0; I < 100; ++I)
-	{
-		Game.Tick(0.1);
-		Changes += Model.Update(Game) ? 1 : 0;
-	}
-	// 10 s of production is 2.5 l: about 25 tenth-litre changes, far fewer than the 100 updates.
-	TestTrue(TEXT("stock text follows production"), Changes >= 20 && Changes <= 30);
-	TestNotEqual(TEXT("stock text moved"), Model.GetView().Stock.ToString(), StockBefore);
+	// What is shown changes the view.
+	Game.DebugGive(5.0);
+	TestTrue(TEXT("more credits rebuild the view"), Model.Update(Game));
+	TestEqual(TEXT("credits follow"), Model.GetView().Credits.ToString(), FString(TEXT("1,375")));
+	Game.DebugCompleteCell(AsphaltLot::CellIndex(150, 50));
+	TestTrue(TEXT("a completed cell rebuilds the view"), Model.Update(Game));
+	TestEqual(TEXT("progress follows"), Model.GetView().Progress.ToString(), FString(TEXT("138 / 30,000 · 0%")));
+	return true;
+}
 
-	// Just outside the radius the stock disappears again.
-	Game.World().PlayerPos = AsphaltLayout::RefillCenter + FVector2D(AsphaltHud::StockRadiusCm + 1.0, 0.0);
-	TestTrue(TEXT("leaving the radius changes the view"), Model.Update(Game));
-	TestFalse(TEXT("no stock outside the radius"), Model.GetView().bShowStock);
+DIA_TEST(FWinModelTest, "DoItAsphalt.Game.WinModelFormat")
 
-	// The paver car shows its tank instead of the backpack.
-	Game.DebugGrantSpecial(EAsphaltSpecial::PaverCar);
-	Game.World().bPlayerInCar = true;
-	TestTrue(TEXT("getting into the car changes the view"), Model.Update(Game));
-	TestEqual(TEXT("car tank text"), Model.GetView().Backpack.ToString(), FString::Printf(TEXT("0 / %d L"), FMath::RoundToInt(AsphaltBalance::CarTankL)));
+bool FWinModelTest::RunTest(const FString& Parameters)
+{
+	FLotGame Game;
+	FDIAWinModel Model;
+	TestTrue(TEXT("the first update builds the view"), Model.Update(Game));
+	TestEqual(TEXT("no items yet"), Model.GetView().Items.ToString(), FString::Printf(TEXT("0 / %d"), FDIAWinModel::ItemsTotal()));
+	TestEqual(TEXT("no credits earned yet"), Model.GetView().Credits.ToString(), FString(TEXT("0")));
+	TestFalse(TEXT("nothing changed"), Model.Update(Game));
+
+	// Credits earned are what the cells paid, not what is left in the purse.
+	Game.DebugCompleteCells(200);
+	Game.DebugGrantItem(ELotItem::Scoop);
+	Game.DebugSetPlantLevel(2);
+	TestEqual(TEXT("items and plant levels count"), FDIAWinModel::ItemsBought(Game), 3);
+	TestTrue(TEXT("changes rebuild the view"), Model.Update(Game));
+	TestEqual(TEXT("credits earned"), Model.GetView().Credits.ToString(), FString(TEXT("2,000")));
+	TestEqual(TEXT("items text"), Model.GetView().Items.ToString(), FString::Printf(TEXT("3 / %d"), FDIAWinModel::ItemsTotal()));
 	return true;
 }
 

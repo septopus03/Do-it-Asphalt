@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "AsphaltGame.h"
+#include "LotGame.h"
 #include "Brushes/SlateRoundedBoxBrush.h"
 #include "Styling/SlateTypes.h"
 #include "UI/DIAFormat.h"
@@ -28,7 +28,7 @@ public:
 	void Construct(const FArguments& InArgs);
 
 	/** Reads the statistics from the game and shows the screen. */
-	void Show(const FAsphaltGame& Game);
+	void Show(const FLotGame& Game);
 	/** Hides the screen again (a new game was started from it, or a game that is not won was loaded). */
 	void Hide();
 

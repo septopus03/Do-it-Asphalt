@@ -3,14 +3,14 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "AsphaltGame.h"
+#include "LotGame.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "Engine/World.h"
 #include "World/DIAInteractable.h"
 #include "DIAWorldSubsystem.generated.h"
 
 /**
- * Owns the one FAsphaltGame of the running world, ticks it and turns the events of every game operation into
+ * Owns the one FLotGame of the running world, ticks it and turns the events of every game operation into
  * delegates. Actors and widgets never talk to the core's events directly, they listen here.
  */
 UCLASS()
@@ -20,8 +20,9 @@ class DOITASPHALT_API UDIAWorldSubsystem : public UTickableWorldSubsystem
 
 public:
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnCells, const TArray<int32>&);
-	DECLARE_MULTICAST_DELEGATE_OneParam(FOnRoad, int32);
-	DECLARE_MULTICAST_DELEGATE_OneParam(FOnSpecial, EAsphaltSpecial);
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnEntry, int32);
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnUnlock, ELotUnlock);
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnItem, ELotItem);
 
 	/** The subsystem of the world the object lives in; null for an object without a world. Replaces the lookup every actor repeated. */
 	static UDIAWorldSubsystem* Get(const UObject* WorldContext)
@@ -30,23 +31,21 @@ public:
 		return World ? World->GetSubsystem<UDIAWorldSubsystem>() : nullptr;
 	}
 
-	FAsphaltGame& GetGame() { return Game; }
-	const FAsphaltGame& GetGame() const { return Game; }
-
-	/** Pours along A->B from the backpack (or the paver car's tank) and dispatches the outcome. */
-	void Pour(FVector2D A, FVector2D B, bool bFromCar);
+	FLotGame& GetGame() { return Game; }
+	const FLotGame& GetGame() const { return Game; }
 
 	/**
-	 * Broadcasts what happened: OnCellsCompleted once if any cell completed, OnRoadCompleted per completed road,
-	 * OnExitOpened if the exit opened, and always OnStateChanged last (the plant keeps producing, so even an event-less
-	 * tick changes what the HUD shows).
+	 * Broadcasts what happened: OnCellsCompleted once if any cell completed, OnEntryCompleted per completed entry segment,
+	 * OnUnlocked per unlock step, OnExitOpened if the exit opened, and always OnStateChanged last (the plant keeps producing,
+	 * so even an event-less tick changes what the HUD shows). Every change of the game goes through an FLotGame method
+	 * and its events come here.
 	 */
-	void Dispatch(const FAsphaltEvents& Events);
+	void Dispatch(const FLotEvents& Events);
 
-	/** Buys the next level of an upgrade; broadcasts OnStateChanged on success. */
-	bool Buy(EAsphaltUpgrade U);
-	/** Buys a special; broadcasts OnSpecialBought and OnStateChanged on success. */
-	bool BuySpecial(EAsphaltSpecial S);
+	/** Buys an item; broadcasts OnItemBought and OnStateChanged on success (and autosaves). */
+	bool BuyItem(ELotItem Item);
+	/** Buys the next plant level; broadcasts OnStateChanged on success (and autosaves). */
+	bool BuyPlant();
 
 	/**
 	 * Marks the game as won (the player reached the exit gate): the core ignores it while the exit is closed, and nothing
@@ -54,7 +53,7 @@ public:
 	 */
 	void Win();
 
-	// Save slot. The game is stored as one blob (FAsphaltGame::SaveToBytes) in the slot SlotName().
+	// Save slot. The game is stored as one blob (FLotGame::SaveToBytes) in the slot SlotName().
 	/** "DoItAsphalt_Slot0" unless overridden by SetSlotNameOverride or the command line switch -DIASlot=<name>. */
 	static FString SlotName();
 	/** Writes the blob into the named slot as a save file with the footer that ReadSlotBlob checks; false if it could not be written. */
@@ -70,13 +69,13 @@ public:
 	 * untouched if there is no valid save.
 	 */
 	bool LoadGame();
-	/** Writes the game to the slot and its backup; the position of the player (or of the truck, if the player drives it) is taken from the world first. */
+	/** Writes the game to the slot and its backup; the position of the player is taken from the world first. */
 	void SaveGame();
 	/** Starts over: a fresh core, the slot and its backup are deleted, and OnGameReset and OnStateChanged are broadcast (the actors go to the layout's positions). */
 	void NewGame();
 
 	/**
-	 * The game saves itself only while this is on (every AsphaltSave interval of game time, after each purchase, when it is won and
+	 * The game saves itself only while this is on (every LotBalance::AutosaveIntervalSeconds of game time, after each purchase, when it is won and
 	 * when the world ends). The HUD turns it on when the player leaves the main menu, so that closing the menu never overwrites the save
 	 * and tests never touch a slot unless they ask for it.
 	 */
@@ -85,11 +84,11 @@ public:
 	/** SaveGame if the autosave is on. */
 	void Autosave();
 
-	/** Interactables (kiosks, later the station and the car) register themselves while they are in the world. */
+	/** Interactables (kiosks, the station, the car) register themselves while they are in the world. */
 	void RegisterInteractable(AActor* Actor, IDIAInteractable* Interactable);
 	void UnregisterInteractable(const AActor* Actor);
 	/**
-	 * The nearest registered interactable whose collision envelope is within AsphaltBalance::InteractionRangeCm of the character and whose
+	 * The nearest registered interactable whose collision envelope is within LotBalance::InteractionRangeCm of the character and whose
 	 * prompt is not empty; null if there is none. Runs every frame: no allocation, a handful of distance queries.
 	 */
 	IDIAInteractable* FindInteractable(const ADIACharacter* Who, AActor** OutActor = nullptr) const;
@@ -97,8 +96,9 @@ public:
 	/** Anything the HUD shows changed. */
 	FSimpleMulticastDelegate OnStateChanged;
 	FOnCells OnCellsCompleted;
-	FOnRoad OnRoadCompleted;
-	FOnSpecial OnSpecialBought;
+	FOnEntry OnEntryCompleted;
+	FOnUnlock OnUnlocked;
+	FOnItem OnItemBought;
 	FSimpleMulticastDelegate OnExitOpened;
 	/** The game was won; fires once per game. */
 	FSimpleMulticastDelegate OnWon;
@@ -118,10 +118,10 @@ private:
 	};
 	TArray<FInteractableEntry> Interactables;
 
-	/** Writes the player's position (the truck's, while driving) from the actors into the core, where a save finds it. */
+	/** Writes the player's position from the actor into the core, where a save finds it. */
 	void WritePlayerPositions();
 
-	FAsphaltGame Game;
+	FLotGame Game;
 	bool bAutosaveEnabled = false;
 	double AutosaveTimer = 0.0;
 };

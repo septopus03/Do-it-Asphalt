@@ -1,8 +1,9 @@
 // Copyright Do it Asphalt. All Rights Reserved.
 
 #include "World/DIAPlantActor.h"
-#include "AsphaltBalance.h"
-#include "AsphaltLayout.h"
+#include "LotBalance.h"
+#include "LotGame.h"
+#include "LotLayout.h"
 #include "Components/BoxComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/CollisionProfile.h"
@@ -10,7 +11,6 @@
 #include "Game/DIAAssets.h"
 #include "Game/DIAModelSizes.h"
 #include "Game/DIAWorldSubsystem.h"
-#include "AsphaltGame.h"
 #include "Engine/World.h"
 #include "Materials/MaterialInterface.h"
 
@@ -66,10 +66,10 @@ ADIAPlantActor::ADIAPlantActor()
 	PlantMesh->SetupAttachment(Root);
 	PlantMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
-	ZoneMarker = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ZoneMarker"));
-	ZoneMarker->SetupAttachment(Root);
-	ZoneMarker->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	ZoneMarker->SetCastShadow(false);
+	TroughMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("TroughMesh"));
+	TroughMesh->SetupAttachment(Root);
+	TroughMesh->SetCollisionProfileName(UCollisionProfile::BlockAll_ProfileName);
+	TroughMesh->SetCollisionResponseToChannel(ECC_Camera, ECR_Ignore);
 
 	AddonA = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("AddonA"));
 	SetupAddon(AddonA, Root, DIAPlant::AddonALocationCm);
@@ -100,9 +100,9 @@ void ADIAPlantActor::RefreshAddons()
 	{
 		return;
 	}
-	const int32 Level = Subsystem->GetGame().GetLevel(EAsphaltUpgrade::Plant);
-	ShowAddon(AddonA, Level >= AsphaltBalance::PlantAddonALevel);
-	ShowAddon(AddonB, Level >= AsphaltBalance::PlantAddonBLevel);
+	const int32 Level = Subsystem->GetGame().GetPlantLevel();
+	ShowAddon(AddonA, Level >= LotBalance::PlantAddonALevel);
+	ShowAddon(AddonB, Level >= LotBalance::PlantAddonBLevel);
 }
 
 void ADIAPlantActor::EndPlay(const EEndPlayReason::Type Reason)
@@ -136,19 +136,21 @@ void ADIAPlantActor::BeginPlay()
 		}
 	}
 
-	// The refill zone: a flat disc of the zone's radius, centred on AsphaltLayout::RefillCenter, just above the ground.
-	const double DiameterCm = AsphaltLayout::RefillRadiusCm * 2.0;
-	const FVector2D Offset = AsphaltLayout::RefillCenter - AsphaltLayout::PlantPos;
-	FVector MarkerScale = FVector::OneVector;
-	UStaticMesh* Disc = DIAAssets::LoadMeshOrFallback(TEXT("SM_RefillZone"), DIAAssets::EFallback::Cylinder,
-		FVector(DiameterCm, DiameterCm, DIAModelSizes::RefillMarkerThicknessCm), MarkerScale);
-	ZoneMarker->SetStaticMesh(Disc);
-	ZoneMarker->SetRelativeScale3D(MarkerScale);
-	// The 1 cm lift keeps the disc clear of the ground plane, which lies at Z = 0.
-	ZoneMarker->SetRelativeLocation(FVector(Offset.X, Offset.Y, DIAModelSizes::RefillMarkerThicknessCm));
-	if (UMaterialInterface* Material = DIAAssets::Palette(TEXT("DIA_Yellow")))
+	// The trough: its long side lies along X in the world, so it keeps its own orientation whatever the plant's yaw is. The real
+	// model stands on the ground at the origin; the placeholder box has to be lifted by half its height.
+	FVector TroughScale = FVector::OneVector;
+	UStaticMesh* Trough = DIAAssets::LoadMeshOrFallback(TEXT("SM_Trough"), DIAAssets::EFallback::Cube, DIAModelSizes::TroughCm, TroughScale);
+	TroughMesh->SetStaticMesh(Trough);
+	TroughMesh->SetRelativeScale3D(TroughScale);
+	const bool bTroughIsPlaceholder = Trough && Trough->GetPathName().StartsWith(TEXT("/Engine/BasicShapes/"));
+	TroughMesh->SetWorldRotation(FRotator::ZeroRotator);
+	TroughMesh->SetWorldLocation(FVector(LotLayout::TroughPos.X, LotLayout::TroughPos.Y, bTroughIsPlaceholder ? DIAModelSizes::TroughCm.Z * 0.5 : 0.0));
+	if (bTroughIsPlaceholder)
 	{
-		ZoneMarker->SetMaterial(0, Material);
+		if (UMaterialInterface* Material = DIAAssets::Palette(TEXT("DIA_Concrete")))
+		{
+			TroughMesh->SetMaterial(0, Material);
+		}
 	}
 
 	// The addons: the real models stand on the ground at their spot.

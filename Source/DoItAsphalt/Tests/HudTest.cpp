@@ -3,7 +3,8 @@
 // Tests are not part of a Shipping build.
 #if WITH_DEV_AUTOMATION_TESTS
 
-#include "AsphaltBalance.h"
+#include "LotBalance.h"
+#include "LotGame.h"
 #include "AsphaltTest.h"
 #include "Engine/World.h"
 #include "Game/DIAGameMode.h"
@@ -48,8 +49,8 @@ bool FHudActorTest::RunTest(const FString& Parameters)
 
 	// Prompt: empty by default, set, hidden again by empty text.
 	TestTrue(TEXT("no prompt at first"), Hud->GetPrompt().IsEmpty());
-	Hud->SetPrompt(FText::FromString(TEXT("E - Buy Sprint (100)")));
-	TestEqual(TEXT("prompt shown"), Hud->GetPrompt().ToString(), FString(TEXT("E - Buy Sprint (100)")));
+	Hud->SetPrompt(FText::FromString(TEXT("E - Buy Scoop (10)")));
+	TestEqual(TEXT("prompt shown"), Hud->GetPrompt().ToString(), FString(TEXT("E - Buy Scoop (10)")));
 	Hud->SetPrompt(FText::GetEmpty());
 	TestTrue(TEXT("empty text hides the prompt"), Hud->GetPrompt().IsEmpty());
 
@@ -62,27 +63,34 @@ bool FHudActorTest::RunTest(const FString& Parameters)
 	TickFor(1.0f);
 	TestEqual(TEXT("gone after the fade"), Hud->GetToasts().Num(), 0);
 
-	// Game events become toasts: cells -> shards, road, special, exit.
-	FAsphaltEvents Events;
+	// Game events become toasts: cells -> credits, entry, unlock.
+	FLotEvents Events;
 	Events.CompletedCells = {1, 2, 3};
-	Events.CompletedRoads = {1};
-	Events.bExitOpened = true;
+	Events.CreditsEarned = 3 * LotBalance::CreditsPerCell;
+	Events.CompletedEntries = {1};
+	Events.Unlocked = {ELotUnlock::Sprint};
 	Subsystem->Dispatch(Events);
-	TestEqual(TEXT("cells, road and exit give three toasts"), Hud->GetToasts().Num(), 3);
-	TestEqual(TEXT("shard toast"), Hud->GetToasts().GetText(0).ToString(), FString(TEXT("+3 shards")));
-	TestEqual(TEXT("road toast"), Hud->GetToasts().GetText(1).ToString(), FString(TEXT("Road 2 complete")));
-	TestEqual(TEXT("exit toast"), Hud->GetToasts().GetText(2).ToString(), FString(TEXT("The exit is open!")));
+	TestEqual(TEXT("cells, entry and unlock give three toasts"), Hud->GetToasts().Num(), 3);
+	TestEqual(TEXT("credits toast"), Hud->GetToasts().GetText(0).ToString(), FString(TEXT("+30 credits")));
+	TestEqual(TEXT("entry toast"), Hud->GetToasts().GetText(1).ToString(), FString(TEXT("Entry 2 complete")));
+	TestEqual(TEXT("unlock toast"), Hud->GetToasts().GetText(2).ToString(), FString(TEXT("Sprint unlocked")));
+
+	TickFor(3.0f);
+	FLotEvents ExitEvents;
+	ExitEvents.bExitOpened = true;
+	Subsystem->Dispatch(ExitEvents);
+	TestEqual(TEXT("exit toast"), Hud->GetToasts().GetText(0).ToString(), FString(TEXT("The exit is open!")));
 
 	TickFor(3.0f);
 	TestEqual(TEXT("toasts are gone"), Hud->GetToasts().Num(), 0);
-	Subsystem->GetGame().DebugGrantSpecial(EAsphaltSpecial::Sprint);
-	Subsystem->OnSpecialBought.Broadcast(EAsphaltSpecial::Sprint);
-	TestEqual(TEXT("special toast"), Hud->GetToasts().GetText(0).ToString(), FString(TEXT("Sprint unlocked")));
+	Subsystem->GetGame().DebugGive(1000.0);
+	TestTrue(TEXT("the scoop can be bought"), Subsystem->BuyItem(ELotItem::Scoop));
+	TestEqual(TEXT("item toast"), Hud->GetToasts().GetText(0).ToString(), FString(TEXT("Scoop bought")));
 
 	// Once destroyed the HUD no longer listens.
 	Hud->Destroy();
 	Wrapper.TickTestWorld(0.1f);
-	Events = FAsphaltEvents();
+	Events = FLotEvents();
 	Events.bExitOpened = true;
 	Subsystem->Dispatch(Events);
 	return true;

@@ -8,11 +8,9 @@
 #include "DIACharacter.generated.h"
 
 class UCameraComponent;
-class USceneComponent;
 class USpringArmComponent;
-class UStaticMeshComponent;
 
-/** Visual and handling constants of the character (game numbers live in AsphaltBalance / AsphaltLayout). */
+/** Visual and handling constants of the character (game numbers live in LotBalance / LotLayout). */
 namespace DIACharacter
 {
 	inline constexpr float CapsuleRadiusCm = 34.f;
@@ -23,40 +21,11 @@ namespace DIACharacter
 	inline constexpr float TurnRateDegS = 500.f;
 	/** The Mannequin mesh faces +Y and its origin is at the feet: rotate -90 yaw and lower by the capsule half height. */
 	inline constexpr float MeshYawDeg = -90.f;
-
-	/**
-	 * The axes of the Mannequin's spine and head bones in the reference pose: X runs up the body, Y points to the front
-	 * and Z to the right (measured from the skeleton). This rotation turns them into the character's axes (X forward,
-	 * Y right, Z up), so everything attached to a pivot below can be described like a model in the character's frame.
-	 */
-	inline const FRotator BoneToCharacter = FRotationMatrix::MakeFromXY(FVector(0.0, 1.0, 0.0), FVector(0.0, 0.0, 1.0)).Rotator();
-
-	/**
-	 * Offsets of the pivots from their bones, in the bone's axes (X up, Y front, Z right). Backpack: on the back plane
-	 * of the chest; helmet: where the lower edge of the helmet meets the head.
-	 */
-	inline const FVector BackpackBoneOffsetCm(0.0, -13.0, 0.0);
-	inline const FVector HelmetBoneOffsetCm(2.0, 2.0, 0.0);
-
-	/**
-	 * The backpack models are drawn to the sizes of the model list, which look small on the Mannequin's broad back; the pivot scales them
-	 * evenly about the back plane they rest on (so they still touch the back, and the largest one still fits between the shoulders and the hips).
-	 */
-	inline constexpr double BackpackScale = 1.15;
-
-	/**
-	 * The spreader is pushed in front of the body: its bar lies at the nozzle point and the handle rises towards the hands. The Mannequin's arms
-	 * hang at its sides (there is no hand IK), so the whole spreader is tipped about its bar by this angle (the handle towards the body) to bring
-	 * the grip to waist height just in front of the hands. It turns about the bar's own axis, so the bar stays on the ground exactly where the
-	 * nozzle point (AsphaltBalance::NozzleAheadCm) says the asphalt is laid.
-	 */
-	inline constexpr double SpreaderTiltDeg = 8.0;
 }
 
 /**
- * The player: third-person movement and camera as in the engine template, pouring (the nozzle sweeps coverage while
- * the left button is held), refilling in the plant's zone or at the placed portable station and the visible equipment (spreader, backpack, helmet).
- * The state of the game lives in the world subsystem; the character only reads it and acts on it.
+ * The player: third-person movement and camera as in the engine template, and sprinting once the Sprint unlock is
+ * reached. The state of the game lives in the world subsystem; the character only reads it and reports its position.
  */
 UCLASS(NotBlueprintable)
 class DOITASPHALT_API ADIACharacter : public ACharacter
@@ -66,33 +35,16 @@ class DOITASPHALT_API ADIACharacter : public ACharacter
 public:
 	ADIACharacter();
 
-	/** The character the first local player controls; null while there is none (or while the player drives the truck). The one lookup the world actors share. */
+	/** The character the first local player controls; null while there is none. The one lookup the world actors share. */
 	static ADIACharacter* GetLocal(const UObject* WorldContext);
 
-	/** Starts or stops pouring; pouring slows the character down and turns it to face the camera direction. */
-	void SetPouring(bool bPour);
-	bool IsPouring() const { return bPouring; }
-
-	/** Sprinting only has an effect once the Sprint special is owned, and never while pouring. */
+	/** Sprinting only has an effect once the Sprint unlock is reached. */
 	void SetSprinting(bool bSprint);
 	bool IsSprinting() const { return bSprinting; }
-
-	/** Where the nozzle of the spreader is: actor XY plus forward * NozzleAheadCm. */
-	FVector2D GetNozzlePoint() const;
-
-	/** Re-reads the levels and specials and swaps the meshes whose tier changed (nothing happens if none did). */
-	void RefreshEquipment();
 
 	/** Input routing, called by the player controller. */
 	void DoMove(float Right, float Forward);
 	void DoLook(float Yaw, float Pitch);
-
-	/** The spreader (the left one with TwoHands); the second one only exists with the TwoHands special. */
-	UStaticMeshComponent* GetSpreaderMesh() const { return SpreaderMesh; }
-	UStaticMeshComponent* GetSecondSpreaderMesh() const { return SecondSpreaderMesh; }
-	UStaticMeshComponent* GetBackpackMesh() const { return BackpackMesh; }
-	UStaticMeshComponent* GetHelmetMesh() const { return HelmetMesh; }
-	USceneComponent* GetBackpackPivot() const { return BackpackPivot; }
 
 	virtual void Tick(float DeltaSeconds) override;
 
@@ -102,12 +54,11 @@ protected:
 
 private:
 	UDIAWorldSubsystem* GetSubsystem() const;
-	/** Walk / pour / sprint speed and the facing mode follow the current state. */
+	/** Walk / sprint speed follows the current state. */
 	void UpdateMovementSettings();
 	void OnStateChanged();
-	/** A game was loaded or started: stands where the core says (a driver is placed by the truck instead), without pouring or sprinting. */
+	/** A game was loaded or started: stands where the core says, without sprinting. */
 	void HandleGameReset();
-	void BuildHelmet();
 
 	UPROPERTY()
 	TObjectPtr<USpringArmComponent> CameraBoom;
@@ -115,31 +66,7 @@ private:
 	UPROPERTY()
 	TObjectPtr<UCameraComponent> FollowCamera;
 
-	/** Pivots keep the placement; the meshes below are swapped when the equipment changes. */
-	UPROPERTY()
-	TObjectPtr<USceneComponent> SpreaderPivot;
-	UPROPERTY()
-	TObjectPtr<USceneComponent> BackpackPivot;
-	UPROPERTY()
-	TObjectPtr<USceneComponent> HelmetPivot;
-
-	UPROPERTY()
-	TObjectPtr<UStaticMeshComponent> SpreaderMesh;
-	UPROPERTY()
-	TObjectPtr<UStaticMeshComponent> SecondSpreaderMesh;
-	UPROPERTY()
-	TObjectPtr<UStaticMeshComponent> BackpackMesh;
-	UPROPERTY()
-	TObjectPtr<UStaticMeshComponent> HelmetMesh;
-
-	bool bPouring = false;
 	bool bSprinting = false;
-	FVector2D PreviousNozzle = FVector2D::ZeroVector;
-
-	/** What the meshes currently show; INDEX_NONE until built. */
-	int32 ShownBackpackTier = INDEX_NONE;
-	int32 ShownToolLevel = INDEX_NONE;
-	bool bShownTwoHands = false;
 
 	FDIAStateSubscription StateSub;
 };

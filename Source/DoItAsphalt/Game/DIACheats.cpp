@@ -17,6 +17,9 @@
 #include "GameFramework/SpringArmComponent.h"
 #include "GameFramework/PlayerController.h"
 #include "Game/DIAWorldSubsystem.h"
+#include "LotBalance.h"
+#include "LotLayout.h"
+#include "LotMap.h"
 #include "UI/DIAHUD.h"
 #include "HAL/FileManager.h"
 #include "HAL/IConsoleManager.h"
@@ -25,10 +28,10 @@
 
 namespace DIACheats
 {
-	/** Height of the top view camera above the centre of the site. */
-	constexpr double TopViewHeightCm = 4500.0;
-	/** Yaw of the top view camera: turned so that the plant (towards -X) is on the left of the picture and the roads fan out to the right. */
-	constexpr double TopViewYawDeg = -90.0;
+	/** Height of the top view camera above the centre of the lot when dia.TopView gets no height: the whole car park and its strip fit. */
+	constexpr double TopViewDefaultHeightM = 260.0;
+	/** Yaw of the top view camera: +X is up in the picture and +Y to the right, so the plant (towards -Y) is on the left and the mall quadrant at the top right. */
+	constexpr double TopViewYawDeg = 0.0;
 	/** Longest time ShotAndQuit waits for shaders and assets to finish compiling, in seconds. */
 	constexpr double CompileTimeoutSeconds = 300.0;
 	/** Quiet time after compiling finished before the picture is taken (frames need to show the final materials). */
@@ -79,14 +82,14 @@ namespace DIACheats
 
 	void Give(const TArray<FString>& Args, UWorld* World)
 	{
-		if (!Usage(Args.Num() == 2, TEXT("dia.Give <money> <shards>")))
+		if (!Usage(Args.Num() == 1, TEXT("dia.Give <credits>")))
 		{
 			return;
 		}
 		if (UDIAWorldSubsystem* S = GetSubsystem(World))
 		{
-			S->GetGame().DebugGive(FCString::Atod(*Args[0]), FCString::Atoi(*Args[1]));
-			S->Dispatch(FAsphaltEvents());
+			S->GetGame().DebugGive(FCString::Atod(*Args[0]));
+			S->Dispatch(FLotEvents());
 		}
 	}
 
@@ -96,82 +99,50 @@ namespace DIACheats
 		{
 			return;
 		}
-		UDIAWorldSubsystem* S = GetSubsystem(World);
-		if (!S)
+		if (UDIAWorldSubsystem* S = GetSubsystem(World))
 		{
-			return;
+			S->Dispatch(S->GetGame().DebugCompleteCells(FCString::Atoi(*Args[0])));
 		}
-		FAsphaltGame& Game = S->GetGame();
-		int32 Remaining = FCString::Atoi(*Args[0]);
-		FAsphaltEvents Events;
-		for (int32 Cell = 0; Cell < Game.GetMap().Num() && Remaining > 0; ++Cell)
-		{
-			if (!Game.GetGrid().IsCellComplete(Cell))
-			{
-				Events.Append(Game.DebugCompleteCell(Cell));
-				--Remaining;
-			}
-		}
-		S->Dispatch(Events);
 	}
 
-	void CompleteRoad(const TArray<FString>& Args, UWorld* World)
+	void CompleteEntry(const TArray<FString>& Args, UWorld* World)
 	{
-		if (!Usage(Args.Num() == 1, TEXT("dia.CompleteRoad <0..5>")))
+		if (!Usage(Args.Num() == 1, TEXT("dia.CompleteEntry <0..5>")))
 		{
 			return;
 		}
-		const int32 Road = FCString::Atoi(*Args[0]);
-		if (!Usage(Road >= 0 && Road < FHexMap::NumRoads, TEXT("dia.CompleteRoad <0..5>")))
-		{
-			return;
-		}
-		UDIAWorldSubsystem* S = GetSubsystem(World);
-		if (!S)
-		{
-			return;
-		}
-		FAsphaltGame& Game = S->GetGame();
-		FAsphaltEvents Events;
-		for (const int32 Cell : Game.GetMap().GetRoadCells(Road))
-		{
-			if (!Game.GetGrid().IsCellComplete(Cell))
-			{
-				Events.Append(Game.DebugCompleteCell(Cell));
-			}
-		}
-		S->Dispatch(Events);
-	}
-
-	void SetLevels(const TArray<FString>& Args, UWorld* World)
-	{
-		if (!Usage(Args.Num() == 3, TEXT("dia.SetLevels <backpack> <tool> <plant>")))
+		const int32 Entry = FCString::Atoi(*Args[0]);
+		if (!Usage(Entry >= 0 && Entry < AsphaltLot::NumEntries, TEXT("dia.CompleteEntry <0..5>")))
 		{
 			return;
 		}
 		if (UDIAWorldSubsystem* S = GetSubsystem(World))
 		{
-			FAsphaltGame& Game = S->GetGame();
-			Game.DebugSetLevel(EAsphaltUpgrade::Backpack, FCString::Atoi(*Args[0]));
-			Game.DebugSetLevel(EAsphaltUpgrade::Tool, FCString::Atoi(*Args[1]));
-			Game.DebugSetLevel(EAsphaltUpgrade::Plant, FCString::Atoi(*Args[2]));
-			S->Dispatch(FAsphaltEvents());
+			FLotEvents Events;
+			for (int32 I = 0; I < AsphaltLot::CellsPerEntry; ++I)
+			{
+				Events.Append(S->GetGame().DebugCompleteCell(AsphaltLot::EntryCell(Entry, I)));
+			}
+			S->Dispatch(Events);
 		}
 	}
 
-	void Special(const TArray<FString>& Args, UWorld* World)
+	/** The names dia.Item accepts: the ELotItem values in order. */
+	const TCHAR* const ItemNames[] = {TEXT("Scoop"), TEXT("Bucket"), TEXT("Suitcase"), TEXT("Cart"), TEXT("Station"), TEXT("Finisher"),
+		TEXT("AutoPaver"), TEXT("AutoPaverFast"), TEXT("AutoPaverFaster"), TEXT("Car"), TEXT("CarWideBar")};
+	static_assert(UE_ARRAY_COUNT(ItemNames) == static_cast<int32>(ELotItem::Count), "one name per item");
+
+	void Item(const TArray<FString>& Args, UWorld* World)
 	{
-		static const TCHAR* Usage_ = TEXT("dia.Special <Sprint|TwoHands|PortableStation|AutoPaver|PaverCar>");
+		static const TCHAR* Usage_ = TEXT("dia.Item <Scoop|Bucket|Suitcase|Cart|Station|Finisher|AutoPaver|AutoPaverFast|AutoPaverFaster|Car|CarWideBar>");
 		if (!Usage(Args.Num() == 1, Usage_))
 		{
 			return;
 		}
-		static const TCHAR* Names[] = {TEXT("Sprint"), TEXT("TwoHands"), TEXT("PortableStation"), TEXT("AutoPaver"), TEXT("PaverCar")};
-		static_assert(UE_ARRAY_COUNT(Names) == static_cast<int32>(EAsphaltSpecial::Count), "one name per special");
 		int32 Found = INDEX_NONE;
-		for (int32 I = 0; I < UE_ARRAY_COUNT(Names); ++I)
+		for (int32 I = 0; I < UE_ARRAY_COUNT(ItemNames); ++I)
 		{
-			if (Args[0].Equals(Names[I], ESearchCase::IgnoreCase))
+			if (Args[0].Equals(ItemNames[I], ESearchCase::IgnoreCase))
 			{
 				Found = I;
 			}
@@ -182,10 +153,23 @@ namespace DIACheats
 		}
 		if (UDIAWorldSubsystem* S = GetSubsystem(World))
 		{
-			const EAsphaltSpecial Special = static_cast<EAsphaltSpecial>(Found);
-			S->GetGame().DebugGrantSpecial(Special);
-			S->OnSpecialBought.Broadcast(Special);
-			S->Dispatch(FAsphaltEvents());
+			const ELotItem Granted = static_cast<ELotItem>(Found);
+			S->GetGame().DebugGrantItem(Granted);
+			S->OnItemBought.Broadcast(Granted);
+			S->Dispatch(FLotEvents());
+		}
+	}
+
+	void Plant(const TArray<FString>& Args, UWorld* World)
+	{
+		if (!Usage(Args.Num() == 1, TEXT("dia.Plant <0..5>")))
+		{
+			return;
+		}
+		if (UDIAWorldSubsystem* S = GetSubsystem(World))
+		{
+			S->GetGame().DebugSetPlantLevel(FCString::Atoi(*Args[0]));
+			S->Dispatch(FLotEvents());
 		}
 	}
 
@@ -265,14 +249,6 @@ namespace DIACheats
 		}
 	}
 
-	void Shop(const TArray<FString>& Args, UWorld* World)
-	{
-		if (ADIAHUD* Hud = GetHud(World))
-		{
-			Hud->SetShopOpen(true);
-		}
-	}
-
 	void SkipMenu(const TArray<FString>& Args, UWorld* World)
 	{
 		if (ADIAHUD* Hud = GetHud(World))
@@ -307,17 +283,28 @@ namespace DIACheats
 
 	void TopView(const TArray<FString>& Args, UWorld* World)
 	{
+		if (!Usage(Args.Num() <= 1, TEXT("dia.TopView [heightM=260]")))
+		{
+			return;
+		}
 		APlayerController* PC = GetPlayerController(World);
 		if (!PC)
 		{
 			return;
 		}
+		const double HeightCm = (Args.Num() == 1 ? FCString::Atod(*Args[0]) : TopViewDefaultHeightM) * 100.0;
 		UWorld* PlayWorld = PC->GetWorld();
+		const FVector Where(0.0, 0.0, HeightCm);
+		const FRotator Looking(-90.0, TopViewYawDeg, 0.0);
 		if (!TopViewCamera.IsValid() || TopViewCamera->GetWorld() != PlayWorld)
 		{
 			FActorSpawnParameters Params;
 			Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-			TopViewCamera = PlayWorld->SpawnActor<ACameraActor>(FVector(0.0, 0.0, TopViewHeightCm), FRotator(-90.0, TopViewYawDeg, 0.0), Params);
+			TopViewCamera = PlayWorld->SpawnActor<ACameraActor>(Where, Looking, Params);
+		}
+		else
+		{
+			TopViewCamera->SetActorLocationAndRotation(Where, Looking);
 		}
 		if (TopViewCamera.IsValid())
 		{
@@ -401,18 +388,17 @@ namespace DIACheats
 	}
 
 	// The registrations keep the commands alive for the lifetime of the module.
-	FAutoConsoleCommandWithWorldAndArgs GiveCommand(TEXT("dia.Give"), TEXT("dia.Give <money> <shards>"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Give));
+	FAutoConsoleCommandWithWorldAndArgs GiveCommand(TEXT("dia.Give"), TEXT("dia.Give <credits>"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Give));
 	FAutoConsoleCommandWithWorldAndArgs CompleteCommand(TEXT("dia.Complete"), TEXT("dia.Complete <n>: completes the first n incomplete cells"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Complete));
-	FAutoConsoleCommandWithWorldAndArgs CompleteRoadCommand(TEXT("dia.CompleteRoad"), TEXT("dia.CompleteRoad <0..5>"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&CompleteRoad));
-	FAutoConsoleCommandWithWorldAndArgs SetLevelsCommand(TEXT("dia.SetLevels"), TEXT("dia.SetLevels <backpack> <tool> <plant>"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&SetLevels));
-	FAutoConsoleCommandWithWorldAndArgs SpecialCommand(TEXT("dia.Special"), TEXT("dia.Special <Sprint|TwoHands|PortableStation|AutoPaver|PaverCar>"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Special));
+	FAutoConsoleCommandWithWorldAndArgs CompleteEntryCommand(TEXT("dia.CompleteEntry"), TEXT("dia.CompleteEntry <0..5>: completes the 12 cells of an entry segment"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&CompleteEntry));
+	FAutoConsoleCommandWithWorldAndArgs ItemCommand(TEXT("dia.Item"), TEXT("dia.Item <name>: gives the player an item (Scoop, Bucket, Suitcase, Cart, Station, Finisher, AutoPaver, AutoPaverFast, AutoPaverFaster, Car, CarWideBar)"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Item));
+	FAutoConsoleCommandWithWorldAndArgs PlantCommand(TEXT("dia.Plant"), TEXT("dia.Plant <0..5>: sets the plant level"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Plant));
 	FAutoConsoleCommandWithWorldAndArgs TeleportCommand(TEXT("dia.Teleport"), TEXT("dia.Teleport <x> <y> [yaw] [pitch]"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Teleport));
 	FAutoConsoleCommandWithWorldAndArgs PromptCommand(TEXT("dia.Prompt"), TEXT("dia.Prompt <text>: sets the contextual prompt (no text hides it)"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Prompt));
 	FAutoConsoleCommandWithWorldAndArgs ToastCommand(TEXT("dia.Toast"), TEXT("dia.Toast <text>: shows a toast"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Toast));
-	FAutoConsoleCommandWithWorldAndArgs ShopCommand(TEXT("dia.Shop"), TEXT("dia.Shop: opens the shop (Tab closes it)"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Shop));
 	FAutoConsoleCommandWithWorldAndArgs SkipMenuCommand(TEXT("dia.SkipMenu"), TEXT("dia.SkipMenu: closes the main menu without choosing anything (the game starts as it is; screenshots use it)"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&SkipMenu));
 	FAutoConsoleCommandWithWorldAndArgs CameraConsoleCommand(TEXT("dia.Camera"), TEXT("dia.Camera <distanceCm> [yawOffsetDeg] [pitchDeg]: third-person camera distance and angle relative to the player's heading"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&CameraCommand));
-	FAutoConsoleCommandWithWorldAndArgs TopViewCommand(TEXT("dia.TopView"), TEXT("dia.TopView: camera 45 m above the centre, looking straight down"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&TopView));
+	FAutoConsoleCommandWithWorldAndArgs TopViewCommand(TEXT("dia.TopView"), TEXT("dia.TopView [heightM=260]: camera above the centre of the lot, looking straight down (+X up, +Y right)"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&TopView));
 	FAutoConsoleCommandWithWorldAndArgs ShotAndQuitCommand(TEXT("dia.ShotAndQuit"), TEXT("dia.ShotAndQuit <seconds> <name>: saves Saved/Screenshots/<name>.png and quits"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&ShotAndQuit));
 }
 

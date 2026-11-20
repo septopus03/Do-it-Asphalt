@@ -98,31 +98,19 @@ void SDIAHudOverlay::HandleStateChanged()
 
 TSharedRef<SWidget> SDIAHudOverlay::BuildTopLeft()
 {
-	auto Row = [this](TAttribute<FText> Value, const FText& Caption, const FLinearColor& Color) -> TSharedRef<SWidget>
-	{
-		return SNew(SHorizontalBox)
-			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
-			[
-				AsphaltHud::MakeShadowedText(Value, AsphaltHud::BigFontSize, Color)
-			]
-			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Bottom).Padding(10.f, 0.f, 0.f, 4.f)
-			[
-				AsphaltHud::MakeShadowedText(Caption, AsphaltHud::CaptionFontSize, AsphaltHud::CaptionColor)
-			];
-	};
 	return SNew(SBorder)
 		.BorderImage(&PanelBrush)
 		.BorderBackgroundColor(AsphaltHud::PanelColor)
 		.Padding(AsphaltHud::PanelPaddingH, AsphaltHud::PanelPaddingV)
 		[
-			SNew(SVerticalBox)
-			+ SVerticalBox::Slot().AutoHeight()
+			SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
 			[
-				Row(TAttribute<FText>::CreateLambda([this]() { return Model.GetView().Money; }), NSLOCTEXT("DIAHud", "MoneyCaption", "money"), AsphaltHud::MoneyColor)
+				AsphaltHud::MakeShadowedText(TAttribute<FText>::CreateLambda([this]() { return Model.GetView().Credits; }), AsphaltHud::BigFontSize, AsphaltHud::CreditsColor)
 			]
-			+ SVerticalBox::Slot().AutoHeight()
+			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Bottom).Padding(10.f, 0.f, 0.f, 4.f)
 			[
-				Row(TAttribute<FText>::CreateLambda([this]() { return Model.GetView().Shards; }), NSLOCTEXT("DIAHud", "ShardsCaption", "shards"), AsphaltHud::ShardColor)
+				AsphaltHud::MakeShadowedText(NSLOCTEXT("DIAHud", "CreditsCaption", "credits"), AsphaltHud::CaptionFontSize, AsphaltHud::CaptionColor)
 			]
 		];
 }
@@ -166,61 +154,7 @@ TSharedRef<SWidget> SDIAHudOverlay::BuildBottom()
 				AsphaltHud::MakeShadowedText(TAttribute<FText>::CreateLambda([WeakHud]() { return WeakHud.IsValid() ? WeakHud->GetPrompt() : FText::GetEmpty(); }), AsphaltHud::MediumFontSize, AsphaltHud::PromptColor)
 			]
 		]
-		// Stock of the plant, only near a refill point.
-		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0.f, 0.f, 0.f, 10.f)
-		[
-			SNew(SBorder)
-			.BorderImage(&PanelBrush)
-			.BorderBackgroundColor(AsphaltHud::PanelColor)
-			.Padding(AsphaltHud::PanelPaddingH, AsphaltHud::PanelPaddingV)
-			.Visibility_Lambda([this]() { return Model.GetView().bShowStock ? EVisibility::Visible : EVisibility::Collapsed; })
-			[
-				SNew(SVerticalBox)
-				+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center)
-				[
-					SNew(SHorizontalBox)
-					+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Bottom).Padding(0.f, 0.f, 10.f, 3.f)
-					[
-						AsphaltHud::MakeShadowedText(NSLOCTEXT("DIAHud", "StockCaption", "PLANT STOCK"), AsphaltHud::CaptionFontSize, AsphaltHud::CaptionColor)
-					]
-					+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
-					[
-						AsphaltHud::MakeShadowedText(TAttribute<FText>::CreateLambda([this]() { return Model.GetView().Stock; }), AsphaltHud::MediumFontSize, AsphaltHud::TextColor)
-					]
-				]
-				+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0.f, 4.f, 0.f, 0.f)
-				[
-					MakeBar(TAttribute<float>::CreateLambda([this]() { return Model.GetView().StockFraction; }), AsphaltHud::StockColor, AsphaltHud::StockBarWidth)
-				]
-			]
-		]
-		// Backpack (car tank in the car).
-		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center)
-		[
-			SNew(SBorder)
-			.BorderImage(&PanelBrush)
-			.BorderBackgroundColor(AsphaltHud::PanelColor)
-			.Padding(AsphaltHud::PanelPaddingH, AsphaltHud::PanelPaddingV)
-			[
-				SNew(SVerticalBox)
-				+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center)
-				[
-					SNew(SHorizontalBox)
-					+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Bottom).Padding(0.f, 0.f, 12.f, 5.f)
-					[
-						AsphaltHud::MakeShadowedText(TAttribute<FText>::CreateLambda([this]() { return Model.GetView().BackpackCaption; }), AsphaltHud::CaptionFontSize, AsphaltHud::CaptionColor)
-					]
-					+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
-					[
-						AsphaltHud::MakeShadowedText(TAttribute<FText>::CreateLambda([this]() { return Model.GetView().Backpack; }), AsphaltHud::BigFontSize, AsphaltHud::TextColor)
-					]
-				]
-				+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0.f, 4.f, 0.f, 0.f)
-				[
-					MakeBar(TAttribute<float>::CreateLambda([this]() { return Model.GetView().BackpackFraction; }), AsphaltHud::BackpackColor, AsphaltHud::BackpackBarWidth)
-				]
-			]
-		];
+		;
 }
 
 TSharedRef<SWidget> SDIAHudOverlay::BuildToasts()

@@ -17,7 +17,7 @@ namespace DIASave
 	inline constexpr int32 UserIndex = 0;
 }
 
-/** What is stored in the slot: the core's own serialisation (FAsphaltGame::SaveToBytes), which validates itself when it is read back. */
+/** What is stored in the slot: the core's own serialisation (FLotGame::SaveToBytes), which validates itself when it is read back. */
 UCLASS()
 class DOITASPHALT_API UDIASaveGame : public USaveGame
 {

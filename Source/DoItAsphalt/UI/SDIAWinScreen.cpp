@@ -36,11 +36,11 @@ void SDIAWinScreen::Construct(const FArguments& InArgs)
 		]
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 0.f, 0.f, AsphaltHud::WinRowSpacing)
 		[
-			BuildStatRow(NSLOCTEXT("DIAHud", "WinMoney", "Money earned"), [this]() { return Model.GetView().Money; }, AsphaltHud::MoneyColor)
+			BuildStatRow(NSLOCTEXT("DIAHud", "WinCredits", "Credits earned"), [this]() { return Model.GetView().Credits; }, AsphaltHud::CreditsColor)
 		]
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 0.f, 0.f, AsphaltHud::WinTitleSpacing)
 		[
-			BuildStatRow(NSLOCTEXT("DIAHud", "WinUpgrades", "Upgrades bought"), [this]() { return Model.GetView().Upgrades; }, AsphaltHud::TextColor)
+			BuildStatRow(NSLOCTEXT("DIAHud", "WinItems", "Items bought"), [this]() { return Model.GetView().Items; }, AsphaltHud::TextColor)
 		]
 		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center)
 		[
@@ -60,7 +60,7 @@ void SDIAWinScreen::Construct(const FArguments& InArgs)
 	];
 }
 
-void SDIAWinScreen::Show(const FAsphaltGame& Game)
+void SDIAWinScreen::Show(const FLotGame& Game)
 {
 	Model.Update(Game);
 	SetVisibility(EVisibility::Visible);

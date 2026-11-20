@@ -8,8 +8,6 @@
 namespace AsphaltHud
 {
 	// Behaviour.
-	/** The plant's stock is shown while the player is within this distance of a refill point. */
-	inline constexpr double StockRadiusCm = 600.0;
 	/** A toast stays fully visible this long, then fades out. */
 	inline constexpr float ToastHoldSeconds = 2.0f;
 	inline constexpr float ToastFadeSeconds = 0.5f;
@@ -17,8 +15,6 @@ namespace AsphaltHud
 	inline constexpr int32 MaxToasts = 3;
 	/** Z order of the overlay in the game viewport. */
 	inline constexpr int32 ViewportZOrder = 10;
-	/** The shop panel lies above the HUD. */
-	inline constexpr int32 ShopZOrder = 11;
 	/** The win screen lies above everything. */
 	inline constexpr int32 WinZOrder = 12;
 	/** The main and pause menu lie above everything. */
@@ -29,11 +25,8 @@ namespace AsphaltHud
 	inline const FLinearColor CaptionColor{0.78f, 0.80f, 0.84f, 1.f};
 	inline const FLinearColor ShadowColor{0.f, 0.f, 0.f, 0.85f};
 	inline const FLinearColor PanelColor{0.04f, 0.05f, 0.07f, 0.62f};
-	inline const FLinearColor MoneyColor{1.f, 0.86f, 0.30f, 1.f};
-	inline const FLinearColor ShardColor{0.45f, 0.85f, 1.f, 1.f};
+	inline const FLinearColor CreditsColor{1.f, 0.86f, 0.30f, 1.f};
 	inline const FLinearColor ProgressColor{0.55f, 0.88f, 0.45f, 1.f};
-	inline const FLinearColor BackpackColor{1.f, 0.62f, 0.15f, 1.f};
-	inline const FLinearColor StockColor{0.80f, 0.80f, 0.84f, 1.f};
 	inline const FLinearColor BarTrackColor{1.f, 1.f, 1.f, 0.16f};
 	inline const FLinearColor PromptColor{1.f, 0.93f, 0.55f, 1.f};
 	inline const FLinearColor ShopPanelColor{0.04f, 0.05f, 0.07f, 0.94f};
@@ -57,21 +50,12 @@ namespace AsphaltHud
 	inline constexpr float ScreenMargin = 24.f;
 	inline constexpr float PanelPaddingH = 18.f;
 	inline constexpr float PanelPaddingV = 10.f;
-	inline constexpr float BackpackBarWidth = 360.f;
-	inline constexpr float StockBarWidth = 260.f;
 	inline constexpr float BarHeight = 12.f;
 	inline constexpr float ProgressBarWidth = 300.f;
 	/** Distance from the bottom edge of the screen to the lowest widget. */
 	inline constexpr float BottomMargin = 28.f;
-	/** Columns of the shop: name, change (current -> next), price, button. */
-	inline constexpr float ShopNameWidth = 170.f;
-	inline constexpr float ShopChangeWidth = 430.f;
-	inline constexpr float ShopPriceWidth = 150.f;
-	inline constexpr float ShopButtonWidth = 120.f;
-	inline constexpr float ShopRowSpacing = 10.f;
-	inline constexpr float ShopPadding = 26.f;
 	inline constexpr float ButtonCornerRadius = 8.f;
-	/** Corner radii: the big panels (shop, win screen), their rows, and the smaller HUD panels (stats, toasts). */
+	/** Corner radii: the big panels (win screen, menu), their rows, and the smaller HUD panels (stats, toasts). */
 	inline constexpr float PanelCornerRadius = 12.f;
 	inline constexpr float RowCornerRadius = 8.f;
 	inline constexpr float HudPanelCornerRadius = 8.f;

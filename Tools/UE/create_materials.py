@@ -80,9 +80,9 @@ def link(src, dst, dst_input, src_output=""):
         raise RuntimeError("could not connect %s -> %s.%s" % (src.get_name(), dst.get_name(), dst_input))
 
 
-def custom(material, x, y, description, code, input_names):
+def custom(material, x, y, description, code, input_names, output_type=unreal.CustomMaterialOutputType.CMOT_FLOAT1):
     expr = node(material, unreal.MaterialExpressionCustom, x, y,
-                description=description, code=code, output_type=unreal.CustomMaterialOutputType.CMOT_FLOAT1)
+                description=description, code=code, output_type=output_type)
     inputs = []
     for n in input_names:
         ci = unreal.CustomInput()
@@ -93,7 +93,7 @@ def custom(material, x, y, description, code, input_names):
 
 
 def ensure_black_mask():
-    """Tiny black linear mask texture used as the default of CoverageTex / HexLinesTex.
+    """Tiny black linear mask texture used as the default of CoverageTex.
 
     Saved as /Game/Materials/T_Mask_Black (a support asset: reported as DIA_AUX, not DIA_OK, so the
     script keeps its 14 DIA_OK lines = 2 materials + 12 instances).
@@ -162,63 +162,56 @@ def build_ground():
     path, mat = get_or_create("M_Ground", unreal.Material, unreal.MaterialFactoryNew())
     clear_expressions(mat)
 
-    # TEXTURE CONTRACT (Task 9): CoverageTex and HexLinesTex are plain linear mask data read from
-    # the R channel, so any texture assigned to them must be SRGB=false (otherwise the sRGB curve
-    # turns coverage 0.5 into ~0.21 and shifts the smoothstep centre and the > 0.5 hex threshold),
-    # compression TC_Masks / linear, and clamp addressing (so the 0..1 UV edges do not wrap).
-    # Sampler type is Masks to match; the defaults are a generated black non-sRGB mask texture
-    # (the engine's own Black texture is sRGB and fails the sampler check).
+    # TEXTURE CONTRACT: CoverageTex is plain linear mask data (R8G8: R = raw or done asphalt, G = done),
+    # so any texture assigned to it must be SRGB=false (otherwise the sRGB curve turns coverage 0.5 into
+    # ~0.21 and shifts the smoothstep centre), compression TC_Masks / linear, and clamp addressing (so the
+    # 0..1 UV edges do not wrap). The sampler type is Masks to match; the default is a generated black
+    # non-sRGB mask texture (the engine's own Black texture is sRGB and fails the sampler check).
     black = ensure_black_mask()
 
-    coverage = node(mat, unreal.MaterialExpressionTextureSampleParameter2D, -1400, 0,
+    coverage = node(mat, unreal.MaterialExpressionTextureSampleParameter2D, -1000, 0,
                     parameter_name="CoverageTex", texture=black,
                     sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_MASKS)
-    hexlines = node(mat, unreal.MaterialExpressionTextureSampleParameter2D, -1400, -400,
-                    parameter_name="HexLinesTex", texture=black,
-                    sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_MASKS)
-    softness = node(mat, unreal.MaterialExpressionScalarParameter, -1400, 400,
+    softness = node(mat, unreal.MaterialExpressionScalarParameter, -1000, 300,
                     parameter_name="EdgeSoftness", default_value=0.1)
+    world = node(mat, unreal.MaterialExpressionWorldPosition, -1000, 450)
 
-    # Hex lines mask: 1 where HexLinesTex (R) > 0.5, else 0.
-    hex_mask = custom(mat, -1000, -400, "HexMask", "return (HexLines > 0.5) ? 1.0 : 0.0;", ["HexLines"])
-    link(hexlines, hex_mask, "HexLines", "R")
-    # Asphalt weight: smoothstep(0.5 - EdgeSoftness, 0.5 + EdgeSoftness, CoverageTex.R).
-    # The softness is clamped so EdgeSoftness = 0 gives a hard edge instead of a 0/0.
-    weight = custom(mat, -1000, 100, "AsphaltWeight",
-                    "float e = max(Softness, 0.0001); return smoothstep(0.5 - e, 0.5 + e, Coverage);",
-                    ["Coverage", "Softness"])
-    link(coverage, weight, "Coverage", "R")
-    link(softness, weight, "Softness")
+    # One Custom node decides the whole look: rgb = base colour, a = roughness. The cell grid lines come from the
+    # world position, so they need no texture; the lot shape (an L: the +X/+Y quadrant is the mall) is in the code.
+    ground = custom(mat, -600, 100, "GroundLook", """float e = max(Softness, 0.0001);
+float2 p = WorldPos.xy;
+// The lot: inside the 200 m plot, minus the mall quadrant (+X, +Y). Everything else is plain dirt.
+float lot = (abs(p.x) < 10000.0 && abs(p.y) < 10000.0 && !(p.x >= 0.0 && p.y >= 0.0)) ? 1.0 : 0.0;
+// Coverage: R = raw or done, G = done.
+float wR = smoothstep(0.5 - e, 0.5 + e, Coverage.r) * lot;
+float wG = smoothstep(0.5 - e, 0.5 + e, Coverage.g) * lot;
+// Grid lines of the 1 m cells, 3 cm wide, anti-aliased, hidden under any asphalt.
+float2 f = frac(p / 100.0);
+float2 d = min(f, 1.0 - f) * 100.0;
+float dist = min(d.x, d.y);
+float aa = max(fwidth(dist), 0.001);
+float gridLine = (1.0 - smoothstep(1.5 - aa, 1.5 + aa, dist)) * lot * (1.0 - wR);
+float3 colour = lerp(float3(0.25415, 0.14703, 0.06848), float3(0.14413, 0.14413, 0.15593), lot);
+float rough = lerp(1.0, 0.85, lot);
+colour = lerp(colour, float3(0.88792, 0.88792, 0.85499), gridLine);
+colour = lerp(colour, float3(0.07036, 0.07036, 0.08022), wR);
+rough = lerp(rough, 1.0, wR);
+colour = lerp(colour, float3(0.01681, 0.01681, 0.01938), wG);
+rough = lerp(rough, 0.6, wG);
+return float4(colour, rough);""",
+                    ["Coverage", "WorldPos", "Softness"], unreal.CustomMaterialOutputType.CMOT_FLOAT4)
+    link(coverage, ground, "Coverage", "RGB")
+    link(world, ground, "WorldPos")
+    link(softness, ground, "Softness")
 
-    dirt = node(mat, unreal.MaterialExpressionConstant3Vector, -1000, -700, constant=hex_to_linear("#8A6B4A"))
-    white = node(mat, unreal.MaterialExpressionConstant3Vector, -1000, -900, constant=hex_to_linear("#F2F2EE"))
-    asphalt = node(mat, unreal.MaterialExpressionConstant3Vector, -1000, -1100, constant=hex_to_linear("#232326"))
-
-    base_dirt_white = node(mat, unreal.MaterialExpressionLinearInterpolate, -600, -500)
-    link(dirt, base_dirt_white, "A")
-    link(white, base_dirt_white, "B")
-    link(hex_mask, base_dirt_white, "Alpha")
-    base = node(mat, unreal.MaterialExpressionLinearInterpolate, -300, -300)
-    link(base_dirt_white, base, "A")
-    link(asphalt, base, "B")
-    link(weight, base, "Alpha")
-    mel.connect_material_property(base, "", unreal.MaterialProperty.MP_BASE_COLOR)
-
-    # Roughness follows the palette: dirt 1.0, white marking 0.7, asphalt 0.35.
-    rough_dirt = node(mat, unreal.MaterialExpressionConstant, -1000, 300, r=1.0)
-    rough_white = node(mat, unreal.MaterialExpressionConstant, -1000, 400, r=0.7)
-    rough_asphalt = node(mat, unreal.MaterialExpressionConstant, -1000, 500, r=0.35)
-    rough_dw = node(mat, unreal.MaterialExpressionLinearInterpolate, -600, 300)
-    link(rough_dirt, rough_dw, "A")
-    link(rough_white, rough_dw, "B")
-    link(hex_mask, rough_dw, "Alpha")
-    rough = node(mat, unreal.MaterialExpressionLinearInterpolate, -300, 300)
-    link(rough_dw, rough, "A")
-    link(rough_asphalt, rough, "B")
-    link(weight, rough, "Alpha")
+    colour = node(mat, unreal.MaterialExpressionComponentMask, -250, 0, r=True, g=True, b=True, a=False)
+    link(ground, colour, "")
+    mel.connect_material_property(colour, "", unreal.MaterialProperty.MP_BASE_COLOR)
+    rough = node(mat, unreal.MaterialExpressionComponentMask, -250, 250, r=False, g=False, b=False, a=True)
+    link(ground, rough, "")
     mel.connect_material_property(rough, "", unreal.MaterialProperty.MP_ROUGHNESS)
 
-    expect_nodes(mat, 15)
+    expect_nodes(mat, 6)
     mel.recompile_material(mat)
     save(path)
 

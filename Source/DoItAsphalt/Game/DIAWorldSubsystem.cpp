@@ -1,17 +1,16 @@
 // Copyright Do it Asphalt. All Rights Reserved.
 
 #include "Game/DIAWorldSubsystem.h"
-#include "AsphaltBalance.h"
 #include "DoItAsphalt.h"
 #include "EngineUtils.h"
 #include "Game/DIASaveGame.h"
 #include "GameFramework/Actor.h"
 #include "Kismet/GameplayStatics.h"
+#include "LotBalance.h"
 #include "Misc/CommandLine.h"
 #include "PlatformFeatures.h"
 #include "SaveGameSystem.h"
 #include "Player/DIACharacter.h"
-#include "World/DIAPaverCar.h"
 
 namespace
 {
@@ -86,7 +85,7 @@ namespace
 		{
 			return false;
 		}
-		FAsphaltGame Scratch;
+		FLotGame Scratch;
 		if (!Scratch.LoadFromBytes(Save->Blob))
 		{
 			return false;
@@ -173,20 +172,7 @@ void UDIAWorldSubsystem::WritePlayerPositions()
 	{
 		return;
 	}
-	FAsphaltWorldState& State = Game.World();
-	// Driving, the truck is the player: its position is the player's too.
-	for (TActorIterator<ADIAPaverCar> It(World); It; ++It)
-	{
-		if (It->HasDriver())
-		{
-			const FVector Location = It->GetActorLocation();
-			State.CarPos = FVector2D(Location.X, Location.Y);
-			State.CarYawDeg = It->GetActorRotation().Yaw;
-			State.PlayerPos = State.CarPos;
-			State.PlayerYawDeg = State.CarYawDeg;
-			return;
-		}
-	}
+	FLotWorldState& State = Game.World();
 	TActorIterator<ADIACharacter> Character(World);
 	if (Character)
 	{
@@ -212,7 +198,7 @@ void UDIAWorldSubsystem::SaveGame()
 
 void UDIAWorldSubsystem::NewGame()
 {
-	Game = FAsphaltGame();
+	Game = FLotGame();
 	// Both: a backup that stayed would bring the old game back.
 	UGameplayStatics::DeleteGameInSlot(SlotName(), DIASave::UserIndex);
 	UGameplayStatics::DeleteGameInSlot(BackupSlotName(), DIASave::UserIndex);
@@ -229,20 +215,19 @@ void UDIAWorldSubsystem::Autosave()
 	}
 }
 
-void UDIAWorldSubsystem::Pour(FVector2D A, FVector2D B, bool bFromCar)
-{
-	Dispatch(bFromCar ? Game.PourFromCar(A, B) : Game.PourFromBackpack(A, B));
-}
-
-void UDIAWorldSubsystem::Dispatch(const FAsphaltEvents& Events)
+void UDIAWorldSubsystem::Dispatch(const FLotEvents& Events)
 {
 	if (Events.CompletedCells.Num() > 0)
 	{
 		OnCellsCompleted.Broadcast(Events.CompletedCells);
 	}
-	for (const int32 Road : Events.CompletedRoads)
+	for (const int32 Entry : Events.CompletedEntries)
 	{
-		OnRoadCompleted.Broadcast(Road);
+		OnEntryCompleted.Broadcast(Entry);
+	}
+	for (const ELotUnlock Unlock : Events.Unlocked)
+	{
+		OnUnlocked.Broadcast(Unlock);
 	}
 	if (Events.bExitOpened)
 	{
@@ -251,24 +236,24 @@ void UDIAWorldSubsystem::Dispatch(const FAsphaltEvents& Events)
 	OnStateChanged.Broadcast();
 }
 
-bool UDIAWorldSubsystem::Buy(EAsphaltUpgrade U)
+bool UDIAWorldSubsystem::BuyItem(ELotItem Item)
 {
-	if (!Game.Buy(U))
+	if (!Game.BuyItem(Item))
 	{
 		return false;
 	}
+	OnItemBought.Broadcast(Item);
 	OnStateChanged.Broadcast();
 	Autosave();
 	return true;
 }
 
-bool UDIAWorldSubsystem::BuySpecial(EAsphaltSpecial S)
+bool UDIAWorldSubsystem::BuyPlant()
 {
-	if (!Game.BuySpecial(S))
+	if (!Game.BuyPlant())
 	{
 		return false;
 	}
-	OnSpecialBought.Broadcast(S);
 	OnStateChanged.Broadcast();
 	Autosave();
 	return true;
@@ -317,7 +302,7 @@ IDIAInteractable* UDIAWorldSubsystem::FindInteractable(const ADIACharacter* Who,
 	}
 	const FVector Point = Who->GetActorLocation();
 	IDIAInteractable* Best = nullptr;
-	double BestDistance = AsphaltBalance::InteractionRangeCm;
+	double BestDistance = LotBalance::InteractionRangeCm;
 	for (const FInteractableEntry& Entry : Interactables)
 	{
 		AActor* Actor = Entry.Actor.Get();
@@ -358,7 +343,7 @@ void UDIAWorldSubsystem::Tick(float DeltaTime)
 
 	// The game time of an autosave: a paused game (the menu) does not tick, so it never counts.
 	AutosaveTimer += Seconds;
-	if (AutosaveTimer >= AsphaltBalance::AutosaveIntervalSeconds)
+	if (AutosaveTimer >= LotBalance::AutosaveIntervalSeconds)
 	{
 		AutosaveTimer = 0.0;
 		Autosave();

@@ -10,13 +10,12 @@
 
 class SDIAHudOverlay;
 class SDIAMenu;
-class SDIAShopPanel;
 class SDIAWinScreen;
 class UDIAWorldSubsystem;
 
 /**
  * The HUD actor: creates the Slate overlay in the game viewport (not when nothing can render, e.g. in tests), keeps the
- * contextual prompt, the toasts, the shop panel (Tab), the win screen (shown when the game is won) and the menu (the main menu
+ * contextual prompt, the toasts, the win screen (shown when the game is won) and the menu (the main menu
  * at the start, the pause menu on Esc), and turns the game's events into toasts. The game state stays in the subsystem. Where there
  * is no overlay (tests) the game starts without the menu; the menu's state and the input it takes are the same either way.
  */
@@ -28,18 +27,13 @@ class DOITASPHALT_API ADIAHUD : public AHUD
 public:
 	ADIAHUD();
 
-	/** Contextual prompt above the backpack bar; empty text hides it. */
+	/** Contextual prompt at the bottom of the screen; empty text hides it. */
 	void SetPrompt(const FText& Text);
 	/** A short message at the top of the screen; it fades after AsphaltHud::ToastHoldSeconds. */
 	void ShowToast(const FText& Text);
 
-	/** Opens the shop if it is closed and closes it if it is open; the game runs on either way. */
-	void ToggleShop();
-	void SetShopOpen(bool bOpen);
-	bool IsShopOpen() const { return bShopOpen; }
-
 	/**
-	 * Shows the win screen: the shop closes (and stays closed), the controller hands the mouse and the input to the screen. The
+	 * Shows the win screen: the controller hands the mouse and the input to the screen. The
 	 * screen is shown once the game is won (the HUD listens to OnWon), and there is no way back to the game from it.
 	 */
 	void ShowWinScreen();
@@ -50,7 +44,7 @@ public:
 	void QuitGame();
 
 	/**
-	 * Opens the main menu or the pause menu: the shop closes, the game pauses and the controller hands the mouse to the menu. Nothing
+	 * Opens the main menu or the pause menu: the game pauses and the controller hands the mouse to the menu. Nothing
 	 * happens while a menu is open or the win screen is shown.
 	 */
 	void OpenMenu(EDIAMenuMode Mode);
@@ -69,7 +63,6 @@ public:
 	const FText& GetPrompt() const { return Prompt; }
 	const FDIAToasts& GetToasts() const { return Toasts; }
 	bool HasOverlay() const { return Overlay.IsValid(); }
-	bool HasShopPanel() const { return ShopPanel.IsValid(); }
 	bool HasWinScreen() const { return WinScreen.IsValid(); }
 	bool HasMenu() const { return Menu.IsValid(); }
 
@@ -82,8 +75,9 @@ private:
 	void DestroyOverlay();
 
 	void HandleCellsCompleted(const TArray<int32>& Cells);
-	void HandleRoadCompleted(int32 Road);
-	void HandleSpecialBought(EAsphaltSpecial Special);
+	void HandleEntryCompleted(int32 Entry);
+	void HandleUnlocked(ELotUnlock Unlock);
+	void HandleItemBought(ELotItem Item);
 	void HandleExitOpened();
 	void HandleWon();
 	/** A game was loaded or started: the win screen goes if that game is not won, and appears if it is. */
@@ -97,9 +91,6 @@ private:
 	FText Prompt;
 	FDIAToasts Toasts;
 	TSharedPtr<SDIAHudOverlay> Overlay;
-	/** Built once with the overlay; shown and hidden, never rebuilt. */
-	TSharedPtr<SDIAShopPanel> ShopPanel;
-	bool bShopOpen = false;
 	/** Built once with the overlay, hidden until the game is won. */
 	TSharedPtr<SDIAWinScreen> WinScreen;
 	bool bWinShown = false;
@@ -109,8 +100,9 @@ private:
 
 	TWeakObjectPtr<UDIAWorldSubsystem> BoundSubsystem;
 	FDelegateHandle CellsHandle;
-	FDelegateHandle RoadHandle;
-	FDelegateHandle SpecialHandle;
+	FDelegateHandle EntryHandle;
+	FDelegateHandle UnlockHandle;
+	FDelegateHandle ItemHandle;
 	FDelegateHandle ExitHandle;
 	FDelegateHandle WonHandle;
 	FDelegateHandle ResetHandle;
