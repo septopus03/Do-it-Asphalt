@@ -1,6 +1,6 @@
 # Do it Asphalt
 
-Pokojná inkrementálna simulácia asfaltovania v tretej osobe. Hráč nosí asfalt z výrobne v batohu na chrbte a vylieva ho na parkovisko v tvare veľkého šesťuholníka (499 malých šesťuholníkových buniek). Za vyliaty asfalt dostáva peniaze, za dokončené bunky shardy, a za ne si kupuje väčší batoh, širší nástroj, rýchlejšiu výrobňu a špeciálne vylepšenia na príjazdových cestách. Keď je vyasfaltované všetko, otvorí sa východ a prechodom bránou hra končí výhrou.
+Pokojná inkrementálna simulácia asfaltovania v prvej osobe. Hráč vyleje asfalt na parkovisko v tvare písmena L (30 000 štvorcov 1 × 1 m) pred nákupným centrom. Začína lyžicou a miskou, neskôr používa vedro, kufor, vozík, hladidlo, finišer, robota a auto. Za každý hotový štvorec dostane 10 kreditov a za kredity kupuje lepšie vybavenie a rýchlejšiu výrobňu. Keď je vyasfaltované všetko, otvorí sa východ a prechodom bránou hra končí výhrou. Hra má podľa simulácie trvať asi 2 h 20 min.
 
 Projekt je v Unreal Engine 5.8 (C++ a Slate UI), cieľová platforma je macOS (vývoj) a Windows.
 
@@ -20,7 +20,7 @@ Všetky skripty bežia z koreňa projektu a berú cesty z `Scripts/env.sh`. Nikd
 | `Scripts/build.sh` | Skompiluje editorový cieľ `DoItAsphaltEditor` (Mac, Development). |
 | `Scripts/test.sh [filter]` | Spustí automatické testy editora bez okna (predvolený filter `DoItAsphalt`) a vypíše `PASSED n / FAILED m`; skončí chybou, ak nejaký test padol alebo chýba správa. |
 | `Scripts/shot.sh [--menu] <meno> ["cheat; cheat"]` | Spustí hru v okne na `L_Main`, vykoná cheaty a uloží `Saved/Screenshots/<meno>.png`. Používa vlastný slot `DIA_Shot`, skutočné uloženie sa nedotkne. |
-| `Scripts/uepy.sh <script.py>` | Spustí Python skript v editore bez okna a zlyhá pri `DIA_FAIL`, tracebacku alebo chýbajúcom `DIA_OK`. |
+| `Scripts/uepy.sh <script.py>` | Spustí Python skript v editore bez okna a zlyhá pri `DIA_FAIL`, tracebacku alebo chýbajúcom `DIA_OK`. Pozri poznámku k `create_materials.py` nižšie. |
 | `Scripts/setup_content.sh` | Skopíruje postavu Mannequin zo šablóny tretej osoby v engine do `Content/Characters/Mannequins` (ak tam už je, preskočí). |
 | `Scripts/package.sh` | Zbalí Shipping build pre Mac (`RunUAT BuildCookRun`) do `Builds/`; na úspech vypíše `BUILD SUCCESSFUL` a cestu k `.app`. |
 | `Scripts/run.sh [args]` | Otvorí projekt v Unreal Editore. |
@@ -29,30 +29,37 @@ Typický postup: `Scripts/build.sh && Scripts/test.sh`, potom `Scripts/run.sh`.
 
 ## Ovládanie
 
-| Akcia | Klávesnica a myš |
+| Akcia | Vstup |
 |---|---|
-| Pohyb | `W` `A` `S` `D` |
-| Kamera | myš |
-| Liať asfalt | ľavé tlačidlo myši (držať) |
-| Šprint (po kúpe) | `Shift` |
-| Interakcia (kiosk, prenosné miesto, auto) | `E` |
+| Chôdza | `W` `A` `S` `D` |
+| Pohľad | myš |
+| Použiť ruku (nabrať, liať, hladiť; s vozíkom klásť pás, s finišerom hladiť, v aute liať) | ľavé tlačidlo myši (držať) |
+| Pracovný pohľad | pravé tlačidlo myši (držať) |
+| Ďalšia ruka / miska, lopatka, vedro, hladidlo | `Q` / `1` `2` `3` `4` |
+| Chytiť, pustiť, nastúpiť a vystúpiť z auta | `E` |
+| Klapka kufra | `F` (držať) |
+| Poslať robota do sektora, v ktorom stojíš | `G` |
+| Šprint (po odomknutí) | ľavý `Shift` |
 | Obchod | `Tab` |
-| Pauza / menu | `Esc` |
+| Kontrolný pohľad | `V` (držať) |
+| Pauza / zavrieť obchod | `Esc` |
 
-V aute: `W`/`S` plyn a spiatočka, `A`/`D` zatáčanie, ľavé tlačidlo leje, `E` vystúpiť. Gamepad nie je podporovaný.
+V aute: `W`/`S` plyn a spiatočka, `A`/`D` zatáčanie, myš otáča hlavou, ľavé tlačidlo leje, `E` vystúpiť. Gamepad nie je podporovaný. Úplný opis je v [`docs/01-herny-dizajn.md`](docs/01-herny-dizajn.md).
 
 ## Cheaty pre vývoj
 
-V editore a vo vývojových buildoch sú konzolové príkazy `dia.*` (napríklad `dia.Give`, `dia.Complete`, `dia.CompleteRoad`, `dia.SetLevels`, `dia.Special`, `dia.Teleport`, `dia.Shop`, `dia.SkipMenu`, `dia.TopView`, `dia.ShotAndQuit`). Sú v `Source/DoItAsphalt/Game/DIACheats.cpp` pod `#if !UE_BUILD_SHIPPING`, takže v Shipping builde neexistujú. Skript `shot.sh` na nich stojí, preto sa nedá použiť so Shipping buildom.
+Konzolové príkazy `dia.*` sú v `Source/DoItAsphalt/Game/DIACheats.cpp` pod `#if !UE_BUILD_SHIPPING`, takže v Shipping builde neexistujú. Skript `shot.sh` na nich stojí, preto sa nedá použiť so Shipping buildom. Je ich 27:
 
-Spustenie s vlastným slotom uloženej hry (aby sa nedotkol skutočného `DoItAsphalt_Slot0`): argument `-DIASlot=<meno>`.
+`dia.Give`, `dia.Complete`, `dia.CompleteEntry`, `dia.Item`, `dia.Grab`, `dia.Drop`, `dia.RawStrip`, `dia.FinishStrip`, `dia.Place`, `dia.Plant`, `dia.EnterCar`, `dia.Teleport`, `dia.Prompt`, `dia.Toast`, `dia.SendPaver`, `dia.Save`, `dia.Load`, `dia.NewGame`, `dia.SkipMenu`, `dia.Camera`, `dia.WorkView`, `dia.CheckView`, `dia.Shop`, `dia.Hand`, `dia.Fill`, `dia.TopView`, `dia.ShotAndQuit`.
+
+Argumenty a účinok každého sú v [`docs/01-herny-dizajn.md`](docs/01-herny-dizajn.md), kapitola 11. Spustenie s vlastným slotom uloženej hry (aby sa nedotkol skutočného `DoItAsphalt_Slot0`): argument `-DIASlot=<meno>`.
 
 ## Štruktúra repozitára
 
 | Cesta | Čo obsahuje |
 |---|---|
-| `Source/AsphaltCore` | Čisté jadro hry bez závislosti na hernej logike enginu (mriežka buniek, ekonomika, vylepšenia, uloženie) s vlastnými testami a simuláciou balansu. |
-| `Source/DoItAsphalt` | Herný modul: postava, kamera, ovládanie, svet, HUD a menu v Slate, uloženie, cheaty, testy. |
+| `Source/AsphaltCore` | Čisté jadro hry bez enginu (`FLotGrid`, `FLotGame`, ekonomika, uloženie „DIA2“) s vlastnými testami a simuláciou balansu. |
+| `Source/DoItAsphalt` | Herný modul: postava, ovládanie, svet, HUD a menu v Slate, uloženie, cheaty, testy. |
 | `Tools/ModelGen` | Blender skripty, ktoré generujú 3D modely (manifest v `manifest.json`, `build_all.sh`). |
 | `Tools/UE` | Python skripty pre editor (import modelov, materiály, mapa `L_Main`), spúšťajú sa cez `Scripts/uepy.sh`. |
 | `SourceAssets` | Zdrojové modely (`Models`) a ich náhľady (`Previews`). |
@@ -62,41 +69,56 @@ Spustenie s vlastným slotom uloženej hry (aby sa nedotkol skutočného `DoItAs
 
 ## Dokumentácia
 
-Začni v [`docs/README.md`](docs/README.md). Odtiaľ vedú:
+Začni v [`docs/README.md`](docs/README.md). Dokumenty 1 – 3 popisujú hru v2:
 
-- [Herný dizajn](docs/01-herny-dizajn.md) – pravidlá, mapa, ceny, ovládanie, HUD.
-- [Technický návrh](docs/02-technicky-navrh.md) – architektúra, testovanie, riziká.
-- [3D modely](docs/03-3d-modely.md) – zoznam modelov a postup tvorby.
-- [Implementačný plán](docs/superpowers/plans/2026-11-19-do-it-asphalt.md).
+- [Herný dizajn](docs/01-herny-dizajn.md) – pravidlá, ovládanie, HUD, cheaty, známe obmedzenia, zmeny oproti návrhu.
+- [Technické poznámky](docs/02-technicky-navrh.md) – moduly, mriežka, uloženie, testy, Shipping.
+- [3D modely](docs/03-3d-modely.md) – paleta, 12 nových modelov, pomocné funkcie.
+
+História: [plán zmien](docs/04-plan-zmien-asphalt-self.md) a dva implementačné plány v `docs/superpowers/plans/`.
+
+## Nástroje: `Tools/UE/create_materials.py`
+
+Skript spustený cez `Scripts/uepy.sh Tools/UE/create_materials.py` **nedobehne**: vypíše `DIA_OK /Game/Materials/M_Ground` a pri druhom materiáli (`M_DIA_Flat`) editor spadne na tvrdení `!IsRooted()` v `UMaterialEditingLibrary::DeleteAllMaterialExpressions`. Rovnako padne aj samostatný skript, ktorý len zavolá `delete_material_expression` na načítanom `M_DIA_Flat`, takže príčina nie je v logike skriptu. Zostane po ňom proces `CrashReportClient` (treba ho ukončiť) a prepísaný `Content/Materials/M_Ground.uasset` (treba vrátiť: `git checkout -- Content/Materials/M_Ground.uasset`). Materiály v `Content/Materials/` sú hotové, preto skript netreba spúšťať; zmeny materiálov sa zatiaľ robia v editore.
 
 ## Overené
 
-Automaticky overené (2026-11-20, `Scripts/build.sh && Scripts/test.sh`):
+Overené 2026-11-21 v tejto úlohe (nie viac):
 
-- Automatické testy: `PASSED 125 / FAILED 0` (jadro `AsphaltCore` aj herný modul `DoItAsphalt`).
-- Simulácia balansu (test `DoItAsphalt.Core.BalanceSim.Playthrough`, súčasť týchto 125 testov) prešla. Test vyžaduje: hra sa dá dohrať, východ sa otvorí, celkový čas je v rozsahu 45 – 100 minút, kúpi sa presne 35 vylepšení, všetky pred dokončením 75 % buniek, a v prvých 30 minútach nie je medzi nákupmi pauza dlhšia ako 4 minúty. Posledný beh nameral 50,4 min, 35 nákupov, posledný nákup pri 292 / 499 bunkách (približne 58 %), najdlhšia pauza v prvých 30 minútach 183 s. Cieľ z `docs/01-herny-dizajn.md` (približne 50 minút, všetky vylepšenia pred 60 % buniek) je návrhový cieľ; test ho nevynucuje presne, len v uvedených hraniciach.
-- Shipping cieľ `DoItAsphalt Mac Shipping` sa skompiluje a zlinkuje (`DoItAsphalt-Mac-Shipping`, približne 281 MB).
-- V Shipping binárke nie sú cheaty: v nej sa nenachádza žiadny reťazec `dia.Give`, `dia.Complete`, `dia.CompleteRoad`, `dia.SetLevels`, `dia.Special`, `dia.Teleport`, `dia.Prompt`, `dia.Toast`, `dia.Shop`, `dia.SkipMenu`, `dia.Camera`, `dia.TopView` ani `dia.ShotAndQuit`. Pozor: reťazce `TEXT()` sú v UE na Macu UTF-16, takže obyčajné `strings` ich nenájde ani tam, kde sú; hľadalo sa preto v UTF-16 aj v ASCII a kontrola sa overila na editorovej knižnici `libUnrealEditor-DoItAsphalt.dylib`, kde ich nájde (napríklad `dia.Give` 2x).
+- `Scripts/build.sh` skončil úspechom.
+- `Scripts/test.sh`: `PASSED 216 / FAILED 0` (211 čistých testov a 5 s očakávaným varovaním). Skupiny: `DoItAsphalt.Lot.*` 87, `DoItAsphalt.Game.*` 128, `DoItAsphalt.Core.Smoke` 1.
+- Shipping cieľ sa skompiloval a zlinkoval príkazom `Build.sh DoItAsphalt Mac Shipping -project=<cesta>/DoItAsphalt.uproject` (`Binaries/Mac/DoItAsphalt-Mac-Shipping`, 281 774 456 bajtov). Dokončenie balíka `.app` zlyhalo na `codesign` (nižšie).
+- V Shipping binárke nie sú cheaty: žiadny z 27 reťazcov `dia.*` v nej nie je ani v UTF-16, ani v ASCII. Reťazce `TEXT()` sú na Macu UTF-16, preto obyčajné `strings` ich nenájde ani tam, kde sú; kontrola sa overila na editorovej knižnici `libUnrealEditor-DoItAsphalt.dylib`, kde je v UTF-16 všetkých 27.
+- Snímky `start`, `hand`, `shop`, `cart`, `finisher`, `paver`, `car`, `exit`, `site`, `win` a `load` (`Saved/Screenshots/`, v gite nie sú) boli otvorené a prezreté: štartová scéna s výrobňou a korytom, plná miska, obchod, vozík s kufrom, finišer, robot s oranžovým obrysom a riadkom „Paver: sector 23 · 0 / 400“, kabína auta pri pohľade na otvorené parkovisko, otvorená brána východu, nákupné centrum, obrazovka výhry s riadkami Time, Cells paved, Asphalt poured, Credits earned, Items bought a obnovený stav po `dia.Load`.
+- Simulácia balansu prešla: východ sa otvorí o 2:21:27 simulovaného času (v jednom behu).
 
-Zabalenie `.app` (`Scripts/package.sh`) tu zatiaľ **neprešlo**: Shipping binárka sa skompiluje, ale `codesign` balíka zlyhá s `resource fork, Finder information, or similar detritus not allowed`, lebo projekt leží na `~/Desktop` v iCloud Drive a ten pridáva priečinkom rozšírené atribúty. Treba projekt presunúť mimo iCloud Drive (napríklad do `~/Developer`) a skript spustiť znova; dovtedy `.app` neexistuje, preto nebolo čo skontrolovať, ani spustiť naprázdno. Preto je aj kontrola reťazcov urobená nad samostatnou Shipping binárkou, nie nad binárkou vnútri `.app`.
+Zabalenie `.app` (`Scripts/package.sh`) sa nespúšťalo. Pri kompilácii Shipping cieľa `codesign` balíka zlyhal s `resource fork, Finder information, or similar detritus not allowed`, lebo projekt leží na `~/Desktop` v iCloud Drive a ten pridáva priečinkom rozšírené atribúty. Projekt sa nemá presúvať; `.app` preto neexistuje a kontrola reťazcov je urobená nad samostatnou Shipping binárkou.
+
+Pozorovaná chyba (pozri aj nižšie): v kabíne auta pri sklone hlavy −8° zakrýva väčšinu horného obrazu veľká nepriehľadná modrá plocha (snímka `car_plate`); pri sklone −40° je mimo záberu.
 
 ## Neoverené – čaká na ručnú kontrolu
 
-Tieto body treba prejsť ručne v zabalenej hre (`.app` z `Scripts/package.sh`, hlavné menu, `New Game`); zatiaľ ich nikto nevyskúšal. Rovnako chýba overenie, že zabalená hra naštartuje bez pádu.
+Nič z tohto nikto ručne nevyskúšal:
 
-- Pohyb (`W` `A` `S` `D`) a kamera (myš) fungujú.
-- Batoh sa pri výrobni naplní.
-- Liatie zanecháva asfalt a pripisuje peniaze.
-- Dokončená bunka dá shard.
-- `Tab` otvorí obchod a nákup sa prejaví.
-- Po zavretí a opätovnom otvorení hry ponúkne `Continue` rovnaký stav.
-- Myš a kurzor: v hlavnom menu, v obchode a v pauze je kurzor viditeľný a tlačidlá sa dajú klikať; počas hry je kurzor skrytý a myš otáča kamerou.
-- `Esc` otvorí pauzu a hra sa pozastaví; v pauze fungujú `Resume`, `New Game` a `Quit`, v hlavnom menu `Continue`, `New Game` a `Quit`.
-- Zem a disk doplňovania pri výrobni sú viditeľné (základné tvary enginu sa pri balení vždy pribalia, `DirectoriesToAlwaysCook`).
+- celé prehratie hry od začiatku do výhry;
+- pohľad myšou, zachytenie kurzora a `Esc`;
+- zatvorenie obchodu klávesom `Tab`, kým je kurzor zobrazený;
+- dvojklik na riadok výrobne a na riadok predmetu v obchode;
+- pocit z pohľadu v kabíne (sklon −8°, citlivosť myši) a z jazdy;
+- pocit z rýchlosti hladidla a finišera;
+- zabalenie `.app` (`codesign` zlyhá, lebo projekt leží v iCloude; projekt sa nemá presúvať).
 
-## Neimplementované z GDD
+## Známe obmedzenia
 
-Tieto dve veci z GDD nie sú v hre; zámerne sa nedoplnili a GDD zostáva nezmenené.
+Úplný zoznam je v [`docs/01-herny-dizajn.md`](docs/01-herny-dizajn.md), kapitola 12.
 
-- Šípka HUD k výrobni počas prvých 20 s (GDD, kapitola 5).
-- Krátke zablikanie dokončenej bunky (GDD, kapitola 4).
+- V prvej osobe nie sú vidieť ruky ani paže a nie je animácia pohybu do strán.
+- Hra nemá zvuk.
+- Lištu finišera pred očami zakrýva jeho kryt.
+- Lišta auta sa pri plnom vychýlení volantu môže pohybovať o niečo rýchlejšie, než dovoľuje strop liatia.
+- Pri liatí z auta hráča nič neupozorní, že zásoba výrobne sa minula.
+- Obrys sektora robota (10 cm) je zďaleka zhora tenký.
+- Kým sú zobrazené tri iné oznamy, oznamy o kreditoch čakajú.
+- Predmet uložený v čase, keď ho hráč drží, sa uloží na polohe v ruke bez kontroly voľného miesta.
+- Valček, dusadlo a lata s vodováhou zo špecifikácie v hre nie sú (otvorená otázka O1).
+- Míľnik 800 políčok v simulácii má rezervu pod minútu (41:17 oproti limitu 42:00).

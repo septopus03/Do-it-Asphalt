@@ -1,8 +1,8 @@
-# Do it Asphalt – herný dizajn (GDD)
+# Do it Asphalt – herný dizajn
 
-Verzia 1.0 · 2026-11-19 · vychádza z `Do it Asphalt - dokumentacia.docx`
+Verzia 2.0 · 2026-11-21 · popisuje hru Asphalt-self tak, ako je naprogramovaná
 
-Tento dokument je záväzný popis hry. Všetko, čo pôvodná špecka neurčila, je tu rozhodnuté a zhrnuté v kapitole 13, aby sa to dalo jedným pohľadom skontrolovať a zmeniť.
+Tento dokument hovorí, ako sa hra hrá: pravidlá, ovládanie, obrazovka, cheaty a známe obmedzenia. Všetky čísla sú prevzaté z kódu (`Source/AsphaltCore/Public/LotBalance.h` a `LotLayout.h`), nie z plánu. Ako je hra postavená, je v `02-technicky-navrh.md`. Kde sa hotová hra líši od návrhu v `04-plan-zmien-asphalt-self.md`, vysvetľuje to kapitola 10.
 
 ---
 
@@ -10,204 +10,234 @@ Tento dokument je záväzný popis hry. Všetko, čo pôvodná špecka neurčila
 
 | | |
 |---|---|
-| Žáner | inkrementálna simulácia (pokojné „satisfying" asfaltovanie + vylepšovanie) |
-| Platforma | PC – macOS (vývoj) a Windows, cieľovo Steam |
+| Žáner | pokojná inkrementálna simulácia asfaltovania |
+| Platforma | macOS (vývoj), cieľovo aj Windows |
 | Engine | Unreal Engine 5.8 (C++) |
-| Kamera | tretia osoba, kamera za hráčom |
+| Kamera | prvá osoba, pracovný pohľad podržaním pravého tlačidla myši |
 | Hráči | 1 |
-| Cieľová dĺžka | 60 – 90 minút na dohranie |
-| Vizuál | štylizovaný low-poly, ploché farby, stavenisko za dňa |
+| Cieľová dĺžka | asi 2 h 15 min (simulácia dáva 2 h 21 min, pozri kapitolu 9) |
+| Vzhľad | parkovisko pred nákupným centrom, tlmené farby, jedna akcentová (oranžová) |
 
-**Jednou vetou:** hráč nosí asfalt z výrobne v batohu na chrbte a vylieva ním parkovisko v tvare veľkého šesťuholníka; za vyliaty asfalt dostáva peniaze, za dokončené bunky shardy, a za ne si kupuje väčší batoh, širší nástroj, rýchlejšiu výrobňu a šesť špeciálnych vylepšení na príjazdových cestách – posledným je východ a výhra.
+**Jednou vetou:** hráč vyleje asfalt na parkovisko v tvare písmena L (30 000 štvorcov 1 × 1 m), najprv z misky lyžicou, neskôr z vedra, kufra, vozíka, finišera, robota a auta; za každý hotový štvorec dostane 10 kreditov, za kredity kupuje lepšie vybavenie a výrobňu a po vyasfaltovaní všetkého sa otvorí východ.
 
-## 2. Herná slučka
+## 2. Mapa
 
-1. Výrobňa priebežne vyrába asfalt do zásobníka.
-2. Hráč vojde do odbernej zóny výrobne, batoh sa mu naplní.
-3. Hráč podrží tlačidlo a pri chôdzi vylieva asfalt na zem v šírke svojho nástroja.
-4. Každý vyliaty liter = peniaze. Každá dokončená bunka = shard.
-5. Za peniaze a shardy kupuje vylepšenia → nosí viac, leje širšie, výrobňa stíha.
-6. Vyasfaltovaná príjazdová cesta odomkne kiosk so špeciálnym vylepšením.
-7. Keď je vyasfaltované všetko, otvorí sa východ. Prechod bránou = výhra.
+- Parkovisko je štvorec 200 × 200 m bez jedného kvadrantu 100 × 100 m: v ňom stojí nákupné centrum. Zostáva tvar L s 30 000 štvorcami (políčkami) 1 × 1 m.
+- Okolo parkoviska je 12 m široký pás s obrubníkom, plotom a vstupnými cestami.
+- Políčka sú zoskupené do 75 **sektorov** 20 × 20 políčok (400 políčok v sektore). Sektory sa v hre číslujú od 1 (v súbore kódu od 0).
+- Okolo L je **6 vstupných úsekov**, každý široký 12 políčok. Pred každým stojí tabuľa, ktorá hovorí, aký krok odomyká (kapitola 7), a koľko z 12 políčok úseku je hotových („Entry k / 12").
+- Výrobňa asfaltu stojí pri štarte, na okraji parkoviska. Pred ňou je koryto (trough) s asfaltom, z ktorého sa nabera. Hráč začína tesne pred nimi a je k nim obrátený.
+- Východ je vo vstupnom úseku 6. Je to brána s ramenom; vpustí hráča na cestu von, až keď je hotové celé parkovisko.
 
-## 3. Mapa
+## 3. Herná slučka
 
-### 3.1 Malý šesťuholník (bunka)
-
-- Plocha presne **1 m²**, hrúbka vrstvy 2 cm → **20 l asfaltu** na bunku (zo špecky).
-- Strana 62,04 cm, šírka cez hrany 107,46 cm. Bunky sú orientované hrotom nahor (pointy-top).
-- Bunka má na zemi viditeľný obrys, kým nie je zaliata.
-
-### 3.2 Parkovisko
-
-- Veľký šesťuholník s polomerom **12 buniek** okolo stredovej bunky = **469 buniek**.
-- Rozmer približne 27 × 24 m.
-
-> Presne 500 buniek sa do pravidelného šesťuholníka poskladať nedá (možné počty sú … 397, 469, 547 …). Zvolených je 469 a spolu s cestami vychádza celok na 499. Viď rozhodnutie R1.
-
-### 3.3 Príjazdové cesty
-
-- Zo stredu každej zo 6 strán veľkého šesťuholníka vybieha jedna cesta.
-- Každá cesta má **5 buniek** (rad 2 bunky + rad 3 bunky), spolu 30 buniek.
-- Za piatimi bunkami pokračuje už hotová stará cesta ako kulisa až k plotu, kde ju uzatvára zábrana (pri východe brána).
-- Bunky ciest sa asfaltujú a odmeňujú rovnako ako bunky parkoviska.
-
-**Spolu: 499 buniek, 9 980 l asfaltu.**
-
-### 3.4 Rozmiestnenie
-
-```
-                        cesta 1
-                   (auto-asfaltovač)
-                           |
-                   ________|________
-    cesta 2       /                 \       cesta 0
-   (dve ruky) ───/                   \─── (asfaltovacie auto)
-                /                     \
- [VÝROBŇA] ●   <      PARKOVISKO       >
-    štart       \     469 buniek      /
-    cesta 3 ─────\                   /─── cesta 5
-    (šprint)      \_________________/      (VÝCHOD)
-                           |
-                        cesta 4
-                   (prenosné miesto)
-```
-
-- Výrobňa stojí mimo parkoviska pri západnom rohu; hráč začína v jej odbernej zóne.
-- Najlacnejšie špeciály sú na cestách najbližšie k výrobni, východ je najďalej.
-- Areál je ohradený plotom (hráč nemôže odísť inak než východom).
-- Po nevyasfaltovanej zemi sa dá voľne chodiť – hráč si sám volí, čo vyleje skôr.
+1. Hráč nabere asfalt z koryta (alebo z výpustu výrobne) do nádoby v ruke.
+2. Vylieva ho na voľné políčka. Zem ukazuje, či je políčko voľné, surové alebo hotové.
+3. Keď je vyliate dosť (95 % plochy políčka), políčko sa dokončí, zvyšok sa doleje samo a hráč dostane 10 kreditov.
+4. Za kredity kupuje lepšie nádoby a stroje a vylepšuje výrobňu.
+5. Počet hotových políčok odomyká ďalšie kroky: rýchla výmena (10), šprint (100), pásové stroje (350), robot (800), auto (6 000) a východ (30 000).
+6. Keď je hotových všetkých 30 000 políčok, otvorí sa východ. Prejsť cez bránu znamená výhru.
 
 ## 4. Asfaltovanie
 
-- Hráč pred sebou tlačí **asfaltovačku** – rozstrekovaciu lištu na kolieskach, ktorej šírka je daná úrovňou nástroja. Lišta je 80 cm pred hráčom.
-- Kým hráč drží tlačidlo liatia a má v batohu asfalt, plocha, cez ktorú lišta prejde, sa zaleje. Pri státí na mieste sa zaleje pás hlboký 10 cm.
-- Spotreba je presne úmerná novo zaliatej ploche: 20 l/m². Už zaliata plocha a plocha mimo buniek nespotrebuje nič a nič nezarobí.
-- Keď sa batoh minie, liatie sa okamžite zastaví.
-- **Bunka je dokončená pri 97 % pokrytia** – zvyšné škáry sa zalejú samy a zadarmo (bez peňazí). Hráč tak nemusí naháňať posledné milimetre.
-- Počas liatia hráč kráča pomalšie (2 m/s oproti 4,5 m/s).
-- Spätná väzba: asfalt je viditeľne tmavý a lesklý, dokončená bunka krátko blikne a vyskočí „+1 shard".
+### 4.1 Políčko
 
-## 5. Výrobňa asfaltu
+- Políčko má 1 × 1 m a potrebuje **10 l** asfaltu. Je hotové, keď je pokrytých **95 %** (9,5 l) jeho plochy; zvyšok sa dokončí samo.
+- Za každé hotové políčko je odmena **10 kreditov**, raz.
+- Každé políčko má tri stavy zeme: voľné, **surové** (asfalt je rozložený, ale nie uhladený) a **hotové**. Surový asfalt sa samotný nikdy nepočíta ako hotový: dokončí ho až hladidlo alebo finišer.
+- Liať sa dá len na voľnú zem. Na surový ani hotový asfalt sa neleje.
 
-- Vyrába nepretržite podľa svojej úrovne (15 → 1000 l/min) do vlastného zásobníka.
-- **Kapacita zásobníka = 4 minúty výroby** (základ 60 l). Plný zásobník výrobu zastaví.
-- **Odber je automatický:** stačí stáť v odbernej zóne (kruh s polomerom 2 m pri výpuste). Prázdny batoh sa naplní za 1,5 s, ak je v zásobníku dosť.
-- Hra začína s prázdnym zásobníkom aj batohom – prvých 20 sekúnd hráč čaká na prvých 5 l (krátky „tutoriálový" moment, HUD ukáže šípku k výrobni).
+### 4.2 Nádoby v ruke
 
-## 6. Meny
+Hráč drží vždy jednu „ruku" a prepína ich klávesmi (kapitola 5).
 
-| Mena | Ako sa získava | Na čo je |
+| Ruka | Kapacita | Poznámka |
 |---|---|---|
-| **Peniaze** | 1 za každý vyliaty liter | nástroj, výrobňa, špeciálne vylepšenia |
-| **Shardy** | 1 za každú dokončenú bunku | batoh |
+| Miska (Bowl) | 2,5 l | štart; berie sa lyžicou po 0,25 l |
+| Lopatka (Scoop) | 1 l | kúpi sa za 10; záber 1 l |
+| Vedro (Bucket) | 10 l | kúpi sa za 35; vylieva sa naraz do políčka pod zámerným bodom |
+| Hladidlo (Trowel) | – | štart; nenesie asfalt, hladí surový asfalt na hotový |
 
-Maximum v celej hre: 499 shardov a približne 9 700 – 9 980 peňazí (podľa toho, koľko škár dokončí hra sama). Všetky vylepšenia spolu stoja 253 shardov a 5 885 peňazí, takže hráč stihne kúpiť všetko zhruba v 60 % hry a zvyšok si užije na plnom výkone.
+- Naberanie: ľavé tlačidlo pri koryte opakuje záber každých 0,5 s.
+- Liatie z misky a lopatky: ľavé tlačidlo, 1 l za sekundu, kruh s polomerom 15 cm (miska) alebo 10 cm (lopatka). Z ruky sa leje rovno **hotový** asfalt.
+- Vedro sa plní v ruke zo zásoby: z kohútika stojaceho kufra alebo vozíka, z výpustu výrobne alebo z presuvnej výdajne.
+- Výmena ruky trvá 1,5 s, po odomknutí rýchlej výmeny 0 s.
+- Dosah ruky je 250 cm.
 
-## 7. Bežné vylepšenia
+### 4.3 Surový pás
 
-Kupujú sa kdekoľvek cez obchod (kláves Tab). Úrovne idú postupne, nedajú sa preskakovať.
+Surový asfalt kladú dva predmety:
 
-### 7.1 Batoh (shardy)
+- **Kufor** (Suitcase): hráč ho potiahne za sebou (stojí 62 cm za ním, naklonený o 25°), postaví sa a podržaním klávesu `F` otvorí klapku, ktorá sype 2 l/s do políčka pred ním. Zásoba je 60 l.
+- **Vozík** (Cart): hráč ho drží pred sebou, podrží ľavé tlačidlo a tlačí ho; kladie surový pás široký 100 cm, kým sa vozík hýbe rýchlosťou do 200 cm/s. Zásoba je 200 l.
 
-| Úroveň | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| Kapacita (l) | 5 | 7 | 10 | 15 | 20 | 30 | 40 | 60 | 80 | 100 | 135 | 150 | 200 |
-| Cena (shardy) | – | 1 | 2 | 4 | 6 | 9 | 13 | 18 | 24 | 31 | 39 | 48 | 58 |
+Oba slúžia aj ako zásoba pre vedro (kohútik, 5 l/s).
 
-Batoh má 4 vizuálne veľkosti: S (5 – 10 l), M (15 – 40 l), L (60 – 100 l), XL (135 – 200 l).
+### 4.4 Uhladenie
 
-### 7.2 Nástroj na asfaltovanie (peniaze)
+- **Hladidlo** (ruka 4): ľavé tlačidlo uhladí surový asfalt v pruhu širokom **40 cm**. Bod dotyku začína tam, kam hráč mieri, a sleduje zámerný bod rýchlosťou najviac 200 cm/s.
+- **Finišer** (Finisher): hráč ho tlačí pred sebou (165 cm pred sebou) a uhladí pás široký 100 cm, kým drží ľavé tlačidlo. Bez tlačidla sa len tlačí. Rýchlosť uhladzovania je 85 políčok za minútu (asi 142 cm/s).
+- Uhladenie je zadarmo, nestojí asfalt ani kredity. Keď sa políčko dokončí, zvyšok sa uhladí samo.
 
-| Úroveň | 0 | 1 | 2 | 3 | 4 | 5 | 6 |
-|---|---|---|---|---|---|---|---|
-| Šírka (m) | 0,2 | 0,3 | 0,5 | 0,8 | 1,0 | 1,5 | 2,0 |
-| Cena (peniaze) | – | 25 | 60 | 120 | 220 | 380 | 600 |
+### 4.5 Výrobňa a zásoba
 
-### 7.3 Výrobňa (peniaze)
+- Výrobňa vyrába asfalt do zásobníka. Zásobník má kapacitu **4 minúty výroby** a na štarte je v ňom 80 l.
+- Úrovne výrobne (litre za minútu): **150 / 300 / 750 / 2 000 / 4 200 / 5 200**. Ceny vylepšení: 100 / 400 / 1 400 / 8 000 / 24 000 kreditov.
+- Na úrovniach 2 a 4 pribudne k výrobni viditeľná prístavba.
+- Naberanie z koryta a plnenie vedra ťahá zo zásobníka. Keď je prázdny, nič sa nenabere.
 
-| Úroveň | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| Výroba (l/min) | 15 | 20 | 25 | 35 | 50 | 80 | 100 | 125 | 180 | 300 | 500 | 750 | 1000 |
-| Cena (peniaze) | – | 30 | 50 | 75 | 105 | 145 | 190 | 240 | 290 | 335 | 370 | 395 | 405 |
+### 4.6 Stroje
 
-Výrobni pribudne viditeľný prístavok na úrovni 5 a ďalší na úrovni 10.
+- **Presuvná výdajňa** (Station, 900 kreditov, od 350 políčok): hráč ju ťahá za sebou (105 cm) a vedro, kufor aj vozík sa pri nej plnia ako pri výrobni.
+- **Finišer** (1 400, od 350 políčok): kapitola 4.4.
+- **Robot** (AutoPaver, 3 000, od 800 políčok): sám asfaltuje pridelený sektor. Hráč sa postaví do sektora a stlačí `G`. Robot ide k prvému nedokončenému políčku a kladie hotový asfalt rýchlosťou 120 políčok za minútu, pričom čerpá zo zásobníka výrobne (v kuse najviac 10 l). Vylepšenia: **AutoPaverFast** (9 000, 170 políčok/min) a **AutoPaverFaster** (22 000, 220 políčok/min). Pridelený sektor má na zemi oranžový obrys (10 cm). Ak hráč stlačí `G` v sektore, kde robot už je, zobrazí sa „Paver is already here".
+- **Auto** (Car, 12 000, od 6 000 políčok): hráč doň nastúpi (`E`) a jazdí. Auto nemá nádrž; leje hotový asfalt zo zásobníka výrobne, kým hráč drží ľavé tlačidlo, pásom širokým 300 cm (260 políčok/min). **CarWideBar** (24 000) rozšíri pás na 350 cm (300 políčok/min). Pri liatí sa rýchlosť auta obmedzí tak, aby sa nelialo viac, než sa stíha.
 
-> Ceny výrobne sú doladené simuláciou celého prechodu hry (test `DoItAsphalt.Core.BalanceSim.Playthrough`): hra trvá približne 50 minút a všetkých 35 vylepšení je kúpených pred dokončením 60 % buniek. Ostatné ceny sú východiskové a po prvom hraní sa budú ladiť. V kóde žijú na jednom mieste (`AsphaltBalance`).
+## 5. Ovládanie
 
-## 8. Špeciálne vylepšenia
-
-Každá cesta má na konci kiosk. Kiosk je zamknutý, kým nie je **všetkých 5 buniek tej cesty** dokončených. Potom sa pri ňom dá špeciál kúpiť (kláves E). Poradie ciest si hráč volí sám.
-
-| Cesta | Špeciál | Cena | Správanie |
-|---|---|---|---|
-| 3 | **Šprint** | 100 | Držaním Shift beží hráč 1,6× rýchlejšie. Nedá sa počas liatia. |
-| 2 | **Dve ruky** | 200 | Hráč tlačí dve asfaltovačky vedľa seba → dvojnásobná šírka liatia. |
-| 4 | **Prenosné odberné miesto** | 300 | Nádrž na kolieskach. Hráč ju klávesom E zdvihne a položí kdekoľvek; v okruhu 2 m okolo nej sa batoh plní rovnako ako pri výrobni. Čerpá zo zásobníka hlavnej výrobne. |
-| 1 | **Automatizovaný asfaltovač** | 450 | Robot, ktorý sám leje 20 l/min, teda 5 buniek za 5 minút. Vždy si vyberie najbližšiu nedokončenú bunku. Má vlastný asfalt, odmeny idú hráčovi. |
-| 0 | **Asfaltovacie auto** | 800 | Vozidlo s nádržou 500 l a lištou širokou 3 m. Nastupuje sa klávesom E, plní sa v odbernej zóne, leje sa rovnakým tlačidlom. |
-| 5 | **Východ** | zadarmo | Brána sa otvorí, keď je dokončených všetkých 499 buniek. |
-
-## 9. Výhra
-
-- Podmienka: všetkých 499 buniek dokončených → brána na ceste 5 sa otvorí a HUD to oznámi.
-- Hráč prejde (alebo prejde autom) bránou → obrazovka výhry: čas hry, vyliate litre, zarobené peniaze, počet kúpených vylepšení.
-- Z obrazovky výhry: „Nová hra" alebo „Koniec". Prehrať sa nedá.
-
-## 10. Ovládanie
-
-| Akcia | Klávesnica + myš |
+| Vstup | Čo robí |
 |---|---|
-| Pohyb | W A S D |
-| Kamera | myš |
-| Liať asfalt | ľavé tlačidlo myši (držať) |
-| Šprint (po kúpe) | Shift (držať) |
-| Interakcia (kiosk, prenosné miesto, auto) | E |
-| Obchod | Tab |
-| Pauza / menu | Esc |
+| `W` `A` `S` `D` | chôdza; v aute `W`/`S` plyn a spiatočka, `A`/`D` zatáčanie |
+| Myš | pohľad; v aute otáča hlavou (±100° do strán, −60° až +45° hore/dole) |
+| Ľavé tlačidlo myši | použiť ruku: nabrať, liať, vyliať vedro, hladiť; podržané s vozíkom kladie pás, s finišerom hladí, v aute leje |
+| Pravé tlačidlo myši (držať) | pracovný pohľad: zorné pole 90° → 60°, naklonenie o 15°, prechod 0,2 s |
+| `Q` | ďalšia ruka |
+| `1` `2` `3` `4` | miska / lopatka / vedro / hladidlo |
+| `E` | chytiť predmet, pustiť ho, nastúpiť do auta alebo vystúpiť |
+| `F` (držať) | klapka kufra |
+| `G` | poslať robota do sektora, v ktorom hráč stojí |
+| Ľavý `Shift` | šprint (po odomknutí) |
+| `Tab` | obchod |
+| `V` (držať) | kontrolný pohľad (nie počas jazdy) |
+| `Esc` | zavrie obchod, inak otvorí pauzu; obrazovka výhry ho ignoruje |
 
-V aute: W/S plyn a spiatočka, A/D zatáčanie, ľavé tlačidlo leje, E vystúpiť. Gamepad je mimo rozsahu v1.
+- Chôdza je 450 cm/s, šprint 1,6-krát rýchlejší. Kufor sa ťahá rýchlosťou 350 cm/s, vozík sa tlačí 400 cm/s, finišer 400 cm/s a výdajňa sa nesie 400 cm/s.
+- Počas jazdy fungujú chôdza (plyn, zatáčanie), myš, ľavé tlačidlo, `E`, `Tab` a `Esc`. Klávesy rúk, `G`, `F`, pracovný pohľad a `V` nerobia nič.
+- Ak hráč niečo drží, `E` patrí držanému predmetu (pustí ho). Do auta sa nastupuje len s voľnými rukami.
+- Kamera je v kabíne auta vo výške 190 cm, 120 cm pred stredom auta, v pokoji sklonená o 8° nadol.
+- Kontrolný pohľad (`V`) zobrazí šípku k najbližšiemu nedokončenému políčku.
 
-## 11. HUD a obrazovky
+## 6. Obrazovka (HUD)
 
-- **Vľavo hore:** peniaze, shardy.
-- **Vpravo hore:** postup „137 / 499 buniek · 27 %".
-- **Dole v strede:** ukazovateľ batohu „3,2 / 5 l" (v aute nádrž auta).
-- **Pri výrobni / prenosnom mieste:** zásobník „42 / 60 l".
-- **Kontextová výzva:** „E – Kúpiť Šprint (100)", „Dokonči cestu (3 / 5)", „E – Nastúpiť".
-- **Obchod (Tab):** tri riadky – Batoh, Nástroj, Výrobňa; aktuálna hodnota → ďalšia hodnota, cena, tlačidlo. Hra počas obchodu beží ďalej.
-- **Hlavné menu:** Pokračovať (ak existuje uložená hra), Nová hra, Koniec.
-- **Pauza (Esc):** Pokračovať, Nová hra, Koniec.
-- **Výhra:** štatistiky podľa kapitoly 9.
+- **Vľavo hore:** kredity.
+- **Vpravo hore:** „x / 30,000 · n %" hotových políčok s pruhom; pod ním „Next: <krok> – entry k / 12, cells a / b", teda ďalší odomykaný krok, koľko z 12 políčok jeho vstupného úseku je hotových a koľko hotových políčok z potrebných je celkovo. Ak je robot pridelený: „Paver: sector N · k / 400", inak „Paver: waiting – press G".
+- **Vpravo dole:** názov ruky a hladina nádoby (napríklad „Bowl 0 / 2.5 l").
+- **V strede dole:** výzva, čo robí `E` pri predmete.
+- **Oznamy (toasty):** najviac 3 naraz, každý 2 s plus 0,5 s dobehu. Kredity sa spájajú do jedného bežiaceho súčtu („+40 credits"). Pri odomknutí: „Unlocked: X" a pod tým účinok kroku.
+- **Tabule pri vstupoch:** názov kroku, „Entry k / 12" (hotové políčka úseku) a „Cells a / b" (hotové políčka z potrebných). Kiosky stoja pri vstupoch 1, 4, 5 a 6; vstupy 2 a 3 majú tabuľu na nákupnom centre.
+- **Obchod (`Tab`):** riadky sú výrobňa (najprv), potom predmety; kúpené riadky idú na koniec. Zamknuté riadky ukazujú podmienku, napríklad „350 cells + entry 3". Poradie sa určí pri otvorení obchodu. Každý nákup sa ukladá.
+- **Pauza a menu:** tlačidlá Continue, Resume, New Game, Quit, Yes, No.
+- **Výhra:** obrazovka „Parking lot complete!" so riadkami Time, Cells paved, Asphalt poured, Credits earned, Items bought a tlačidlami New Game a Quit.
 
-Texty v hre sú v prvej verzii po anglicky, pripravené na lokalizáciu (viď R9).
+## 7. Obchod a odomykanie
 
-## 12. Ukladanie
+Predmety (ceny v kreditoch):
 
-- Jedna pozícia. Automatické uloženie každých 30 sekúnd, pri každom nákupe a pri ukončení hry.
-- Ukladá sa: pokrytie všetkých buniek, peniaze, shardy, úrovne, kúpené špeciály, stav zásobníka, batohu a nádrže auta, čas hry, poloha hráča, prenosného miesta, auta a robota.
-- Poškodený alebo starší súbor → hra ponúkne len „Nová hra", nespadne.
+| Predmet | Cena | Potrebuje |
+|---|---|---|
+| Scoop (lopatka) | 10 | – |
+| Bucket (vedro) | 35 | – |
+| Suitcase (kufor) | 110 | – |
+| Cart (vozík) | 340 | – |
+| Station (výdajňa) | 900 | odomknutie StripWork |
+| Finisher | 1 400 | odomknutie StripWork |
+| AutoPaver | 3 000 | odomknutie AutoPaver |
+| AutoPaverFast | 9 000 | AutoPaver |
+| AutoPaverFaster | 22 000 | AutoPaverFast |
+| Car | 12 000 | odomknutie Car |
+| CarWideBar | 24 000 | Car |
 
-## 13. Rozhodnutia nad rámec špecky
+Kroky sa odomykajú, keď je hotových dosť políčok a zároveň je celý príslušný vstupný úsek (12 políčok):
 
-Pôvodná špecka tieto veci neurčila. Vľavo otázka, vpravo čo platí, kým nepovieš inak.
+| Vstup | Krok | Políčok |
+|---|---|---|
+| 1 | QuickSwap (výmena ruky 0 s) | 10 |
+| 2 | Sprint | 100 |
+| 3 | StripWork (výdajňa a finišer) | 350 |
+| 4 | AutoPaver | 800 |
+| 5 | Car | 6 000 |
+| 6 | Exit | 30 000 |
 
-| # | Otázka | Rozhodnutie | Prečo |
+Spolu je v obchode 16 vecí: 5 úrovní výrobne a 11 predmetov.
+
+## 8. Ukladanie
+
+- Hra ukladá do jedného slotu s kópiou. Ukladá sa každých 30 s hry, po každom nákupe, po výhre a pri ukončení hry.
+- Uložia sa kredity, čas, výrobňa, nádoby, kúpené veci, polohy predmetov, auto, robot a celá zem. Ak hráč v aute uloží, po načítaní sedí v aute.
+- Predmet držaný v ruke sa uloží položený na miesto, kde je.
+- Poškodený slot hra odmietne a použije zálohu; ak sú poškodené obe, začne novú hru.
+- Uloženie z predchádzajúcej verzie hry (v1) sa odmietne.
+
+## 9. Dĺžka hry (simulácia)
+
+Test `DoItAsphalt.Lot.BalanceSim` hrá hru vopred naprogramovaným správaním a meria **simulovaný** čas, nie skutočnú hru. V jednom behu vyšlo:
+
+| Míľnik | Simulovaný čas |
+|---|---|
+| prvé políčko | 0:42 |
+| 10 políčok | 2:39 |
+| 100 políčok | 8:07 |
+| 350 políčok | 22:34 |
+| 800 políčok | 41:17 (limit testu 42:00) |
+| 6 000 políčok | 1:13:07 |
+| všetkých 30 000 políčok (otvorí sa východ) | 2:21:27 |
+
+Auto sa v simulácii kupuje v čase 1:15:06, široký pás o 1:19:58. Hráč ručne hrá pomalšie alebo rýchlejšie než simulácia; skutočná dĺžka hry sa celá nehrala.
+
+## 10. Zmeny oproti návrhu
+
+Kde sa hotová hra líši od `04-plan-zmien-asphalt-self.md`:
+
+| Čo | Návrh | Hra | Prečo |
 |---|---|---|---|
-| R1 | 500 buniek v tvare šesťuholníka | 469 buniek parkovisko + 30 buniek ciest = 499 | Presných 500 geometricky nejde; alternatíva je polomer 13 = 547 buniek (+17 % hry). |
-| R2 | Aká veľká je bunka | 1 m², vrstva 2 cm | 20 l z toho vyjde presne a šírky nástroja 0,2 – 2 m dávajú zmysel voči bunke širokej 1,07 m. |
-| R3 | Koľko peňazí a shardov | 1 peniaz za liter, 1 shard za bunku | Najjednoduchšie čitateľné pravidlo. |
-| R4 | Za čo sa vylepšuje výrobňa | Za peniaze | Shardov je spolu len 499 a celé ich minie batoh. |
-| R5 | Za čo sa kupujú špeciály | Za peniaze, po dokončení cesty | „Po vyasfaltovaní bude možné nakupovať". |
-| R6 | Kde sa kupujú bežné vylepšenia | Kdekoľvek cez Tab | Špeciály sú viazané na miesto, bežné nemajú prečo brzdiť. |
-| R7 | Prenosné odberné miesto – vyrába samo? | Nie, čerpá zo zásobníka hlavnej výrobne | Účel je skrátiť chodenie; druhá výroba by rozbila balans výrobne. |
-| R8 | Automatizovaný asfaltovač – berie asfalt hráčovi? | Nie, má vlastný; odmeny dáva hráčovi | Je to odmena, nie ďalšia starosť. |
-| R9 | Jazyk hry | Angličtina, pripravené na lokalizáciu | Názov hry je anglický a cieľom je Steam. |
-| R10 | Parametre auta | Nádrž 500 l, lišta 3 m, 6 m/s | Má byť jasne silnejšie než hráč s batohom 200 l a lištou 2 m (4 m s dvoma rukami). |
-| R11 | Kedy sa otvorí východ | Až po dokončení všetkých 499 buniek, bez ceny | „Výhra na konci". |
-| R12 | Dá sa prehrať? | Nie | Špecka nespomína žiadny tlak ani časovač. |
-| R13 | Postava | Epic Mannequin (kostra a animácie zo šablóny UE) + vlastná prilba, batoh a nástroj | Rigovanú animovanú postavu kódom spoľahlivo nevyrobíme; výstroj áno. |
+| Šírka hladidla | 30 cm | **40 cm** | doladené pri skúšaní hry |
+| Záber lyžice | 0,6 s | **0,5 s** | doladené pri skúšaní hry |
+| Tlačenie vozíka | 250 cm/s | **400 cm/s** | doladené pri skúšaní hry |
+| Kladenie pásu vozíkom | 100 cm/s | **200 cm/s** | doladené pri skúšaní hry |
+| Prístavby výrobne | úrovne 3 a 5 | **úrovne 2 a 4** | tak je to nastavené v kóde |
+| Obrys sektora robota | v návrhu nebol | **oranžový, 10 cm** | hráč vidí, v ktorom sektore robot pracuje |
+| Tabuľa pri vstupe | názov kroku a účinok | **názov kroku, vstup, počet políčok**; účinok je v oznamoch | tabuľa sa musí zmestiť |
 
-## 14. Mimo rozsahu v1
+Rýchlosti hladidla, finišera a výdajne majú v kóde vlastné pomenované hodnoty (`TrowelSpeedCmS`, `FinisherPushCmS`, `StationCarryCmS`).
 
-Zvuk a hudba, gamepad, nastavenia grafiky, viac uložených pozícií, Steam integrácia (achievementy, cloud), lokalizácia do slovenčiny, vlastná animácia tlačenia asfaltovačky (v1 používa bežnú chôdzu Mannequina), Windows build (z Macu sa nedá zostaviť).
+## 11. Cheaty
+
+Cheaty sú konzolové príkazy `dia.*`. Existujú len mimo Shipping buildu (v Shipping binárke sa nenachádza žiadny z 27 reťazcov). Spúšťajú sa v konzole editora alebo cez `-ExecCmds` (skript `Scripts/shot.sh`).
+
+| Príkaz | Čo robí |
+|---|---|
+| `dia.Give <kredity>` | pridá kredity |
+| `dia.Complete <n>` | dokončí prvých n nedokončených políčok podľa indexu |
+| `dia.CompleteEntry <0..5>` | dokončí vstupný úsek (číslovanie od 0) |
+| `dia.Item <názov>` | dá predmet: Scoop, Bucket, Suitcase, Cart, Station, Finisher, AutoPaver, AutoPaverFast, AutoPaverFaster, Car, CarWideBar (`CarWideBar` samotný auto nedá) |
+| `dia.Grab`, `dia.Drop` | chytí najbližší predmet, pustí držaný |
+| `dia.RawStrip <x> <y> [dĺžka m=4]` | položí surový pás |
+| `dia.FinishStrip` | uhladí surové |
+| `dia.Place <druh> <x> <y> [yaw]` | dá a postaví kufor, vozík, výdajňu alebo finišer |
+| `dia.Plant <0..5>` | nastaví úroveň výrobne |
+| `dia.EnterCar` | nastúpi do auta |
+| `dia.Teleport <x> <y> [yaw] [pitch]` | presunie hráča (v aute auto) |
+| `dia.Prompt`, `dia.Toast` | vypíše výzvu / oznam |
+| `dia.SendPaver` | pošle robota do sektora hráča |
+| `dia.Save`, `dia.Load`, `dia.NewGame` | uloží, načíta, začne novú hru |
+| `dia.SkipMenu` | preskočí hlavné menu |
+| `dia.Camera [vzdialenosť] [yaw] [pitch]` | kamera mimo hráča |
+| `dia.WorkView <1\|0>`, `dia.CheckView <1\|0>` | zapne alebo vypne pracovný / kontrolný pohľad |
+| `dia.Shop` | prepne obchod |
+| `dia.Hand <názov>` | zmení ruku |
+| `dia.Fill` | naplní ruku |
+| `dia.TopView [výška m=260]` | pohľad zhora |
+| `dia.ShotAndQuit <sekundy> <názov>` | uloží snímku do `Saved/Screenshots/` a skončí |
+
+## 12. Známe obmedzenia
+
+- V prvej osobe nie sú vidieť ruky ani paže a nie je animácia pohybu do strán.
+- Hra nemá zvuk.
+- Lištu finišera pred očami zakrýva jeho kryt, takže hráč nevidí, kde presne hladí.
+- Lišta auta sa pri plnom vychýlení volantu môže pohybovať o niečo rýchlejšie, než dovoľuje strop liatia.
+- Pri liatí z auta hráča nič neupozorní, že zásoba výrobne sa minula.
+- Obrys sektora (10 cm) je zďaleka zhora tenký.
+- Kým sú zobrazené tri iné oznamy, oznamy o kreditoch čakajú.
+- Predmet uložený v čase, keď ho hráč drží, sa uloží na polohe v ruke bez kontroly voľného miesta.
+- Valček, dusadlo a lata s vodováhou zo špecifikácie v hre nie sú (otvorená otázka O1 v `04-plan-zmien-asphalt-self.md`).
+- Míľnik 800 políčok v simulácii má rezervu pod minútu (41:17 oproti limitu 42:00).

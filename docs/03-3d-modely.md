@@ -1,8 +1,8 @@
 # Do it Asphalt – špecifikácia 3D modelov
 
-Verzia 1.0 · 2026-11-19 · modely vytvára **Fable 5.2**
+Verzia 2.0 · 2026-11-21 · modely vytvára **Fable 5.2**
 
-Tento dokument je zmluva medzi vetvou modelov a vetvou kódu. Kód počíta s rozmermi, počiatkami a názvami presne podľa tabuliek nižšie; kým model neexistuje, hra zobrazuje náhradný tvar rovnakých rozmerov.
+Tento dokument je zmluva medzi vetvou modelov a vetvou kódu. Kód počíta s rozmermi a názvami podľa tabuliek nižšie. Obsahuje 42 modelov: 12 nových pre hru Asphalt-self, ostatné ostali z verzie 1.
 
 ---
 
@@ -24,7 +24,7 @@ SourceAssets/Previews/<Názov>_{a,b,c}.png   náhľady: trištvrte spredu, zboku
 
 Postup pre každý model:
 
-1. Doplniť riadok do `manifest.json` podľa tabuľky v kap. 4 (to je „test").
+1. Doplniť riadok do `manifest.json` s obálkou modelu (to je „test").
 2. Napísať skript, spustiť `blender -b -P Tools/ModelGen/<model>.py`.
 3. `python3 Tools/ModelGen/check.py <Názov>` musí vypísať `OK`.
 4. Pozrieť si tri náhľady a prejsť kontrolný zoznam z kap. 5.
@@ -63,85 +63,47 @@ Názov materiálu v GLB = názov slotu v Unreali = `MI_<názov>` v `Content/Mate
 | `DIA_Dirt` | `#8A6B4A` | 0 | 1,0 | kopy hliny |
 | `DIA_Green` | `#3E8E41` | 0 | 0,6 | „odomknuté", tlačidlá |
 
-## 4. Zoznam modelov
+## 4. Modely
 
-Rozmery sú obálka D × Š × V (X × Y × Z) v metroch, tolerancia ±2 cm. „Tri" je horný limit trojuholníkov.
+Rozmery sú obálka D × Š × V (X × Y × Z) v metroch, prevzatá z `Tools/ModelGen/manifest.json`; „Tri“ je horný limit trojuholníkov. Všetky modely sú v `Content/Models/` a v `SourceAssets/Models/`.
 
-### 4.0 Overenie reťazca
+### 4.1 Nové modely (12)
 
-| Názov | Rozmery | Počiatok | Tri | Popis |
-|---|---|---|---|---|
-| `SM_AxisTest` | 1,0 × 0,5 × 0,25 | **roh** kvádra; kváder leží celý v +X, +Y, +Z | 12 | Kváder na dôkaz osí a mierky. V hre sa nepoužíva. |
+| Asset | Rozmery | Obálka v osiach | Tri | Čo to je a kde sa používa | Skript |
+|---|---|---|---|---|---|
+| `SM_Spoon` | 0,199 × 0,045 × 0,018 | X −0,055 … 0,144 | 200 | lyžica v ruke k miske | `hand_tools.py` |
+| `SM_Bowl` | 0,25 × 0,25 × 0,09 | stred pôdorysu, Z od 0 | 400 | miska v ruke (štartovacia nádoba) | `hand_tools.py` |
+| `SM_Trowel` | 0,28 × 0,12 × 0,092 | X −0,14 … 0,14 | 250 | hladidlo v ruke | `hand_tools.py` |
+| `SM_Scoop` | 0,34 × 0,12 × 0,07 | X −0,07 … 0,27 | 250 | lopatka v ruke | `hand_tools.py` |
+| `SM_Bucket` | 0,288 × 0,31 × 0,385 | stred pôdorysu, Z od 0 | 600 | vedro v ruke | `hand_tools.py` |
+| `SM_Suitcase` | 0,42 × 0,508 × 1,055 | X −0,05 … 0,37, Z od 0 | 1000 | kufor, ťahaný, s klapkou | `suitcase.py` |
+| `SM_Cart` | 1,26 × 0,67 × 0,99 | X −0,65 … 0,61, Z od 0 | 1500 | vozík, tlačený | `cart.py` |
+| `SM_Finisher` | 1,32 × 1,072 × 1,0 | X −1,22 … 0,1, Z od 0 | 2000 | pásový finišer, tlačený | `finisher.py` |
+| `SM_Trough` | 1,28 × 0,60 × 0,50 | stred pôdorysu, Z od 0 | 400 | koryto s asfaltom pred výrobňou | `lot_props.py` |
+| `SM_Curb` | 0,15 × 2,0 × 0,12 | stred pôdorysu, Z od 0 | 40 | diel obrubníka okolo parkoviska | `lot_props.py` |
+| `SM_PaverCar_WideBar` | 0,16 × 3,5 × 0,18 | X −2,32 … −2,16, Z 0,02 … 0,2 | 400 | široká lišta auta (kúpa CarWideBar) | `lot_props.py` |
+| `SM_Mall` | 100 × 100 × 14,3 | X, Y −50 … 50 | 4000 | nákupné centrum, zaberá kvadrant parkoviska | `mall.py` |
 
-### 4.1 Hráč
+`SM_Mall` má pri importe obdĺžnikovú kolíziu (`BOX_COLLISION_MODELS = {"SM_Mall"}` v `Tools/UE/import_models.py`); ostatné modely majú konvexnú kolíziu s 18 stenami.
 
-| Názov | Rozmery | Počiatok | Tri | Popis |
-|---|---|---|---|---|
-| `SM_Spreader_020` … `_200` (7 ks) | 0,58 × (W + 0,10) × 1,0 | na zemi pod stredom lišty | 600 | Asfaltovačka. Rozstrekovacia lišta šírky W leží na osi Y v X = 0, tesne nad zemou, na koncoch kolieska (polomer 6 cm). Od stredu lišty stúpa rukoväť dozadu k bodu (−0,45; 0; 0,95) s priečnym madlom. Krátka hadica z lišty smerom k hráčovi. |
-| `SM_Backpack_S` | 0,16 × 0,26 × 0,32 | stred plochy, ktorá sa dotýka chrbta; nádrž ide do −X | 800 | Nádrž na chrbát: valcová nádoba, veko, popruhy, priezor so stupnicou (`DIA_Glass`), vývod hadice dole. |
-| `SM_Backpack_M` | 0,22 × 0,32 × 0,42 | rovnako | 800 | Rovnaký dizajn, väčší. |
-| `SM_Backpack_L` | 0,28 × 0,38 × 0,52 | rovnako | 800 | Pribudne druhá menšia nádoba po boku. |
-| `SM_Backpack_XL` | 0,34 × 0,44 × 0,62 | rovnako | 800 | Dve veľké nádoby, rám z `DIA_DarkSteel`. |
-| `SM_Helmet` | 0,28 × 0,24 × 0,16 | stred spodného okraja | 300 | Stavebná prilba so šiltom dopredu, `DIA_Yellow`. |
+### 4.2 Modely z verzie 1, ktoré hra používa
 
-Sedem šírok W asfaltovačky: 0,2 · 0,3 · 0,5 · 0,8 · 1,0 · 1,5 · 2,0 m (prípona je šírka v cm). Všetkých sedem generuje jeden parametrický skript; od 1,0 m vyššie má lišta stredové podporné koliesko.
+`SM_AutoPaver` (robot), `SM_Barrier`, `SM_ExitGate_Frame` a `SM_ExitGate_Barrier` (brána východu), `SM_Fence`, `SM_Kiosk`, `SM_PaverCar` (auto), `SM_Plant`, `SM_Plant_AddonA`, `SM_Plant_AddonB`, `SM_PortableStation` (výdajňa), `SM_RoadStub`. Ich rozmery sú v `manifest.json` a v `Source/DoItAsphalt/Game/DIAModelSizes.h`.
 
-### 4.2 Výrobňa a odber
+### 4.3 Modely z verzie 1, ktoré hra už nepoužíva
 
-| Názov | Rozmery | Počiatok | Tri | Popis |
-|---|---|---|---|---|
-| `SM_Plant` | 6,8 × 4,0 × 5,0 | stred pôdorysu tela (telo zaberá X od −3,0 do +3,0), zem | 6000 | Výrobňa asfaltu: betónový základ, šikmý miešací bubon, jedno silo (výška 5 m), komín, dopravník, búdka obsluhy s oknom. **Výpust** smeruje do +X a končí v bode (3,4; 0; 1,8) – pod ním bude stáť hráč. |
-| `SM_Plant_AddonA` | 1,6 × 1,6 × 5,5 | stred pôdorysu, zem | 1500 | Druhé silo s rebríkom. Hra ho postaví vedľa výrobne od úrovne 5. |
-| `SM_Plant_AddonB` | 2,4 × 1,8 × 3,0 | stred pôdorysu, zem | 1500 | Ležatá zásobná nádrž na nohách. Od úrovne 10. |
-| `SM_PortableStation` | 1,2 × 0,8 × 1,3 | stred pôdorysu, zem | 1500 | Nádrž na dvoch kolesách s ojom a výpustným ramenom do +X. Musí byť čitateľné, že sa dá odtiahnuť. |
+Ostali v repozitári, hra ich nespúšťa; používajú ich len testy: `SM_AxisTest` (overenie osí), `SM_Backpack_S/M/L/XL`, `SM_Barrel`, `SM_Cone`, `SM_DirtPile`, `SM_Helmet`, `SM_Lamp`, `SM_Lock` a sedem asfaltovačiek `SM_Spreader_020` až `_200`.
 
-### 4.3 Cesty a východ
+## 5. Nové pomocné funkcie v `Tools/ModelGen/common.py`
 
-| Názov | Rozmery | Počiatok | Tri | Popis |
-|---|---|---|---|---|
-| `SM_Kiosk` | 0,6 × 0,8 × 2,2 | stred pôdorysu, zem | 1000 | Terminál vylepšení: stĺp, šikmý panel s obrazovkou (`DIA_Glass`) otočený do +X, veľké tlačidlo (`DIA_Green`). Hore prázdna tabuľa 0,6 × 0,3 m (`DIA_White`), stred vo výške 1,9 m – text na ňu kreslí hra. |
-| `SM_Lock` | 0,10 × 0,30 × 0,40 | stred | 300 | Visiaci zámok (`DIA_Red`), hra ho zobrazí pred obrazovkou zamknutého kiosku. |
-| `SM_RoadStub` | 12,0 × 3,4 × 0,05 | stred bližšej hrany, zem; cesta ide do +X | 200 | Kus starej hotovej cesty od konca buniek po plot: `DIA_Asphalt`, stredová prerušovaná čiara, obrubníky. |
-| `SM_Barrier` | 0,3 × 3,4 × 1,0 | stred pôdorysu, zem | 400 | Pevná cestná zábrana, červeno-biele pruhy. Stojí v línii plota a uzatvára päť ciest, ktoré nie sú východ. |
-| `SM_ExitGate_Frame` | 0,4 × 3,8 × 3,0 | stred pôdorysu, zem | 800 | Dva stĺpy a priečny nosník s tabuľou (`DIA_White`, 2,0 × 0,5 m) pre nápis EXIT. Prejazd široký 3,4 m, vysoký 2,6 m. |
-| `SM_ExitGate_Barrier` | 0,10 × 3,4 × 0,12 | **koniec pri pánte**; rameno ide do +Y | 200 | Rameno závory s červeno-bielymi pruhmi. Hra ho otáča okolo osi X v počiatku. |
+- `tub(top_xy, bottom_xy, z0, z1, wall, floor, center_xy, mat)`: otvorená obdĺžniková nádoba so šikmými stenami (koryto, násypka): `top_xy` a `bottom_xy` sú vonkajšie rozmery hore a dole, `wall` hrúbka steny, `floor` hrúbka dna. Je vidieť zvnútra aj zvonka, má 36 trojuholníkov. Používa ju `SM_Trough` (`lot_props.py`) a korba vozíka `SM_Cart` (`cart.py`).
+- `finish(parts, name, silhouette=True, **preview_options)`: skontroluje orientáciu plôch, zlúči časti do jedného meshu, zapíše GLB a vyrenderuje náhľady. S `silhouette=False` sa model rámuje sám bez sivej siluety postavy (ručné nástroje by vedľa nej boli len pár pixelov).
+- `render_previews(..., silhouette, front)`: parameter `front=(x, y, z)` určuje, kde stojí kamera náhľadu „a“ voči modelu (v osiach hry), pre modely, ktorých zaujímavá strana nie je +X / +Y (používa ho `mall.py`).
 
-### 4.4 Stroje
-
-| Názov | Rozmery | Počiatok | Tri | Popis |
-|---|---|---|---|---|
-| `SM_AutoPaver` | 1,0 × 0,8 × 0,6 | stred pôdorysu, zem | 1500 | Robot na pásoch: nízke telo `DIA_Yellow`, vpredu (+X) lišta šírky 0,8 m, hore maják (`DIA_Orange`) a anténa. Milý, nie hrozivý. |
-| `SM_PaverCar` | 4,6 × 3,0 × 2,4 | stred pôdorysu, zem | 8000 | Asfaltovacie auto: kabína vpredu (+X), za ňou nádrž 500 l, štyri kolesá, **vzadu** (X = −2,3) rozstrekovacia lišta široká 3,0 m tesne nad zemou. Telo bez lišty je široké 2,2 m. Dvere kabíny vľavo (−Y). |
-
-### 4.5 Kulisy
-
-| Názov | Rozmery | Počiatok | Tri | Popis |
-|---|---|---|---|---|
-| `SM_Fence` | 0,08 × 2,0 × 1,8 | stred pôdorysu, zem | 300 | Diel mobilného stavebného plota: rám, výplň z pásov, dve betónové pätky. Diely sa radia tesne vedľa seba po osi Y. |
-| `SM_Cone` | 0,3 × 0,3 × 0,5 | stred pôdorysu, zem | 150 | Dopravný kužeľ s bielym pruhom. |
-| `SM_Barrel` | 0,6 × 0,6 × 0,9 | stred pôdorysu, zem | 250 | Sud s obručami. |
-| `SM_Lamp` | 0,4 × 1,2 × 5,0 | päta stĺpa, zem | 300 | Stavebný reflektor na stĺpe, rameno do +Y. |
-| `SM_DirtPile` | 2,0 × 2,0 × 1,0 | stred pôdorysu, zem | 300 | Nepravidelná kopa hliny (`DIA_Dirt`). |
-
-**Spolu 30 modelov** (z toho 7 variantov asfaltovačky a 4 batohy).
-
-## 5. Kontrolný zoznam pred odovzdaním modelu
+## 6. Kontrolný zoznam pred odovzdaním modelu
 
 - `check.py` vypísal `OK` (rozmery, počet trojuholníkov, materiály len z palety).
 - Na náhľadoch nie sú čierne ani chýbajúce plochy (obrátené normály) a nič sa neprelína tak, aby blikalo.
-- Silueta je rozpoznateľná aj v malom náhľade – človek bez popisu povie, čo to je.
-- Vedľa siluety postavy 1,8 m model veľkosťou sedí.
-- Funkčné body sú tam, kde ich čaká hra: výpust výrobne, lišta asfaltovačky v X = 0, pánt závory v počiatku, tabuľa kiosku vo výške 1,9 m.
-- Model stojí na zemi (najnižší bod Z = 0), nevznáša sa a nie je zapustený.
+- Silueta je rozpoznateľná aj v malom náhľade.
+- Model stojí na zemi (najnižší bod Z = 0), ak ho hra nedrží v ruke; nevznáša sa a nie je zapustený.
 - Použitých je najviac 5 materiálov palety.
-
-## 6. Kde hra modely umiestňuje
-
-Polohy sú v `AsphaltLayout.h`; tu len prehľad, aby mal modelár predstavu o okolí.
-
-- Výrobňa stojí 20 m západne od stredu parkoviska, výpustom k parkovisku; hráč začína pod výpustom.
-- Kiosk stojí vpravo od konca každej cesty, obrazovkou k ceste.
-- Za koncom každej cesty leží `SM_RoadStub` a vedie až k plotu; tam je na piatich cestách `SM_Barrier`, na ceste 5 brána.
-- Plot obieha areál v kruhu s polomerom 26 m (asi 70 dielov), pri každej ceste má medzeru 3,8 m.
-- Špeciály (prenosné miesto, robot, auto) sa po kúpe objavia na okraji parkoviska pri svojej ceste.
-- Kužele, sudy, kopy hliny a reflektory sú rozmiestnené voľne medzi plotom a parkoviskom, nikdy nie na bunkách.

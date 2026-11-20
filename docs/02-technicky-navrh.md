@@ -1,213 +1,144 @@
-# Do it Asphalt – technický návrh
+# Do it Asphalt – technické poznámky
 
-Verzia 1.0 · 2026-11-19 · implementuje `01-herny-dizajn.md`
+Verzia 2.0 · 2026-11-21 · popisuje kód tak, ako je v repozitári
+
+Tento dokument vysvetľuje, ako je hra Asphalt-self postavená, pre čitateľa, ktorý kód nevidel. Pravidlá hry a ovládanie sú v `01-herny-dizajn.md`, modely v `03-3d-modely.md`.
 
 ---
 
-## 1. Hlavná myšlienka: všetko z textu
-
-Hru budú písať agenti (Sonnet 5.5), ktorí nevedia klikať v editore ani upravovať binárne `.uasset` súbory. Preto platí jedno pravidlo, z ktorého vychádza celá architektúra:
-
-> **Každá vec v projekte vzniká z textového súboru v repozitári.** C++ pre logiku a scénu, Slate pre UI, Python skripty pre všetko, čo Unreal vyžaduje ako asset (level, materiály, import modelov), Blender skripty pre 3D modely.
-
-Žiadne Blueprinty, žiadne ručne poskladané levely, žiadne UMG widgety. Jediný ručne nevytvorený binárny obsah je Mannequin skopírovaný zo šablóny enginu.
-
-## 2. Prostredie
+## 1. Prostredie
 
 | | |
 |---|---|
-| Engine | Unreal Engine 5.8.4, `/Users/Shared/Epic Games/UE_5.8` (ďalej `$UE`) |
-| Stroj | macOS 26.5, Apple Silicon, 16 GB RAM, Xcode 26.6 |
-| Jazyk | C++ (štandard podľa enginu), Python 3.11 pre nástroje |
-| Verziovanie | git + git-lfs (`*.uasset`, `*.umap`, `*.glb`, `*.png`) |
-| 3D nástroj | Blender 5.3.0 v režime bez okna (`blender -b -P skript.py`), nainštalovaný cez `brew install --cask blender` |
+| Engine | Unreal Engine 5.8.4, C++ |
+| Systém | macOS (Apple Silicon) |
+| Skripty | `Scripts/` (kapitola 9) |
+| Modely | skripty pre Blender 5.3, výstup GLB, import skriptom v editore |
+| Materiály | vytvára `Tools/UE/create_materials.py` |
 
-Dôsledky pre 16 GB RAM: Lumen aj Nanite vypnuté, tiene bežnými kaskádami, žiadne ťažké post-procesy. Štylizovaný vizuál to nepotrebuje.
+## 2. Dva moduly
 
-Cesta k projektu obsahuje medzery (`Do it Asphalt`). Všetky skripty preto cesty dôsledne úvodzovkujú; názov projektu a modulov medzery nemá (`DoItAsphalt`).
+**`AsphaltCore`** (`Source/AsphaltCore`) je pravidlá hry bez Unrealu. Závisí len od modulu `Core`, nepoužíva žiadny `UObject` a všetko sa dá testovať s explicitným časovým krokom `Dt`. Súbory:
 
-API enginu 5.8 si agenti overujú priamo v zdrojákoch na disku (`$UE/Engine/Source`, `$UE/Engine/Plugins`), nie z pamäti – verzia je novšia než znalosti modelov.
-
-## 3. Štruktúra repozitára
-
-```
-Do it Asphalt/
-├── DoItAsphalt.uproject
-├── Config/                      DefaultEngine.ini, DefaultGame.ini, DefaultInput.ini
-├── Source/
-│   ├── DoItAsphalt.Target.cs
-│   ├── DoItAsphaltEditor.Target.cs
-│   ├── AsphaltCore/             herné pravidlá, čisté C++ bez enginu (len modul Core)
-│   │   ├── Public/              HexCoord.h, HexMap.h, AsphaltBalance.h, AsphaltLayout.h,
-│   │   │                        CoverageGrid.h, AsphaltGame.h
-│   │   └── Private/             *.cpp + Tests/*.cpp
-│   └── DoItAsphalt/             všetko, čo sa dotýka enginu
-│       ├── Game/                DIAGameMode, DIAWorldSubsystem, DIACheats, DIAAssets, DIASaveGame
-│       ├── World/               DIAGroundActor, DIAPlantActor, DIAKioskActor, DIAExitGate,
-│       │                        DIAPortableStation, DIAAutoPaver, DIAPaverCar, DIAInteractable
-│       ├── Player/              DIACharacter, DIAPlayerController, DIAInput
-│       └── UI/                  DIAHUD, SDIAHudOverlay, SDIAShopPanel, SDIAMenu, SDIAWinScreen
-├── Content/
-│   ├── Characters/Mannequins/   skopírované zo šablóny enginu
-│   ├── Maps/L_Main.umap         generuje Tools/UE/create_level.py
-│   ├── Materials/               generuje Tools/UE/create_materials.py
-│   └── Models/                  generuje Tools/UE/import_models.py
-├── SourceAssets/
-│   ├── Models/*.glb             výstup Blender skriptov
-│   └── Previews/*.png           náhľady modelov na kontrolu
-├── Tools/
-│   ├── ModelGen/                Blender skripty (Fable 5.2)
-│   └── UE/                      editorové Python skripty (Sonnet 5.5)
-├── Scripts/                     build.sh, test.sh, uepy.sh, shot.sh, run.sh, package.sh
-└── docs/
-```
-
-## 4. Dva moduly
-
-### 4.1 `AsphaltCore` – pravidlá hry
-
-Závisí len od modulu `Core`. Žiadne `UObject`, žiadni aktéri, žiadny svet. Všetko je deterministické a volá sa s explicitným `Dt`, takže sa dá celé otestovať bez spustenia hry. **Tu žije každé číslo a každé pravidlo z GDD.**
-
-| Súbor | Zodpovednosť |
+| Súbor | Obsah |
 |---|---|
-| `HexCoord.h` | Axiálne súradnice `FHexCoord{Q,R}`, 6 smerov, vzdialenosť, prevod bunka ↔ svet (`AsphaltHex::ToWorld/FromWorld`), vzdialenosť od hrany bunky. |
-| `HexMap.h` | `FHexMap`: zoznam 499 buniek (469 parkovisko v špirále od stredu, potom 6 × 5 buniek ciest), vyhľadanie bunky, bunky cesty. |
-| `AsphaltBalance.h` | Všetky tabuľky a konštanty z GDD kap. 4 – 8. Jediné miesto na ladenie. |
-| `AsphaltLayout.h` | Polohy vo svete: výrobňa, odberná zóna, štart hráča, kiosky, brána, hranica areálu. |
-| `CoverageGrid.h` | `FCoverageGrid`: mriežka pokrytia, razenie obdĺžnika, spotreba litrov, dokončovanie buniek. |
-| `AsphaltGame.h` | `FAsphaltGame`: fasáda nad všetkým – peniaze, shardy, úrovne, špeciály, zásobník, batoh, auto, robot, tik, nákupy, uloženie do bajtov. |
+| `LotMap.h/.cpp` | geometria L-tvaru, indexy políčok, sektory, vstupné úseky |
+| `LotGrid.h/.cpp` | `FLotGrid`: mriežka pokrytia s tromi stavmi |
+| `LotBalance.h` | všetky čísla hry (ceny, kapacity, rýchlosti, výrobňa) |
+| `LotLayout.h/.cpp` | rozloženie sveta: polohy výrobne, koryta, štartu, centra, východu |
+| `LotGame.h/.cpp` | `FLotGame`: celé pravidlá, obchod, odomykanie, ukladanie |
+| `LotSaveIO.h` | čítanie a zápis bajtov uloženia |
+| `Tests/` | automatické testy (`DIA_TEST`) |
 
-### 4.2 `DoItAsphalt` – engine vrstva
+**`DoItAsphalt`** (`Source/DoItAsphalt`) je tenká vrstva nad enginom: zobrazuje stav, číta vstup a odovzdáva ho jadru. Podadresáre:
 
-Tenká. Nerozhoduje o pravidlách, len prekladá vstup hráča na volania `FAsphaltGame` a stav hry na obraz.
-
-| Trieda | Zodpovednosť |
+| Adresár | Obsah |
 |---|---|
-| `UDIAWorldSubsystem` | Vlastní jedinú inštanciu `FAsphaltGame`, tiká ju, rozosiela delegáty (`OnStateChanged`, `OnCellsCompleted`, `OnRoadCompleted`, `OnExitOpened`), ukladá a načítava. |
-| `ADIAGameMode` | Pri štarte postaví scénu: zem, výrobňu, kiosky, bránu, plot, kulisy. |
-| `ADIAGroundActor` | Jedna plocha s materiálom, ktorému za behu dodáva dve textúry: pokrytie a obrysy buniek. |
-| `ADIACharacter` | Pohyb, kamera, asfaltovačka a batoh ako pripojené meshe, liatie, šprint, automatický odber. |
-| `ADIAPlayerController` | Vstup (Enhanced Input vytvorený v C++), prepínanie hra / UI, interakcia klávesom E. |
-| `IDIAInteractable` | Rozhranie pre kiosk, prenosné miesto a auto: `GetPrompt()`, `Interact()`. |
-| `ADIAPlantActor`, `ADIAKioskActor`, `ADIAExitGate`, `ADIAPortableStation`, `ADIAAutoPaver`, `ADIAPaverCar` | Vizuál a kolízie; stav čítajú zo subsystému. |
-| `ADIAHUD` + Slate widgety | HUD, obchod, menu, výhra. |
-| `DIAAssets` | Tabuľka ciest k assetom s náhradou za základné tvary enginu, ak model ešte neexistuje. |
-| `DIACheats` | Konzolové príkazy na ladenie a automatické snímky obrazovky. |
+| `Player/` | postava v prvej osobe, vstup (`DIAInput`), ovládač |
+| `World/` | herné objekty: zem (`ADIAGroundActor`), predmety (`DIAMovable`), auto (`ADIAPaverCar`), robot, výrobňa, východ, tabule, centrum, okraj parkoviska, `DIAToolPath.h` |
+| `Game/` | `UDIAWorldSubsystem`, ukladanie (`UDIASaveGame`), herný režim, cheaty, načítanie assetov |
+| `UI/` | HUD, obchod, menu, obrazovka výhry, formátovanie textov (`DIAFormat`) |
+| `Tests/` | testy, ktoré potrebujú svet enginu |
 
-Tok jedného liatia: `ADIACharacter::Tick` vypočíta úsečku, ktorú lišta prešla → `UDIAWorldSubsystem::Pour` → `FAsphaltGame::PourFromBackpack` → `FCoverageGrid::Stamp` → vráti litre a dokončené bunky → subsystém pripíše odmeny, pošle delegáty → `ADIAGroundActor` nahrá zmenený výrez textúry, HUD sa prekreslí.
+Modul `DoItAsphalt` sa kompiluje s `bUseUnity = false`. Každý testovací súbor má vo vlastnom anonymnom priestore mien pomocné funkcie s krátkymi názvami (napríklad `Move`, `TickFor`, `MiddleOfLot`) a pri unity buildoch sa dva takéto názvy zlúčili do jednej jednotky a kolidovali; preto sa každý súbor kompiluje samostatne.
 
-## 5. Kľúčové technické riešenia
+## 3. Mriežka pokrytia
 
-### 5.1 Mriežka pokrytia (jadro celej hry)
+`FLotGrid` je štvorec **4 000 × 4 000** texelov. Jeden texel má 5 cm, políčko 1 × 1 m je teda 20 × 20 = 400 texelov. Každý texel je v jednom z troch stavov (`ELotTexel`): voľný (0), surový (1), hotový (2).
 
-Otázka „koľko asfaltu je v bunke a ako to nakresliť" má jedno spoločné riešenie:
+- Jeden texel nesie 0,025 l asfaltu; 95 % políčka je 380 texelov.
+- Operácie: `Stamp` (razenie pásu), `PourDisc` (kruh z nádoby), `DepositIntoCell` (vsypanie do políčka), `FinishRaw` (uhladenie), `CompleteCell` (dokončenie).
+- Surový asfalt políčko nikdy samo nedokončí. Pri dokončení políčka sa zvyšok uhladí zadarmo. Lialo sa môže len na voľné texely.
+- Každý sektor (75 sektorov po 20 × 20 políčok) má vlastný **špinavý obdĺžnik**: najmenší obdĺžnik, ktorý sa zmenil od posledného odovzdania zmien. `ConsumeDirtyRects` vydá najviac jeden obdĺžnik na sektor.
 
-- Nad celou mapou leží mriežka **640 × 640 texelov po 5 cm** (štvorec ±16 m okolo stredu).
-- Každý texel vie, ktorej bunke patrí (podľa svojho stredu), alebo že nepatrí žiadnej.
-- Bunka má okolo 400 texelov; jeden texel stojí `20 l ÷ počet texelov bunky`, takže každá bunka je presne 20 l.
-- Liatie = „razenie" orientovaného obdĺžnika (úsečka pohybu lišty × šírka nástroja, predĺžená o 5 cm na oboch koncoch). Nové texely v ňom sa označia a odpočítajú z batohu, v pevnom poradí, kým je v batohu dosť.
-- Pri 97 % pokrytia sa zvyšok bunky označí zadarmo a bunka je hotová.
-- **Tá istá mriežka sa nahráva ako textúra** do materiálu zeme. Logika a obraz sa preto nemôžu rozísť.
+Indexovanie políčok: riadky 0 – 99 majú 200 stĺpcov, index = riadok · 200 + stĺpec; od riadku 100 má riadok 100 stĺpcov (kvadrant s centrom chýba), index = 20 000 + (riadok − 100) · 100 + stĺpec. Spolu 30 000 políčok. Sektory sa indexujú rovnako po 20 × 20 políčok (prvých 5 radov po 10 sektoroch, ďalších po 5).
 
-Pamäť: 0,4 MB pokrytie + 0,8 MB mapa texel → bunka. Zanedbateľné.
+## 4. Zem a textúra pokrytia
 
-### 5.2 Zem
+`ADIAGroundActor` zobrazuje mriežku ako textúru `PF_R8G8`: kanál R je 255, ak texel nie je voľný (surový alebo hotový), kanál G je 255, ak je hotový. Materiál `M_Ground` z nich poskladá farbu zeme.
 
-Jedna plocha 32 × 32 m s materiálom `M_Ground`:
+- Na CPU sa drží kópia textúry (kvôli behu `-nullrhi` v testoch) a do GPU sa posielajú len zmenené obdĺžniky.
+- Celé nahratie (16 miliónov texelov) prebehne raz pri načítaní uloženia alebo novej hre. Trvalo asi **25 ms** (25,3 a 24,3 ms v dvoch zalogovaných behoch na tomto stroji; nie je to presné meranie).
+- Obrys sektora robota je parameter `SectorRect` materiálu `M_Ground`: oranžový (0,6; 0,1; 0,0), široký 10 cm.
 
-- `CoverageTex` (640², jednokanálová, bilineárna) – materiál ju prahuje cez `smoothstep`, takže okraj asfaltu je hladký, nie kockatý.
-- `HexLinesTex` (2048², jednokanálová) – obrysy buniek, vypočítané raz pri štarte z `AsphaltHex::EdgeDistanceCm`.
-- Výsledok: hlina + biele obrysy, cez to tmavý lesklý asfalt podľa pokrytia.
+## 5. Jedno miesto pre jadro: `UDIAWorldSubsystem`
 
-Hrúbka asfaltu je len vizuálna (farba, lesk), geometria zeme sa nemení.
+`UDIAWorldSubsystem` vlastní jedinú inštanciu `FLotGame` a rozosiela všetky udalosti. Nikto iný jadro nevytvára. Po každom kroku hry zavolá `Dispatch`, ktorý spustí `OnCellsCompleted`, `OnEntryCompleted`, `OnUnlocked`, `OnExitOpened` a vždy ako posledné `OnStateChanged`. Ďalšie delegáty: `OnItemBought`, `OnWon`, `OnGameReset`. Čas jedného kroku sa orezáva na 1 s (`MaxTickSeconds`), aby dlhý zásek nepreskočil hru.
 
-### 5.3 Postava a nástroje
+Všetko, čo sa týka kreditov, litrov a udalostí, sa účtuje na **jednom mieste**: `FLotGame::ApplyPour`. Každé liatie (ruka, kufor, vozík, finišer, robot, auto) prejde touto funkciou, ktorá vráti `FLotEvents` (vyliate litre, získané kredity, dokončené políčka a vstupné úseky, odomknutia, otvorený východ). Odomknutie sa počíta zo zeme: krok i je odomknutý, ak je hotový vstupný úsek i a zároveň je hotových `UnlockCells[i]` políčok.
 
-- Kostra, mesh a animácie: `SKM_Manny_Simple` + `ABP_Unarmed` zo šablóny (`$UE/Templates/TemplateResources/High/Characters/Content/Mannequins` → `Content/Characters/Mannequins`).
-- Batoh je pripojený na kosť `spine_03`, prilba na `head`.
-- Asfaltovačka je pripojená **na koreň aktéra, nie na ruku** – jazdí po zemi 80 cm pred hráčom a nehojdá sa s animáciou. Logická poloha lišty a jej mesh sú tak vždy totožné.
-- Známe obmedzenie v1: ruky pri chôdzi voľne kývajú, vlastná animácia tlačenia by vyžadovala Animation Blueprint vytvorený ručne v editore.
+`FDIAToolPath` (`World/DIAToolPath.h`) je spoločná pomôcka vozíka, finišera a auta: z posunutia nástroja urobí dráhu a zaručí, že sa nič nepoloží cez skok, teda cez miesto, ktoré nástroj nepreišiel. Používa `JumpSlack` 1,5 a `MoveToleranceCm` 0,01.
 
-### 5.4 Vstup a UI bez assetov
+## 6. Ukladanie (formát „DIA2“)
 
-- `UInputAction` a `UInputMappingContext` sa vytvárajú v C++ cez `NewObject` pri štarte controllera. Žiadne `.uasset` pre vstup.
-- UI je čistý Slate (`SCompoundWidget`), pridaný do viewportu z `ADIAHUD`. Texty cez `LOCTEXT`.
-- Keď hra beží bez vykresľovania (testy s `-nullrhi`), HUD sa nevytvára.
+Uloženie má dve vrstvy.
 
-### 5.5 Assety generované skriptami
+**Jadro** (`FLotGame::SaveToBytes` / `LoadFromBytes`) zapíše bajty v tomto poradí:
 
-`Scripts/uepy.sh <skript.py>` spustí editor bez okna: `UnrealEditor-Cmd DoItAsphalt.uproject -run=pythonscript -Script="<skript.py>"`.
+1. hlavička: magické číslo `0x32414944` („DIA2“), verzia formátu (1), počet políčok (30 000) a veľkosť mriežky (4 000);
+2. kredity, čas hry, vyliate litre, úroveň výrobne a jej zásoba;
+3. kúpené veci, ruka a jej obsah, zostávajúci čas výmeny, litre v kufri a vo vozíku, čo je v ruke chytené;
+4. stav robota (sektor, krok, poloha, či cestuje, rozpočet);
+5. príznak výhry;
+6. poloha a natočenie hráča, polohy a natočenie predmetov, poloha a natočenie auta a príznak, že hráč sedí v aute;
+7. zem: bit na každé políčko (hotové), počet rozpracovaných políčok a pre každé jeho index a 400 texelov po 2 bity.
 
-| Skript | Výstup |
+`LoadFromBytes` všetko najprv načíta do dočasnej hry, skontroluje a až po úspechu ju vymení za skutočnú, takže poškodený súbor hru nepokazí. Príznaky „drží sa“ sa pri načítaní odvodzujú. Uloženie z verzie 1 (magické číslo `0x31414944`) sa odmietne (test `Lot.Save.RejectsV1`).
+
+**Engine vrstva** (`UDIASaveGame`) uloží bajty jadra ako pole `Blob` do slotu `DoItAsphalt_Slot0` a zároveň do zálohy `DoItAsphalt_Slot0_bak`. Na konci bajtov je pätka s magickým číslom „DIAE“ a kontrolným súčtom CRC32; kontrolný súčet sa overí pred čítaním enginom. Poškodený slot sa nahradí zálohou, ak sú poškodené obe, hra začne odznova. Parameter `-DIASlot=<názov>` zmení slot (skript `shot.sh` používa `DIA_Shot`).
+
+- Automatické uloženie: každých 30 s hry (`AutosaveIntervalSeconds`), po každom nákupe (`BuyItem`, `BuyPlant`), po výhre a pri `GameMode::EndPlay`. Zapína sa až po odchode z hlavného menu a pod automatickými testami sa pre skutočný slot preskakuje.
+- `MakeSaveBlob` ukladá držaný predmet položený (na kópii hry). Poloha auta sa zapisuje vždy a poloha hráča aj počas jazdy, takže hra uložená v aute sa načíta v aute.
+
+## 7. Vstup, ruky a stroje
+
+- Vstup sa definuje v kóde (`DIAInput.cpp`), nie v assetoch. Ovládač (`DIAPlayerController.cpp`) prekladá vstup na volania jadra.
+- **Ruka** je v jadre stav: miska, lopatka, vedro alebo hladidlo, s kapacitou a hladinou. Hladidlo robí `FinishRaw` pod bodom dotyku, ktorý sleduje zámerný bod rýchlosťou najviac `TrowelSpeedCmS`.
+- **Predmety** (kufor, vozík, výdajňa, finišer) sú aktéri `ADIAMovable`. Jadro pozná ich polohu a či sú držané; držanie sa určuje v jadre, nie v aktérovi.
+- **Auto** (`ADIAPaverCar`) je kinematický pawn bez nádrže. `PourFromCar` najprv uhladí surový asfalt pod lištou, potom zaplatí zo zásoby výrobne a `Stamp`-om položí hotový. Rýchlosť auta pri liatí obmedzuje `CarPaveSpeedCmS = sadzba · 10 000 / (60 · šírka)`.
+- **Robot** (`ADIAAutoPaver`) dostane sektor povelom `AssignAutoPaverSector` (reštartuje postup). `SnapToCore` ho po načítaní postaví na uložené miesto.
+
+## 8. Testovanie
+
+Testy sa deklarujú makrom `DIA_TEST` a bežia cez `Scripts/test.sh`. Posledný plný beh na tomto stroji: **216 testov, všetky prešli** (211 čistých a 5 s očakávaným varovaním: záloha slotu, poškodené oba sloty, poškodený slot, useknutý súbor, uloženie z v1).
+
+| Skupina | Počet |
 |---|---|
-| `Tools/UE/create_level.py` | `Content/Maps/L_Main.umap`: prázdny level, smerové svetlo, obloha, atmosféra, hmla, `PlayerStart`. |
-| `Tools/UE/create_materials.py` | `M_Ground` a paleta `MI_DIA_*` pre modely. |
-| `Tools/UE/import_models.py` | Naimportuje každý `SourceAssets/Models/*.glb` cez Interchange do `Content/Models/`, priradí materiály palety podľa názvu slotu, nastaví kolízie. |
+| `DoItAsphalt.Lot.*` (jadro) | 87 |
+| `DoItAsphalt.Game.*` (engine) | 128 |
+| `DoItAsphalt.Core.Smoke` | 1 |
 
-Skripty sú idempotentné – opätovné spustenie prepíše výsledok, nič nezdvojí.
+Najväčšie podskupiny `Lot`: Hand 10, AutoPaver 10, Save 10, Movable 11, Stamp 7, Car 5. Najväčšie podskupiny `Game`: Movable 30, SaveSlot 16, Character 15, Car 9, Shop 9, AutoPaver 7, Exit 6, Hud 6.
 
-### 5.6 Modely nikdy neblokujú kód
+`DoItAsphalt.Lot.BalanceSim` je simulácia celej hry vopred daným správaním (bez človeka). Kontroluje, že prvé políčko padne za 40 – 80 s, 10 políčok do 6 minút, 100 do 18, 800 do 42, 6 000 do 78 minút a že celá hra trvá 105 – 165 minút. V jednom behu vyšlo 41:17 pre 800 políčok a 2:21:27 pre celú hru (kapitola 9 herného dizajnu).
 
-`DIAAssets::LoadMeshOrFallback(Cesta, NáhradnýTvar)` vráti model, ak už je naimportovaný, inak kocku alebo valec z `/Engine/BasicShapes` v rozmeroch z `03-3d-modely.md`. Hra je tak hrateľná od prvej fázy s „greybox" tvarmi a modely sa do nej doplnia bez zmeny kódu. Preto môže vetva modelov (Fable 5.2) bežať súbežne s vetvou kódu (Sonnet 5.5).
+Skripty overujú aj obraz: `Scripts/shot.sh <názov> "<cheaty>"` spustí hru v okne, vykoná cheaty a uloží snímku.
 
-### 5.7 Ukladanie
-
-- `FAsphaltGame::SaveToBytes()` / `LoadFromBytes()` – vlastný binárny formát s číslom verzie na začiatku a kontrolou dĺžok. Pokrytie sa ukladá ako bitové pole (51 kB).
-- `LoadFromBytes` načíta do dočasnej inštancie a až po úspechu ju vymení – pri chybe zostane pôvodný stav nedotknutý a vráti `false`.
-- Engine vrstva blob zabalí do `UDIASaveGame` a uloží do slotu `DoItAsphalt_Slot0`.
-- Každé uloženie zapíše slot aj jeho zálohu `<slot>_bak` (`DoItAsphalt_Slot0_bak`), takže prerušený zápis nikdy nezničí rozohranú hru.
-- Súbor slotu má za dátami vlastnú pätu: magic `DIAE` a CRC32 všetkého pred ňou. Engine čítačka sa na dĺžky spolieha, preto sa päta a CRC overia pred načítaním; poškodený primárny slot sa nahradí zálohou a ak je poškodená aj tá, ponúkne sa len nová hra.
-
-### 5.8 Vozidlo a robot
-
-- `ADIAPaverCar` je kinematický `APawn` (posun so sweepom, bez fyziky kolies). Chaos Vehicles je pre túto hru zbytočne zložité.
-- Robot: pravidlá (výber cieľa, presun, liatie) sú v `FAsphaltGame::Tick`; `ADIAAutoPaver` len sleduje polohu z jadra.
-
-## 6. Testovanie a overovanie
-
-Tri úrovne, od najlacnejšej:
-
-1. **Automatizované testy jadra** – Unreal Automation (`IMPLEMENT_SIMPLE_AUTOMATION_TEST`), názvy `DoItAsphalt.Core.*`. Každé pravidlo z GDD má test s konkrétnym číslom. Píšu sa pred implementáciou (TDD).
-2. **Dymové testy engine vrstvy** – `DoItAsphalt.Game.*`: načítať `L_Main`, overiť, že game mode postavil scénu a subsystém žije. Bežia s `-nullrhi`.
-3. **Snímka obrazovky** – `Scripts/shot.sh <meno> "<cheaty>"` spustí hru v okne, vykoná cheaty (napr. dokonči 200 buniek, daj peniaze), po pár sekundách uloží PNG a skončí. Agent si obrázok pozrie a porovná s očakávaním v pláne. Takto sa overuje všetko vizuálne bez človeka.
+## 9. Skripty a nástroje
 
 | Príkaz | Čo robí |
 |---|---|
-| `Scripts/build.sh` | Zostaví `DoItAsphaltEditor` (Mac, Development). |
-| `Scripts/test.sh [filter]` | Spustí testy (predvolene `DoItAsphalt`), z reportu vypíše `PASSED n / FAILED m`, pri zlyhaní alebo nule testov skončí kódom 1. |
-| `Scripts/uepy.sh <skript>` | Spustí editorový Python skript bez okna. |
-| `Scripts/shot.sh <meno> [cheaty]` | Uloží `Saved/Screenshots/<meno>.png`. |
-| `Scripts/run.sh` | Spustí hru v okne. |
-| `Scripts/package.sh` | Zabalí Shipping build pre Mac do `Builds/`. |
+| `Scripts/build.sh` | skompiluje `DoItAsphaltEditor` |
+| `Scripts/test.sh [filter]` | spustí automatické testy |
+| `Scripts/shot.sh [--menu] <názov> ["cheaty"]` | snímka hry do `Saved/Screenshots/<názov>.png` |
+| `Scripts/uepy.sh <skript.py>` | spustí skript pre editor bez okna |
+| `Scripts/package.sh` | zabalí Shipping `.app` (v iCloude zlyhá na `codesign`) |
+| `Tools/ModelGen/build_all.sh` | vygeneruje a skontroluje všetky modely |
 
-Cheaty (konzola, len mimo Shipping): `dia.Give <peniaze> <shardy>`, `dia.Complete <počet buniek>`, `dia.CompleteRoad <i>`, `dia.SetLevels <batoh> <nástroj> <výrobňa>`, `dia.Special <meno>`, `dia.Teleport <x> <y> [yaw]`, `dia.TopView`, `dia.ShotAndQuit <sekundy> <meno>`.
+Poznámka k `Tools/UE/create_materials.py`: pri spustení cez `uepy.sh` editor spadne na tvrdení `!IsRooted()` už pri druhom materiáli (`M_DIA_Flat`), pretože `MaterialEditingLibrary.DeleteAllMaterialExpressions` (aj `DeleteMaterialExpression` samotné) zlyhá na načítanom materiáli. Skript vypíše `DIA_OK` len pre `M_Ground`. Materiály sú hotové v `Content/Materials/` a skript netreba spúšťať znova. Zmenu materiálu, ktorú skript vytvára, treba robiť v editore alebo skript opraviť; obídenie (zmazať materiál a vytvoriť ho odznova) sa nevyskúšalo. Po každom behu ostane proces `CrashReportClient`, ktorý treba ukončiť, a prepísaný `Content/Materials/M_Ground.uasset` treba vrátiť z gitu.
 
-## 7. Výkon
+## 10. Shipping build
 
-- Liatie v jednom snímku prejde nanajvýš pár tisíc texelov (lišta 4 m × pohyb do 20 cm) – zanedbateľné.
-- Textúra pokrytia sa nahráva len v zmenenom výreze.
-- Scéna má desiatky aktérov a žiadne dynamické svetlá okrem slnka. Cieľ 60 fps na vývojovom Macu.
-- `UDIAWorldSubsystem` orezáva `Dt` snímky na 1 s, aby zaseknutie alebo pauza nespôsobili skok. Jadro samo prijme ľubovoľné `Dt` a dlhší krok si delí na kroky po 0,25 s (kvôli robotovi), takže testy môžu volať `Tick(600)`.
+Shipping sa skompiluje príkazom `Build.sh DoItAsphalt Mac Shipping -project=<cesta>/DoItAsphalt.uproject` (pri ceste s medzerami v úvodzovkách a zo `bash`, nie zo `zsh`, lebo `Scripts/env.sh` vyžaduje `bash`). Cheaty `dia.*` (`DIACheats.cpp`) sú pod `#if !UE_BUILD_SHIPPING`, takže v Shipping binárke nie sú. Reťazce `TEXT()` sú na Macu v UTF-16, preto sa pri kontrole musí hľadať v UTF-16 aj v ASCII; kontrolu treba overiť na editorovej knižnici `libUnrealEditor-DoItAsphalt.dylib`, kde ich nájde.
 
-## 8. Riziká
+## 11. Cheaty
 
-| Riziko | Zmiernenie |
-|---|---|
-| Editorové Python API (materiály, Interchange) sa v 5.8 líši od toho, čo agent pozná | Agent si API overí v zdrojákoch a v `unreal` module na disku; každý skript sa overuje výpisom vytvorených assetov. |
-| Medzera v ceste projektu rozbije niektorý nástroj | Všetko úvodzovkované; ak by nástroj aj tak zlyhal, projekt sa spustí cez symlink bez medzery. |
-| Okraj asfaltu pri 5 cm texeloch pôsobí rozmazane | Prahovanie v materiáli; ak nestačí, mriežka sa dá zjemniť zmenou jednej konštanty (`TexelCm`). |
-| Balans (hra príliš krátka alebo dlhá) | Všetky čísla v `AsphaltBalance.h`; samostatná ladiaca úloha na konci plánu. |
-| Ruky Mannequina nedržia nástroj | Vedome prijaté pre v1 (GDD kap. 14). |
-| Blender nie je nainštalovaný | Jeden príkaz `brew install --cask blender`; vetva kódu na ňom nezávisí. |
-| Windows build | Z Macu sa nedá; treba Windows stroj alebo CI. Mimo rozsahu v1. |
+Zoznam 27 príkazov je v kapitole 11 dokumentu `01-herny-dizajn.md`. Implementácia je v `Source/DoItAsphalt/Game/DIACheats.cpp`.
 
-## 9. Kto čo robí
+## 12. Zmeny oproti návrhu
 
-| Práca | Model |
-|---|---|
-| 3D modely: Blender skripty v `Tools/ModelGen/`, kontrola náhľadov | **Fable 5.2** |
-| Všetok kód: C++, editorové Python skripty, shell skripty, testy | **Sonnet 5.5** |
-| Kontrola kódu po každej úlohe | Sonnet 5.5 |
-| Riadenie plánu, kontrola súladu s GDD | hlavná relácia |
+Pozri kapitolu 10 dokumentu `01-herny-dizajn.md`. Navyše z technickej strany:
 
-Fable 5.2 nepíše herný kód a Sonnet 5.5 netvorí modely. Hranica medzi nimi je `SourceAssets/Models/*.glb` a tabuľka rozmerov v `03-3d-modely.md`.
+- Návrh počítal s mriežkou `FCoverageGrid`; hra používa `FLotGrid` s tromi stavmi (voľný, surový, hotový) namiesto dvoch.
+- Robot v návrhu nemal obrys sektora; obrys je parameter materiálu zeme.
+- `ContinueGame` v `ADIAHUD` je verejná, aby cheat `dia.Load` použil rovnakú cestu ako tlačidlo Continue.

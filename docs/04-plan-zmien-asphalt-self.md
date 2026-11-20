@@ -72,7 +72,7 @@ Ako sa leje:
 | Vec | Cena | Čo je v jadre |
 |---|---|---|
 | Lyžica + miska | štart | nádoba v ruke 2,5 l, záber 0,25 l |
-| Hladidlo | štart | pás 30 cm: surový → hotový |
+| Hladidlo | štart | pás 40 cm: surový → hotový (šírka bola pôvodne navrhnutá 30 cm, pri ladení sa zväčšila na 40 cm; v kóde `TrowelWidthCm`) |
 | Lopatka | 10 | záber 1 l; dá sa z nej liať priamo |
 | Vedro | 35 | nádoba v ruke 10 l, plní sa pod výpustom, z kufra, vozíka a výdajne |
 | Kufor | 110 | fyzický predmet: poloha, 60 l, ťahanie; klapka sype surový asfalt; zásoba pre vedro |
