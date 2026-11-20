@@ -20,6 +20,8 @@ namespace DIAMovable
 	inline constexpr double ClearanceLiftCm = 2.0;
 	/** Two mouth points closer than this are the same point: the cart does not move, so it lays nothing. */
 	inline constexpr double MouthMoveToleranceCm = 0.01;
+	/** A mouth that moves further in one tick than the laying speed allows (times this slack) was moved, not driven: a teleport, a spin. Nothing is laid across the jump. */
+	inline constexpr double LayJumpSlack = 1.5;
 	/** How far the actor may be from the core's position before it is moved there; the core's number is the truth. */
 	inline constexpr double SyncToleranceCm = 0.5;
 	inline constexpr double SyncToleranceDeg = 0.5;
@@ -94,7 +96,7 @@ private:
 	bool HasRoomAt(FVector2D Where, double YawDeg, const ADIACharacter* By) const;
 	void ShowNoRoomToast(const ADIACharacter* By) const;
 	/** The held cart lays a raw strip from where its mouth was to where it is now. */
-	void LayStrip(UDIAWorldSubsystem& Subsystem, const ADIACharacter* Player);
+	void LayStrip(UDIAWorldSubsystem& Subsystem, const ADIACharacter* Player, float DeltaSeconds);
 	/** Shows the content of the cart or the suitcase; the work is skipped while it did not change. */
 	void UpdateLevel();
 

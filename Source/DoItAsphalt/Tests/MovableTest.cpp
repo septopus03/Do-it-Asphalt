@@ -12,14 +12,18 @@
 #include "Game/DIAGameMode.h"
 #include "Game/DIAModelSizes.h"
 #include "Game/DIARefill.h"
+#include "Game/DIASaveGame.h"
 #include "Game/DIAWorldSubsystem.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Kismet/GameplayStatics.h"
 #include "LotBalance.h"
 #include "LotLayout.h"
 #include "LotMap.h"
 #include "Player/DIACharacter.h"
+#include "Player/DIAPlayerController.h"
 #include "Tests/DIATestWorld.h"
 #include "UI/DIAFormat.h"
+#include "UI/DIAHUD.h"
 #include "World/DIAMovable.h"
 
 namespace MovableTestSupport
@@ -104,6 +108,85 @@ namespace MovableTestSupport
 			Count += Texel == static_cast<uint8>(ELotTexel::Raw) ? 1 : 0;
 		}
 		return Count;
+	}
+	/** The test slot for the length of a test: the real slot is never touched, and the override is gone afterwards. */
+	struct FMovableTestSlot
+	{
+		static const FString& Name()
+		{
+			static const FString SlotName(TEXT("DIA_Test_Movable"));
+			return SlotName;
+		}
+		FMovableTestSlot()
+		{
+			UDIAWorldSubsystem::SetSlotNameOverride(Name());
+			Delete();
+		}
+		~FMovableTestSlot()
+		{
+			Delete();
+			UDIAWorldSubsystem::SetSlotNameOverride(FString());
+		}
+		static void Delete()
+		{
+			UGameplayStatics::DeleteGameInSlot(Name(), DIASave::UserIndex);
+			UGameplayStatics::DeleteGameInSlot(Name() + DIASave::BackupSuffix, DIASave::UserIndex);
+		}
+	};
+
+	/** A player controller with a HUD that possesses the character, as in the real game (the toasts need it). */
+	ADIAHUD* Possess(UWorld* World, ADIACharacter* Character)
+	{
+		FActorSpawnParameters Params;
+		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		ADIAPlayerController* Controller = World->SpawnActor<ADIAPlayerController>(Params);
+		if (!Controller)
+		{
+			return nullptr;
+		}
+		Controller->Possess(Character);
+		Params.Owner = Controller;
+		ADIAHUD* Hud = World->SpawnActor<ADIAHUD>(Params);
+		Controller->MyHUD = Hud;
+		return Hud;
+	}
+
+	/** Raw texels laid by walking the cart 3 m along +X with Use down, ticking at the given step. -1 if the world did not start. */
+	int32 RawTexelsOfAWalk(FAutomationTestBase& Test, double Step)
+	{
+		FTestWorldWrapper Wrapper;
+		if (!DIATest::StartGameWorld(Wrapper, Test))
+		{
+			return -1;
+		}
+		UWorld* World = Wrapper.GetTestWorld();
+		UDIAWorldSubsystem* Subsystem = World->GetSubsystem<UDIAWorldSubsystem>();
+		ADIACharacter* Character = DIATest::SpawnCharacter(World, MiddleOfLot());
+		if (!Subsystem || !Character)
+		{
+			return -1;
+		}
+		FLotGame& Game = Subsystem->GetGame();
+		Game.DebugGive(100000.0);
+		Subsystem->BuyItem(ELotItem::Cart);
+		ADIAMovable* Cart = FindMovable(World, ELotMovable::Cart);
+		if (!Cart)
+		{
+			return -1;
+		}
+		FillTo(Game, ELotMovable::Cart, 50.0);
+		Wrapper.TickTestWorld(static_cast<float>(Step));
+		Cart->Interact(Character);
+		Character->SetUsing(true);
+		Wrapper.TickTestWorld(static_cast<float>(Step));
+		const int32 Steps = FMath::RoundToInt32(300.0 / (100.0 * Step));
+		for (int32 I = 0; I < Steps; ++I)
+		{
+			// 100 cm/s: well below the laying speed.
+			Move(Character, FVector2D(100.0 * Step, 0.0));
+			Wrapper.TickTestWorld(static_cast<float>(Step));
+		}
+		return CountRawTexels(Game);
 	}
 }
 
@@ -555,6 +638,291 @@ bool FMovableHandHiddenWhileHeldTest::RunTest(const FString& Parameters)
 	Cart->Interact(Character);
 	Wrapper.TickTestWorld(TickSeconds);
 	TestTrue(TEXT("the bowl is back"), Character->GetHandMesh()->IsVisible());
+	return true;
+}
+
+/** A cart held with Use down: the cart gets somewhere in one jump (a teleport, a spin) and lays nothing on the way. */
+DIA_TEST(FMovableNoStripOnATeleportTest, "DoItAsphalt.Game.Movable.NoStripOnATeleport")
+
+bool FMovableNoStripOnATeleportTest::RunTest(const FString& Parameters)
+{
+	DIA_MOVABLE_FIXTURE()
+	TestTrue(TEXT("buy the cart"), Buy(ELotItem::Cart));
+	ADIAMovable* Cart = FindMovable(World, ELotMovable::Cart);
+	if (!TestNotNull(TEXT("the cart"), Cart))
+	{
+		return false;
+	}
+	FillTo(Game, ELotMovable::Cart, 50.0);
+	Wrapper.TickTestWorld(TickSeconds);
+	Cart->Interact(Character);
+	Character->SetUsing(true);
+	Wrapper.TickTestWorld(TickSeconds);
+	Wrapper.TickTestWorld(TickSeconds);
+	TestEqual(TEXT("standing still lays nothing"), CountRawTexels(Game), 0);
+	const double Before = Game.GetMovableLitres(ELotMovable::Cart);
+
+	// Eight metres in one tick, with Use down (dia.Teleport does not let go of it).
+	Move(Character, FVector2D(800.0, 0.0));
+	Wrapper.TickTestWorld(TickSeconds);
+	TestEqual(TEXT("a jump lays no strip between the two points"), CountRawTexels(Game), 0);
+	TestEqual(TEXT("and spends nothing"), Game.GetMovableLitres(ELotMovable::Cart), Before);
+
+	// The path starts again where the cart is now: the next 1 m of walking is laid.
+	for (int32 I = 0; I < 10; ++I)
+	{
+		Move(Character, FVector2D(10.0, 0.0));
+		Wrapper.TickTestWorld(TickSeconds);
+	}
+	const double TexelsPerSquareMetre = 1.0e4 / FMath::Square(FLotGrid::TexelCm);
+	const double Expected = 1.0 * (LotBalance::CartStripWidthCm / 100.0) * TexelsPerSquareMetre;
+	TestTrue(TEXT("walking on lays the strip again"), FMath::Abs(CountRawTexels(Game) - Expected) <= Expected * 0.2);
+	return true;
+}
+
+DIA_TEST(FMovableNoStripOnASpinTest, "DoItAsphalt.Game.Movable.NoStripOnASpin")
+
+bool FMovableNoStripOnASpinTest::RunTest(const FString& Parameters)
+{
+	DIA_MOVABLE_FIXTURE()
+	TestTrue(TEXT("buy the cart"), Buy(ELotItem::Cart));
+	ADIAMovable* Cart = FindMovable(World, ELotMovable::Cart);
+	if (!TestNotNull(TEXT("the cart"), Cart))
+	{
+		return false;
+	}
+	FillTo(Game, ELotMovable::Cart, 50.0);
+	Wrapper.TickTestWorld(TickSeconds);
+	Cart->Interact(Character);
+	Character->SetUsing(true);
+	Wrapper.TickTestWorld(TickSeconds);
+
+	// One turn in a second, in place: the mouth is 1.7 m from the player and sweeps about 1 m per tick.
+	const double Before = Game.GetMovableLitres(ELotMovable::Cart);
+	for (int32 I = 0; I < 10; ++I)
+	{
+		Character->SetActorRotation(FRotator(0.0, 36.0 * (I + 1), 0.0));
+		Wrapper.TickTestWorld(TickSeconds);
+	}
+	// What a second at the laying speed could lay: a strip of that length, with the stamps' padding.
+	const double MostTexels = (LotBalance::CartLaySpeedCmS * 1.0 + 20.0) * LotBalance::CartStripWidthCm / FMath::Square(FLotGrid::TexelCm);
+	TestTrue(TEXT("a spin lays no more than the laying speed allows"), CountRawTexels(Game) <= MostTexels);
+	TestTrue(TEXT("in fact nothing"), CountRawTexels(Game) == 0 && Game.GetMovableLitres(ELotMovable::Cart) == Before);
+	return true;
+}
+
+DIA_TEST(FMovableStripDoesNotDependOnTheTickTest, "DoItAsphalt.Game.Movable.StripDoesNotDependOnTheTick")
+
+bool FMovableStripDoesNotDependOnTheTickTest::RunTest(const FString& Parameters)
+{
+	const int32 Fast = RawTexelsOfAWalk(*this, 0.005);
+	const int32 Slow = RawTexelsOfAWalk(*this, 0.1);
+	if (!TestTrue(TEXT("both worlds ran"), Fast > 0 && Slow > 0))
+	{
+		return false;
+	}
+	TestTrue(*FString::Printf(TEXT("the same strip at 200 Hz (%d) and at 10 Hz (%d)"), Fast, Slow), FMath::Abs(Fast - Slow) <= Slow * 0.1);
+	return true;
+}
+
+DIA_TEST(FMovableNewGameWhileHoldingTest, "DoItAsphalt.Game.Movable.NewGameWhileHolding")
+
+bool FMovableNewGameWhileHoldingTest::RunTest(const FString& Parameters)
+{
+	FMovableTestSlot Slot;
+	DIA_MOVABLE_FIXTURE()
+	TestTrue(TEXT("buy the cart"), Buy(ELotItem::Cart));
+	ADIAMovable* Cart = FindMovable(World, ELotMovable::Cart);
+	if (!TestNotNull(TEXT("the cart"), Cart))
+	{
+		return false;
+	}
+	const UCharacterMovementComponent* Movement = Character->GetCharacterMovement();
+	Cart->Interact(Character);
+	Character->SetUsing(true);
+	TickFor(Wrapper, 0.3);
+	TestTrue(TEXT("holding the cart"), Game.GetHeld() == ELotMovable::Cart);
+	TestNearlyEqual(TEXT("slow while laying"), static_cast<double>(Movement->MaxWalkSpeed), LotBalance::CartLaySpeedCmS, 0.01);
+	TestFalse(TEXT("the hand tool is hidden"), Character->GetHandMesh()->IsVisible());
+
+	Subsystem->NewGame();
+	TickFor(Wrapper, 0.3);
+	TestEqual(TEXT("a new game: no movable stands"), FindMovables(World).Num(), 0);
+	TestTrue(TEXT("nothing is held"), Game.GetHeld() == ELotMovable::Count);
+	TestNearlyEqual(TEXT("walking speed again"), static_cast<double>(Movement->MaxWalkSpeed), LotBalance::WalkSpeedCmS, 0.01);
+	TestTrue(TEXT("the hand tool is back"), Character->GetHandMesh()->IsVisible());
+	return true;
+}
+
+DIA_TEST(FMovableSaveLoadWhileHoldingTest, "DoItAsphalt.Game.Movable.SaveLoadWhileHolding")
+
+bool FMovableSaveLoadWhileHoldingTest::RunTest(const FString& Parameters)
+{
+	FMovableTestSlot Slot;
+	DIA_MOVABLE_FIXTURE()
+	TestTrue(TEXT("buy the cart"), Buy(ELotItem::Cart));
+	ADIAMovable* Cart = FindMovable(World, ELotMovable::Cart);
+	if (!TestNotNull(TEXT("the cart"), Cart))
+	{
+		return false;
+	}
+	Cart->Interact(Character);
+	TickFor(Wrapper, 0.3);
+	TestTrue(TEXT("holding the cart"), Game.GetHeld() == ELotMovable::Cart);
+	Subsystem->SaveGame();
+
+	// The game moves on: the cart is put down and the player walks off.
+	Cart->Interact(Character);
+	TestTrue(TEXT("let go"), Game.GetHeld() == ELotMovable::Count);
+	Move(Character, FVector2D(0.0, 600.0));
+	TickFor(Wrapper, 0.3);
+
+	if (!TestTrue(TEXT("the game loads"), Subsystem->LoadGame()))
+	{
+		return false;
+	}
+	TickFor(Wrapper, 0.3);
+	TestTrue(TEXT("the core says the cart is held"), Game.GetHeld() == ELotMovable::Cart);
+	TestEqual(TEXT("exactly one actor"), FindMovables(World).Num(), 1);
+	ADIAMovable* Loaded = FindMovable(World, ELotMovable::Cart);
+	if (!TestNotNull(TEXT("the cart actor"), Loaded))
+	{
+		return false;
+	}
+	TestTrue(TEXT("the actor is held"), Loaded->IsHeld());
+	TestEqual(TEXT("without collision"), Loaded->GetCollision()->GetCollisionEnabled(), ECollisionEnabled::NoCollision);
+
+	// It follows the player, wherever the player is now.
+	Move(Character, FVector2D(300.0, 0.0));
+	TickFor(Wrapper, 0.3);
+	TestTrue(TEXT("it follows the player"), FVector2D::Distance(Where(Loaded), Where(Character)) < 150.0);
+	Loaded->Interact(Character);
+	TestTrue(TEXT("it can be let go"), Game.GetHeld() == ELotMovable::Count);
+	TestEqual(TEXT("and stands with its collision"), Loaded->GetCollision()->GetCollisionEnabled(), ECollisionEnabled::QueryAndPhysics);
+	return true;
+}
+
+DIA_TEST(FMovableBuyWhileHoldingTest, "DoItAsphalt.Game.Movable.BuyWhileHolding")
+
+bool FMovableBuyWhileHoldingTest::RunTest(const FString& Parameters)
+{
+	DIA_MOVABLE_FIXTURE()
+	TestTrue(TEXT("buy the cart"), Buy(ELotItem::Cart));
+	ADIAMovable* Cart = FindMovable(World, ELotMovable::Cart);
+	if (!TestNotNull(TEXT("the cart"), Cart))
+	{
+		return false;
+	}
+	Cart->Interact(Character);
+	TickFor(Wrapper, 0.3);
+	TestTrue(TEXT("buy the suitcase while holding the cart"), Buy(ELotItem::Suitcase));
+	TickFor(Wrapper, 0.3);
+	TestEqual(TEXT("one actor each"), FindMovables(World).Num(), 2);
+	TestTrue(TEXT("the same cart actor is still there"), FindMovable(World, ELotMovable::Cart) == Cart);
+	TestTrue(TEXT("the cart is still held"), Game.GetHeld() == ELotMovable::Cart && Cart->IsHeld());
+	ADIAMovable* Suitcase = FindMovable(World, ELotMovable::Suitcase);
+	if (!TestNotNull(TEXT("the suitcase"), Suitcase))
+	{
+		return false;
+	}
+	TestFalse(TEXT("the suitcase is not held"), Suitcase->IsHeld());
+	TestTrue(TEXT("it stands at its spawn point"), Where(Suitcase).Equals(LotLayout::ItemSpawn(ELotItem::Suitcase), 0.5));
+	TestEqual(TEXT("with its collision"), Suitcase->GetCollision()->GetCollisionEnabled(), ECollisionEnabled::QueryAndPhysics);
+	return true;
+}
+
+DIA_TEST(FMovableReleaseRefusedAtTheSiteTest, "DoItAsphalt.Game.Movable.ReleaseRefusedAtTheSite")
+
+bool FMovableReleaseRefusedAtTheSiteTest::RunTest(const FString& Parameters)
+{
+	DIA_MOVABLE_FIXTURE()
+	TestTrue(TEXT("buy the cart"), Buy(ELotItem::Cart));
+	ADIAMovable* Cart = FindMovable(World, ELotMovable::Cart);
+	ADIAHUD* Hud = Possess(World, Character);
+	if (!TestNotNull(TEXT("the cart"), Cart) || !TestNotNull(TEXT("a HUD"), Hud))
+	{
+		return false;
+	}
+	Place(Character, MiddleOfLot(), 0.0, 0.0);
+	Wrapper.TickTestWorld(TickSeconds);
+	Cart->Interact(Character);
+	TestTrue(TEXT("holding the cart"), Game.GetHeld() == ELotMovable::Cart);
+
+	struct FSpot
+	{
+		const TCHAR* Name;
+		FVector2D Where;
+		double YawDeg;
+	};
+	const FSpot Spots[] = {
+		{TEXT("the site wall"), FVector2D(-3000.0, -AsphaltLot::HalfExtentCm - LotLayout::StripCm + 100.0), -90.0},
+		{TEXT("the trough"), FVector2D(LotLayout::TroughPos.X, LotLayout::TroughPos.Y + 80.0), -90.0},
+		{TEXT("the mall wall"), FVector2D(LotLayout::MallCentre.X, -100.0), 90.0},
+	};
+	for (const FSpot& Spot : Spots)
+	{
+		Character->SetActorLocation(FVector(Spot.Where.X, Spot.Where.Y, DIACharacter::CapsuleHalfHeightCm));
+		Character->SetActorRotation(FRotator(0.0, Spot.YawDeg, 0.0));
+		Wrapper.TickTestWorld(TickSeconds);
+		const int32 Toasts = Hud->GetToasts().Num();
+		Cart->Interact(Character);
+		TestTrue(*FString::Printf(TEXT("%s: the cart stays held"), Spot.Name), Game.GetHeld() == ELotMovable::Cart && Cart->IsHeld());
+		TestTrue(*FString::Printf(TEXT("%s: the toast says there is no room"), Spot.Name), Hud->GetToasts().Num() == Toasts + 1);
+
+		// A free spot: it can be set down, and picked up again for the next one.
+		Character->SetActorLocation(FVector(MiddleOfLot().X, MiddleOfLot().Y, DIACharacter::CapsuleHalfHeightCm));
+		Character->SetActorRotation(FRotator::ZeroRotator);
+		Wrapper.TickTestWorld(TickSeconds);
+		Cart->Interact(Character);
+		TestTrue(*FString::Printf(TEXT("%s: let go on free ground"), Spot.Name), Game.GetHeld() == ELotMovable::Count);
+		Cart->Interact(Character);
+		TestTrue(*FString::Printf(TEXT("%s: held again"), Spot.Name), Game.GetHeld() == ELotMovable::Cart);
+	}
+	return true;
+}
+
+DIA_TEST(FMovableWalkingSpeedTest, "DoItAsphalt.Game.Movable.WalkingSpeedWithTheCart")
+
+bool FMovableWalkingSpeedTest::RunTest(const FString& Parameters)
+{
+	DIA_MOVABLE_FIXTURE()
+	TestTrue(TEXT("buy the cart"), Buy(ELotItem::Cart));
+	ADIAMovable* Cart = FindMovable(World, ELotMovable::Cart);
+	if (!TestNotNull(TEXT("the cart"), Cart))
+	{
+		return false;
+	}
+	UCharacterMovementComponent* Movement = Character->GetCharacterMovement();
+	// Without a controller nothing drives the movement component, unless it is told to run its physics anyway.
+	Movement->bRunPhysicsWithNoController = true;
+	Movement->SetMovementMode(MOVE_Walking);
+	Place(Character, FVector2D(-9000.0, -9000.0), 0.0, 0.0);
+	Cart->Interact(Character);
+
+	// Walks along +X for the seconds with the movement component itself and returns the speed over the last second.
+	auto Walk = [&](bool bUse) -> double
+	{
+		Character->SetUsing(bUse);
+		Character->SetActorRotation(FRotator::ZeroRotator);
+		TickFor(Wrapper, 0.1);
+		// A second to get up to speed, then the second that is measured.
+		for (int32 I = 0; I < 20; ++I)
+		{
+			Character->AddMovementInput(FVector::ForwardVector, 1.0f);
+			Wrapper.TickTestWorld(0.05f);
+		}
+		const double MidX = Character->GetActorLocation().X;
+		for (int32 I = 0; I < 20; ++I)
+		{
+			Character->AddMovementInput(FVector::ForwardVector, 1.0f);
+			Wrapper.TickTestWorld(0.05f);
+		}
+		return Character->GetActorLocation().X - MidX;
+	};
+	const double Pushing = Walk(false);
+	const double Laying = Walk(true);
+	TestTrue(*FString::Printf(TEXT("pushing the cart: %.0f cm in a second"), Pushing), FMath::Abs(Pushing - LotBalance::CartPushSpeedCmS) <= LotBalance::CartPushSpeedCmS * 0.1);
+	TestTrue(*FString::Printf(TEXT("laying a strip: %.0f cm in a second"), Laying), FMath::Abs(Laying - LotBalance::CartLaySpeedCmS) <= LotBalance::CartLaySpeedCmS * 0.1);
 	return true;
 }
 

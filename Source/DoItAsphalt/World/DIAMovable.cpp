@@ -372,7 +372,7 @@ void ADIAMovable::Interact(ADIACharacter* By)
 	}
 }
 
-void ADIAMovable::LayStrip(UDIAWorldSubsystem& Subsystem, const ADIACharacter* Player)
+void ADIAMovable::LayStrip(UDIAWorldSubsystem& Subsystem, const ADIACharacter* Player, float DeltaSeconds)
 {
 	if (!Player || !Player->IsUsing())
 	{
@@ -390,6 +390,12 @@ void ADIAMovable::LayStrip(UDIAWorldSubsystem& Subsystem, const ADIACharacter* P
 	if (Current.Equals(PreviousMouth, DIAMovable::MouthMoveToleranceCm))
 	{
 		// A cart that stands still lays nothing, and a slow one adds up its steps.
+		return;
+	}
+	if (FVector2D::Distance(Current, PreviousMouth) > LotBalance::CartLaySpeedCmS * DeltaSeconds * DIAMovable::LayJumpSlack)
+	{
+		// More than the cart can have travelled at the laying speed: it jumped (a teleport) or swung (a quick turn). The path starts again here.
+		PreviousMouth = Current;
 		return;
 	}
 	Subsystem.Dispatch(Subsystem.GetGame().LayCartStrip(PreviousMouth, Current));
@@ -454,7 +460,7 @@ void ADIAMovable::Tick(float DeltaSeconds)
 	{
 		if (Kind == ELotMovable::Cart)
 		{
-			LayStrip(*Subsystem, Player);
+			LayStrip(*Subsystem, Player, DeltaSeconds);
 		}
 	}
 	else
