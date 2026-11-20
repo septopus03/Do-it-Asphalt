@@ -47,13 +47,27 @@ namespace
 		Character->GetCamera()->SetWorldRotation(FRotator(PitchDeg, YawDeg, 0.0));
 	}
 
-	void TickFor(FTestWorldWrapper& Wrapper, double Seconds)
+	void TickFor(FTestWorldWrapper& Wrapper, double Seconds, double Step = TickSeconds)
 	{
-		const int32 Steps = FMath::RoundToInt32(Seconds / TickSeconds);
+		const int32 Steps = FMath::RoundToInt32(Seconds / Step);
 		for (int32 I = 0; I < Steps; ++I)
 		{
-			Wrapper.TickTestWorld(TickSeconds);
+			Wrapper.TickTestWorld(static_cast<float>(Step));
 		}
+	}
+
+	/** Where a view ray meets the ground (ground at GroundZ), pulled in to ReachCm from the player: the aim point worked out from a rendered view. */
+	FVector2D AimFromView(const FMinimalViewInfo& View, FVector2D Player, double GroundZ)
+	{
+		const FVector Direction = View.Rotation.Vector();
+		FVector2D Hit = Player;
+		if (Direction.Z < -UE_KINDA_SMALL_NUMBER)
+		{
+			const double Distance = (GroundZ - View.Location.Z) / Direction.Z;
+			Hit = FVector2D(View.Location.X + Direction.X * Distance, View.Location.Y + Direction.Y * Distance);
+		}
+		const FVector2D Offset = Hit - Player;
+		return Offset.SizeSquared() > FMath::Square(LotBalance::ReachCm) ? Player + Offset.GetSafeNormal() * LotBalance::ReachCm : Hit;
 	}
 
 	FString MeshName(const UStaticMeshComponent* Component)
@@ -544,6 +558,157 @@ bool FCharacterWorkViewBlendTest::RunTest(const FString& Parameters)
 	Character->SetWorkView(false);
 	TickFor(Wrapper, 0.3);
 	TestEqual(TEXT("normal field of view after 0.3 s"), Camera->FieldOfView, 90.f, 1.f);
+	return true;
+}
+
+DIA_TEST(FCharacterWorkViewTiltTest, "DoItAsphalt.Game.Character.WorkViewTilt")
+
+bool FCharacterWorkViewTiltTest::RunTest(const FString& Parameters)
+{
+	DIA_CHARACTER_FIXTURE()
+	UCameraComponent* Camera = Character->GetCamera();
+	const double BasePitch = -30.0;
+	Place(Character, MiddleOfLot(), BasePitch, 20.0);
+	const double GroundZ = Character->GetActorLocation().Z - DIACharacter::CapsuleHalfHeightCm;
+
+	// The pitch of what the camera really renders, and the aim point worked out from that picture, against GetAimPoint().
+	auto Check = [&](const TCHAR* When, double ExpectedPitch)
+	{
+		FMinimalViewInfo View;
+		Camera->GetCameraView(0.f, View);
+		TestEqual(FString::Printf(TEXT("rendered pitch %s"), When), static_cast<double>(View.Rotation.Pitch), ExpectedPitch, 1.0);
+		const FVector2D FromPicture = AimFromView(View, FVector2D(Character->GetActorLocation()), GroundZ);
+		TestTrue(FString::Printf(TEXT("the aim point is where the picture looks %s"), When), FromPicture.Equals(Character->GetAimPoint(), 5.0));
+	};
+	Wrapper.TickTestWorld(0.005f);
+	Check(TEXT("at rest"), BasePitch);
+
+	Character->SetWorkView(true);
+	TickFor(Wrapper, 0.3, 0.01);
+	Check(TEXT("after 0.3 s of holding"), BasePitch - DIACharacter::WorkViewTiltDeg);
+	TickFor(Wrapper, 1.0, 0.01);
+	Check(TEXT("after 1 s more (no spiral)"), BasePitch - DIACharacter::WorkViewTiltDeg);
+
+	Character->SetWorkView(false);
+	TickFor(Wrapper, 0.3, 0.01);
+	Check(TEXT("after the release"), BasePitch);
+	TickFor(Wrapper, 0.5, 0.01);
+	Check(TEXT("and it stays there"), BasePitch);
+	return true;
+}
+
+namespace
+{
+	/** What one second of holding Use does with each tool, for a given tick length. */
+	struct FUseResult
+	{
+		double Scooped = 0.0;
+		double Poured = 0.0;
+		double TrowelCm = 0.0;
+		double DumpedLitres = 0.0;
+		int32 DumpedCells = 0;
+	};
+
+	bool RunUse(FAutomationTestBase& Test, double Step, FUseResult& Out)
+	{
+		{
+			FTestWorldWrapper Wrapper;
+			if (!DIATest::StartGameWorld(Wrapper, Test))
+			{
+				return false;
+			}
+			UWorld* World = Wrapper.GetTestWorld();
+			FLotGame& Game = World->GetSubsystem<UDIAWorldSubsystem>()->GetGame();
+			ADIACharacter* Character = DIATest::SpawnCharacter(World, MiddleOfLot());
+			// Scoop: 1.2 cycles of the trough, whatever the tick.
+			Place(Character, LotLayout::TroughPos + FVector2D(0.0, 200.0), 0.0, -90.0);
+			Character->SetUsing(true);
+			TickFor(Wrapper, 1.2, Step);
+			Out.Scooped = Game.GetHandLitres(ELotHand::Bowl);
+
+			// Pour: walking at 150 cm/s over free ground, looking down.
+			Character->SetUsing(false);
+			Game.DebugFillHand();
+			const double Before = Game.GetHandLitres(ELotHand::Bowl);
+			Place(Character, MiddleOfLot(), -90.0, 0.0);
+			Character->SetUsing(true);
+			for (double T = 0.0; T < 1.0 - 1e-9; T += Step)
+			{
+				Move(Character, FVector2D(150.0 * Step, 0.0));
+				Wrapper.TickTestWorld(static_cast<float>(Step));
+			}
+			Out.Poured = Before - Game.GetHandLitres(ELotHand::Bowl);
+		}
+		{
+			FTestWorldWrapper Wrapper;
+			if (!DIATest::StartGameWorld(Wrapper, Test))
+			{
+				return false;
+			}
+			UWorld* World = Wrapper.GetTestWorld();
+			FLotGame& Game = World->GetSubsystem<UDIAWorldSubsystem>()->GetGame();
+			ADIACharacter* Character = DIATest::SpawnCharacter(World, MiddleOfLot());
+			Character->SelectHand(ELotHand::Trowel);
+			TickFor(Wrapper, LotBalance::SwapSeconds + 0.5, Step);
+			const FVector2D Start = MiddleOfLot();
+			Game.GetGrid().Stamp(Start - FVector2D(10.0, 0.0), Start + FVector2D(LotBalance::ReachCm, 0.0), LotBalance::TrowelWidthCm, 100.0, ELotTexel::Raw);
+			Place(Character, Start, -90.0, 0.0);
+			Character->SetUsing(true);
+			Wrapper.TickTestWorld(static_cast<float>(Step));
+			Place(Character, Start, 0.0, 0.0);
+			TickFor(Wrapper, 1.0, Step);
+			for (double X = 2.5; X < LotBalance::ReachCm + 20.0; X += FLotGrid::TexelCm)
+			{
+				if (TexelAt(Game, Start + FVector2D(X, 0.0)) == ELotTexel::Done)
+				{
+					Out.TrowelCm = X;
+				}
+			}
+		}
+		{
+			FTestWorldWrapper Wrapper;
+			if (!DIATest::StartGameWorld(Wrapper, Test))
+			{
+				return false;
+			}
+			UWorld* World = Wrapper.GetTestWorld();
+			FLotGame& Game = World->GetSubsystem<UDIAWorldSubsystem>()->GetGame();
+			ADIACharacter* Character = DIATest::SpawnCharacter(World, MiddleOfLot());
+			Game.DebugGrantItem(ELotItem::Bucket);
+			Character->SelectHand(ELotHand::Bucket);
+			TickFor(Wrapper, LotBalance::SwapSeconds + 0.5, Step);
+			Game.DebugFillHand();
+			Place(Character, MiddleOfLot(), -90.0, 0.0);
+			Character->SetUsing(true);
+			for (double T = 0.0; T < 1.0 - 1e-9; T += Step)
+			{
+				Wrapper.TickTestWorld(static_cast<float>(Step));
+				Move(Character, FVector2D(1000.0 * Step, 0.0));
+			}
+			Out.DumpedCells = Game.GetCompletedCells();
+			Out.DumpedLitres = Game.GetTotalLitres();
+		}
+		return true;
+	}
+}
+
+DIA_TEST(FCharacterTickRateIndependentTest, "DoItAsphalt.Game.Character.TickRateIndependent")
+
+bool FCharacterTickRateIndependentTest::RunTest(const FString& Parameters)
+{
+	FUseResult Fine, Coarse;
+	if (!RunUse(*this, 0.005, Fine) || !RunUse(*this, 0.1, Coarse))
+	{
+		return false;
+	}
+	TestNearlyEqual(TEXT("scooped litres"), Fine.Scooped, Coarse.Scooped, 1e-6);
+	TestEqual(TEXT("two strokes of the spoon"), Fine.Scooped, 2.0 * LotBalance::SpoonLitres, 1e-6);
+	TestNearlyEqual(TEXT("poured litres (within two texels)"), Fine.Poured, Coarse.Poured, 2.0 * FLotGrid::LitresPerTexel);
+	TestEqual(TEXT("poured about a litre"), Fine.Poured, LotBalance::HandPourRateLPerS, 0.1);
+	TestNearlyEqual(TEXT("finished trowel length"), Fine.TrowelCm, Coarse.TrowelCm, 10.0);
+	TestEqual(TEXT("one dumped cell in both"), Fine.DumpedCells, Coarse.DumpedCells);
+	TestEqual(TEXT("exactly one dump"), Fine.DumpedCells, 1);
+	TestNearlyEqual(TEXT("dumped litres"), Fine.DumpedLitres, Coarse.DumpedLitres, FLotGrid::LitresPerTexel);
 	return true;
 }
 

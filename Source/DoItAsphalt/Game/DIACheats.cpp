@@ -297,6 +297,18 @@ namespace DIACheats
 		PC->SetViewTarget(Character);
 	}
 
+	void WorkView(const TArray<FString>& Args, UWorld* World)
+	{
+		if (!Usage(Args.Num() == 1 && (Args[0] == TEXT("0") || Args[0] == TEXT("1")), TEXT("dia.WorkView <1|0>")))
+		{
+			return;
+		}
+		if (ADIACharacter* Character = GetCharacter(World))
+		{
+			Character->SetWorkView(Args[0] == TEXT("1"));
+		}
+	}
+
 	/** The names dia.Hand accepts: the ELotHand values in order. */
 	const TCHAR* const HandNames[] = {TEXT("Bowl"), TEXT("Scoop"), TEXT("Bucket"), TEXT("Trowel")};
 	static_assert(UE_ARRAY_COUNT(HandNames) == static_cast<int32>(ELotHand::Count), "one name per hand item");
@@ -468,6 +480,7 @@ namespace DIACheats
 	FAutoConsoleCommandWithWorldAndArgs ToastCommand(TEXT("dia.Toast"), TEXT("dia.Toast <text>: shows a toast"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Toast));
 	FAutoConsoleCommandWithWorldAndArgs SkipMenuCommand(TEXT("dia.SkipMenu"), TEXT("dia.SkipMenu: closes the main menu without choosing anything (the game starts as it is; screenshots use it)"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&SkipMenu));
 	FAutoConsoleCommandWithWorldAndArgs CameraConsoleCommand(TEXT("dia.Camera"), TEXT("dia.Camera [distanceCm] [yawOffsetDeg] [pitchDeg]: no arguments toggle between the view from the eyes and the external view; otherwise the external view that far behind the player at that angle (0 = from the eyes)"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&CameraCommand));
+	FAutoConsoleCommandWithWorldAndArgs WorkViewConsoleCommand(TEXT("dia.WorkView"), TEXT("dia.WorkView <1|0>: holds the work view (zoomed, tilted down) or lets it go; screenshots use it"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&WorkView));
 	FAutoConsoleCommandWithWorldAndArgs HandConsoleCommand(TEXT("dia.Hand"), TEXT("dia.Hand <Bowl|Scoop|Bucket|Trowel>: takes the item into the hand (a scoop or bucket not owned yet is given)"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Hand));
 	FAutoConsoleCommandWithWorldAndArgs FillConsoleCommand(TEXT("dia.Fill"), TEXT("dia.Fill: fills the vessel in hand to its capacity"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Fill));
 	FAutoConsoleCommandWithWorldAndArgs TopViewCommand(TEXT("dia.TopView"), TEXT("dia.TopView [heightM=260]: camera above the centre of the lot, looking straight down (+X up, +Y right)"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&TopView));

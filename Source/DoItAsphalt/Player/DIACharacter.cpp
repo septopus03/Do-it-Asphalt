@@ -444,11 +444,18 @@ void ADIACharacter::UpdateWorkView(float DeltaSeconds)
 	const float Fov = FMath::Lerp(DIACharacter::NormalFovDeg, DIACharacter::WorkViewFovDeg, Blend);
 	FirstPersonCamera->SetFieldOfView(Fov);
 	const FRotator Tilt(-DIACharacter::WorkViewTiltDeg * Blend, 0.0, 0.0);
-	FirstPersonCamera->AddAdditiveOffset(FTransform(Tilt), 0.f);
+	// AddAdditiveOffset accumulates (offset = offset * new), so the old tilt is dropped first: the offset is always exactly the tilt of this tick.
+	FirstPersonCamera->ClearAdditiveOffset();
+	if (Blend > 0.f)
+	{
+		FirstPersonCamera->AddAdditiveOffset(FTransform(Tilt), 0.f);
+	}
 
-	// The tool stays in the same place and size of the picture: it follows the tilt, and comes closer as the field of view narrows.
+	// The tool stays in the same place and size of the picture: it follows the tilt, and its sideways and vertical offsets and its size shrink
+	// with the field of view (the picture magnifies by the same factor), while its distance stays.
 	const double Zoom = FMath::Tan(FMath::DegreesToRadians(Fov * 0.5)) / FMath::Tan(FMath::DegreesToRadians(DIACharacter::NormalFovDeg * 0.5));
-	HandPivot->SetRelativeLocationAndRotation(FQuat(Tilt).RotateVector(DIACharacter::HandPivotOffsetCm * Zoom), Tilt);
+	const FVector Offset(DIACharacter::HandPivotOffsetCm.X, DIACharacter::HandPivotOffsetCm.Y * Zoom, DIACharacter::HandPivotOffsetCm.Z * Zoom);
+	HandPivot->SetRelativeLocationAndRotation(FQuat(Tilt).RotateVector(Offset), Tilt);
 	HandPivot->SetRelativeScale3D(FVector(Zoom));
 }
 
