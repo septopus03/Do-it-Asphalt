@@ -110,6 +110,19 @@ bool FLotMapSectorsTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("400 cells per sector"), BadCount, 0);
 	TestEqual(TEXT("sector walk covers each cell once"), BadWalk, 0);
 
+	// Binding sector numbers (saved games store them): SRow < 5 -> SRow * 10 + SCol, else 50 + (SRow - 5) * 5 + SCol.
+	TestEqual(TEXT("sector of (0,0)"), SectorOf(CellIndex(0, 0)), 0);
+	TestEqual(TEXT("sector of (19,19)"), SectorOf(CellIndex(19, 19)), 0);
+	TestEqual(TEXT("sector of (20,0)"), SectorOf(CellIndex(20, 0)), 1);
+	TestEqual(TEXT("sector of (0,20)"), SectorOf(CellIndex(0, 20)), 10);
+	TestEqual(TEXT("sector of (199,99)"), SectorOf(CellIndex(199, 99)), 49);
+	TestEqual(TEXT("sector of (0,100)"), SectorOf(CellIndex(0, 100)), 50);
+	TestEqual(TEXT("sector of (20,100)"), SectorOf(CellIndex(20, 100)), 51);
+	TestEqual(TEXT("sector of (0,120)"), SectorOf(CellIndex(0, 120)), 55);
+	TestEqual(TEXT("sector of (99,199)"), SectorOf(CellIndex(99, 199)), 74);
+	TestEqual(TEXT("sector 50 starts at (0,100)"), SectorCell(50, 0), CellIndex(0, 100));
+	TestEqual(TEXT("sector 74 ends"), SectorCell(74, 399), CellIndex(80, 199));
+
 	TestEqual(TEXT("step 0"), SectorCell(0, 0), CellIndex(0, 0));
 	TestEqual(TEXT("end of row 0"), SectorCell(0, 19), CellIndex(19, 0));
 	TestEqual(TEXT("row 1 walks back"), SectorCell(0, 20), CellIndex(19, 1));
