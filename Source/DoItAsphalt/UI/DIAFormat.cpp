@@ -659,8 +659,29 @@ void FDIAToasts::Add(const FText& Text)
 	Items.Add({Text, 0.f});
 	while (Items.Num() > AsphaltHud::MaxToasts)
 	{
-		Items.RemoveAt(0);
+		const int32 Credits = Items.IndexOfByPredicate([](const FItem& Item) { return Item.bCredits; });
+		Items.RemoveAt(Credits != INDEX_NONE ? Credits : 0);
 	}
+}
+
+void FDIAToasts::AddCredits(double Credits)
+{
+	if (FItem* Shown = Items.FindByPredicate([](const FItem& Item) { return Item.bCredits; }))
+	{
+		Shown->Credits += Credits;
+		Shown->Text = DIAFormat::CreditsToast(Shown->Credits);
+		Shown->Age = 0.f;
+		return;
+	}
+	if (Items.Num() >= AsphaltHud::MaxToasts)
+	{
+		return;
+	}
+	FItem Item;
+	Item.Text = DIAFormat::CreditsToast(Credits);
+	Item.bCredits = true;
+	Item.Credits = Credits;
+	Items.Add(Item);
 }
 
 void FDIAToasts::Advance(float DeltaSeconds)

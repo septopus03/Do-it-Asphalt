@@ -215,7 +215,7 @@ float4 r = float4(Sector, SectorMaxY);
 float hasRect = (r.z > r.x && r.w > r.y) ? 1.0 : 0.0;
 float inside = min(min(p.x - r.x, r.z - p.x), min(p.y - r.y, r.w - p.y));
 float outline = hasRect * ((inside >= 0.0 && inside < 10.0) ? 1.0 : 0.0);
-colour = lerp(colour, float3(1.0, 0.45, 0.02), outline);
+colour = lerp(colour, float3(0.6, 0.1, 0.0), outline);
 rough = lerp(rough, 0.7, outline);
 return float4(colour, rough);""",
                     ["Coverage", "WorldPos", "Softness", "Missing", "Sector", "SectorMaxY"], unreal.CustomMaterialOutputType.CMOT_FLOAT4)

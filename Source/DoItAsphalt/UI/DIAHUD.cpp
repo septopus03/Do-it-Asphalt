@@ -353,7 +353,7 @@ void ADIAHUD::DestroyOverlay()
 
 void ADIAHUD::HandleCellsCompleted(const TArray<int32>& Cells)
 {
-	ShowToast(DIAFormat::CreditsToast(Cells.Num() * LotBalance::CreditsPerCell));
+	Toasts.AddCredits(Cells.Num() * LotBalance::CreditsPerCell);
 }
 
 void ADIAHUD::HandleEntryCompleted(int32 Entry)

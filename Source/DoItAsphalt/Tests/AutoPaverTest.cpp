@@ -310,6 +310,13 @@ bool FAutoPaverSendTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("toast numbers the sector from 1"), Scene.LastToast(), FString(TEXT("Paver → sector 4")));
 	TestEqual(TEXT("sector 3 shown on the HUD line"), DIAFormat::PaverLine(Scene.Game()).ToString(), FString(TEXT("Paver: sector 4 · 0 / 400")));
 
+	// Sent again to the sector it is still travelling to: nothing restarts.
+	Scene.Controller->OnSendPaver();
+	TestEqual(TEXT("still sector 3"), Scene.Game().GetAutoPaverSector(), 3);
+	TestTrue(TEXT("still travelling"), Scene.Game().IsAutoPaverTravelling());
+	TestEqual(TEXT("step untouched"), Scene.Game().GetAutoPaverStep(), 0);
+	TestEqual(TEXT("toast for the sector it travels to"), Scene.LastToast(), FString(TEXT("Paver is already here")));
+
 	// Outside the sectors (the strip behind the kerb, the mall quadrant): the sector stays.
 	const FVector2D Outside[] = {
 		FVector2D(0.0, -AsphaltLot::HalfExtentCm - 200.0),
@@ -333,7 +340,7 @@ bool FAutoPaverSendTest::RunTest(const FString& Parameters)
 	const int32 Step = Scene.Game().GetAutoPaverStep();
 	TestTrue(TEXT("it has paved some cells of sector 10"), Step > 0 && Scene.Game().GetAutoPaverSector() == 10);
 	Scene.Controller->OnSendPaver();
-	TestEqual(TEXT("the same sector keeps its progress"), Scene.Game().GetAutoPaverStep() >= Step, true);
+	TestEqual(TEXT("the same sector keeps its progress"), Scene.Game().GetAutoPaverStep(), Step);
 	TestEqual(TEXT("still sector 10"), Scene.Game().GetAutoPaverSector(), 10);
 	TestFalse(TEXT("not travelling again"), Scene.Game().IsAutoPaverTravelling());
 	TestEqual(TEXT("toast for the same sector"), Scene.LastToast(), FString(TEXT("Paver is already here")));
@@ -391,6 +398,46 @@ bool FAutoPaverOutlineTest::RunTest(const FString& Parameters)
 	Scene.Controller->OnSendPaver();
 	Scene.Subsystem->NewGame();
 	TestTrue(TEXT("no outline after a new game"), Scene.RectIs(0.0, 0.0, 0.0, 0.0));
+	return true;
+}
+
+DIA_TEST(FAutoPaverOutlineLoadTest, "DoItAsphalt.Game.AutoPaver.SectorOutlineAfterLoad")
+
+bool FAutoPaverOutlineLoadTest::RunTest(const FString& Parameters)
+{
+	using namespace AutoPaverTestSupport;
+	FAutoPaverTestSlot Slot;
+	FAutoPaverScene Scene;
+	if (!Scene.Start(*this))
+	{
+		return false;
+	}
+	Scene.GrantPaver();
+	const int32 Sector = 9;
+	const FVector2D Centre = AsphaltLot::SectorCentre(Sector);
+	Scene.CompleteSector(Sector);
+	Scene.StandAt(Centre);
+	Scene.Controller->OnSendPaver();
+	TestTrue(TEXT("outline shown"), Scene.RectIs(Centre.X - HalfSectorCm, Centre.Y - HalfSectorCm, Centre.X + HalfSectorCm, Centre.Y + HalfSectorCm));
+	// A new game deletes the slot, so the saved game is written back after it.
+	const TArray<uint8> WithSector = Scene.Game().SaveToBytes();
+	Scene.Subsystem->NewGame();
+	TestTrue(TEXT("a new game clears the outline"), Scene.RectIs(0.0, 0.0, 0.0, 0.0));
+	TestTrue(TEXT("the blob is written"), UDIAWorldSubsystem::WriteSlot(UDIAWorldSubsystem::SlotName(), WithSector));
+	TestTrue(TEXT("the game loads"), Scene.Subsystem->LoadGame());
+	TestEqual(TEXT("the sector is back"), Scene.Game().GetAutoPaverSector(), Sector);
+	TestTrue(TEXT("the outline is the sector's bounds again after the load"), Scene.RectIs(Centre.X - HalfSectorCm, Centre.Y - HalfSectorCm, Centre.X + HalfSectorCm, Centre.Y + HalfSectorCm));
+
+	// A saved game without a sector clears an outline that was shown before.
+	Scene.Subsystem->NewGame();
+	Scene.GrantPaver();
+	const TArray<uint8> WithoutSector = Scene.Game().SaveToBytes();
+	Scene.Controller->OnSendPaver();
+	TestFalse(TEXT("outline shown again"), Scene.RectIs(0.0, 0.0, 0.0, 0.0));
+	TestTrue(TEXT("the blob is written"), UDIAWorldSubsystem::WriteSlot(UDIAWorldSubsystem::SlotName(), WithoutSector));
+	TestTrue(TEXT("the game loads"), Scene.Subsystem->LoadGame());
+	TestEqual(TEXT("no sector in the saved game"), Scene.Game().GetAutoPaverSector(), static_cast<int32>(INDEX_NONE));
+	TestTrue(TEXT("the outline is gone after the load"), Scene.RectIs(0.0, 0.0, 0.0, 0.0));
 	return true;
 }
 

@@ -208,4 +208,80 @@ bool FHudToastsTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+DIA_TEST(FHudCreditsToastTest, "DoItAsphalt.Game.HudCreditsToast")
+bool FHudCreditsToastTest::RunTest(const FString& Parameters)
+{
+	const double Cell = LotBalance::CreditsPerCell;
+	const auto CreditsToasts = [](const FDIAToasts& Toasts)
+	{
+		int32 N = 0;
+		for (int32 I = 0; I < Toasts.Num(); ++I)
+		{
+			N += Toasts.GetText(I).ToString().Contains(TEXT("credit")) ? 1 : 0;
+		}
+		return N;
+	};
+
+	// Hand pouring: one cell still shows its own amount.
+	FDIAToasts Toasts;
+	Toasts.AddCredits(Cell);
+	TestEqual(TEXT("one cell"), Toasts.Num(), 1);
+	TestEqual(TEXT("one cell shows its credits"), Toasts.GetText(0).ToString(), DIAFormat::CreditsToast(Cell).ToString());
+
+	// A stream of cells within the hold time is one toast with the running total.
+	for (int32 I = 0; I < 9; ++I)
+	{
+		Toasts.Advance(0.3f);
+		Toasts.AddCredits(Cell);
+	}
+	TestEqual(TEXT("exactly one credits toast"), Toasts.Num(), 1);
+	TestEqual(TEXT("running total"), Toasts.GetText(0).ToString(), DIAFormat::CreditsToast(10 * Cell).ToString());
+	TestEqual(TEXT("fully visible after the last addition"), Toasts.GetAlpha(0), 1.f);
+
+	// Another toast between the cells keeps its full hold time while the cells keep coming.
+	Toasts.Add(FText::FromString(TEXT("Entry")));
+	for (int32 I = 0; I < 8; ++I)
+	{
+		Toasts.Advance(0.25f);
+		Toasts.AddCredits(Cell);
+	}
+	TestEqual(TEXT("still one credits toast"), CreditsToasts(Toasts), 1);
+	TestEqual(TEXT("two toasts"), Toasts.Num(), 2);
+	TestEqual(TEXT("the credits toast keeps its slot"), Toasts.GetText(1).ToString(), FString(TEXT("Entry")));
+	TestEqual(TEXT("the other toast shows the total"), Toasts.GetText(0).ToString(), DIAFormat::CreditsToast(18 * Cell).ToString());
+	TestEqual(TEXT("the entry toast is still fully visible after 2 s"), Toasts.GetAlpha(1), 1.f);
+	Toasts.Advance(AsphaltHud::ToastHoldSeconds - 2.0f + 0.1f);
+	TestEqual(TEXT("the entry toast is fading only after its hold time"), Toasts.GetAlpha(1) < 1.f, true);
+
+	// A credits toast never pushes out another toast: with all places taken it is not shown.
+	FDIAToasts Full;
+	for (int32 I = 0; I < AsphaltHud::MaxToasts; ++I)
+	{
+		Full.Add(FText::FromString(FString::FromInt(I)));
+	}
+	Full.AddCredits(Cell);
+	TestEqual(TEXT("no places left"), Full.Num(), AsphaltHud::MaxToasts);
+	TestEqual(TEXT("no credits toast shown"), CreditsToasts(Full), 0);
+	TestEqual(TEXT("the oldest other toast stays"), Full.GetText(0).ToString(), FString(TEXT("0")));
+
+	// A new toast takes the place of the credits toast rather than another toast.
+	FDIAToasts Mixed;
+	Mixed.Add(FText::FromString(TEXT("A")));
+	Mixed.AddCredits(Cell);
+	Mixed.Add(FText::FromString(TEXT("B")));
+	Mixed.Add(FText::FromString(TEXT("C")));
+	TestEqual(TEXT("limit kept"), Mixed.Num(), AsphaltHud::MaxToasts);
+	TestEqual(TEXT("the credits toast went first"), CreditsToasts(Mixed), 0);
+	TestEqual(TEXT("A stays"), Mixed.GetText(0).ToString(), FString(TEXT("A")));
+
+	// After the credits toast has expired the next cells start a new total.
+	FDIAToasts Expiring;
+	Expiring.AddCredits(5 * Cell);
+	Expiring.Advance(AsphaltHud::ToastHoldSeconds + AsphaltHud::ToastFadeSeconds + 0.1f);
+	TestEqual(TEXT("expired"), Expiring.Num(), 0);
+	Expiring.AddCredits(Cell);
+	TestEqual(TEXT("new total starts from its own amount"), Expiring.GetText(0).ToString(), DIAFormat::CreditsToast(Cell).ToString());
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

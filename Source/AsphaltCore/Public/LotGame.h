@@ -173,7 +173,7 @@ public:
 	double GetAutoPaverRateCellsPerMin() const;
 	/**
 	 * Sends the owned auto paver to a sector (0..74): it travels to the centre of the sector's first cell, then works
-	 * through the sector's 400 cells inside Tick. Re-assigning leaves the current sector as it is. False without the
+	 * through the sector's 400 cells inside Tick. Every assignment, the current sector too, restarts: the step and the budget go back to 0 and the paver travels to the first cell again. False without the
 	 * auto paver or for an invalid sector.
 	 */
 	bool AssignAutoPaverSector(int32 Sector);

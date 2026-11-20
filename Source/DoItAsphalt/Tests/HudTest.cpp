@@ -93,6 +93,15 @@ bool FHudActorTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("entry toast"), Hud->GetToasts().GetText(1).ToString(), FString(TEXT("Entry 2 complete")));
 	TestEqual(TEXT("unlock toast"), Hud->GetToasts().GetText(2).ToString(), DIAFormat::UnlockToast(ELotUnlock::Sprint).ToString());
 
+	// More cells while the toasts are up merge into the credits toast; the others stay.
+	FLotEvents More;
+	More.CompletedCells = {4, 5};
+	More.CreditsEarned = 2 * LotBalance::CreditsPerCell;
+	Subsystem->Dispatch(More);
+	TestEqual(TEXT("still three toasts"), Hud->GetToasts().Num(), 3);
+	TestEqual(TEXT("credits toast shows the running total"), Hud->GetToasts().GetText(0).ToString(), FString(TEXT("+50 credits")));
+	TestEqual(TEXT("entry toast stays"), Hud->GetToasts().GetText(1).ToString(), FString(TEXT("Entry 2 complete")));
+
 	TickFor(3.0f);
 	FLotEvents ExitEvents;
 	ExitEvents.bExitOpened = true;

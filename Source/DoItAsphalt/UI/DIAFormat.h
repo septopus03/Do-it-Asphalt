@@ -322,8 +322,14 @@ private:
 class DOITASPHALT_API FDIAToasts
 {
 public:
-	/** Adds a toast at the end; beyond MaxToasts the oldest is dropped. */
+	/** Adds a toast at the end; beyond MaxToasts one is dropped: the credits toast if there is one, else the oldest. */
 	void Add(const FText& Text);
+	/**
+	 * Credits earned. At most one credits toast lives at a time: while it is shown the amount is added to its running
+	 * total and its hold time restarts; once it has expired the next amount starts a new total. It never pushes out
+	 * another toast: with all MaxToasts places taken by other toasts nothing is shown.
+	 */
+	void AddCredits(double Credits);
 	void Advance(float DeltaSeconds);
 
 	int32 Num() const { return Items.Num(); }
@@ -337,6 +343,8 @@ private:
 	{
 		FText Text;
 		float Age = 0.f;
+		bool bCredits = false;
+		double Credits = 0.0;
 	};
 	TArray<FItem> Items;
 };
