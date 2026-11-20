@@ -28,6 +28,12 @@ namespace DIAFormat
 	DOITASPHALT_API FText ItemName(ELotItem Item);
 	DOITASPHALT_API FText UnlockName(ELotUnlock Unlock);
 
+	/**
+	 * The board of an entry segment (the step of the same number): "STRIP WORK", "Entry 3 / 12" and "Cells 120 / 350" on three lines,
+	 * or the name and "UNLOCKED" once the step is open. Empty for an entry that does not exist. The cells never read above the threshold.
+	 */
+	DOITASPHALT_API FText EntryBoard(const FLotGame& Game, int32 Entry);
+
 	/** "+30 credits", "+1 credit". */
 	DOITASPHALT_API FText CreditsToast(double Credits);
 	/** Entry is 0-based; the player sees it from 1. */

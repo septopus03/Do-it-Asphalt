@@ -6,10 +6,14 @@
 #include "EngineUtils.h"
 #include "GameFramework/PlayerStart.h"
 #include "LotLayout.h"
+#include "LotMap.h"
 #include "Player/DIACharacter.h"
 #include "Player/DIAPlayerController.h"
 #include "UI/DIAHUD.h"
+#include "World/DIAEntryBoard.h"
 #include "World/DIAGroundActor.h"
+#include "World/DIALotEdge.h"
+#include "World/DIAMallActor.h"
 #include "World/DIAPlantActor.h"
 
 namespace
@@ -34,8 +38,32 @@ void ADIAGameMode::StartPlay()
 		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 		World->SpawnActor<ADIAGroundActor>(FVector::ZeroVector, FRotator::ZeroRotator, Params);
 		World->SpawnActor<ADIAPlantActor>(FVector(LotLayout::PlantPos.X, LotLayout::PlantPos.Y, 0.0), FRotator(0.0, LotLayout::PlantYawDeg, 0.0), Params);
+		EnsureSite();
 	}
 	Super::StartPlay();
+}
+
+void ADIAGameMode::EnsureSite()
+{
+	UWorld* World = GetWorld();
+	if (!World || TActorIterator<ADIALotEdge>(World))
+	{
+		return;
+	}
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	World->SpawnActor<ADIAMallActor>(FVector(LotLayout::MallCentre.X, LotLayout::MallCentre.Y, 0.0), FRotator::ZeroRotator, Params);
+	World->SpawnActor<ADIALotEdge>(FVector::ZeroVector, FRotator::ZeroRotator, Params);
+	for (int32 Entry = 0; Entry < AsphaltLot::NumEntries; ++Entry)
+	{
+		// The entry is set before BeginPlay, which builds the board according to it.
+		const FTransform Where = DIABoard::BoardTransform(Entry);
+		if (ADIAEntryBoard* Board = World->SpawnActorDeferred<ADIAEntryBoard>(ADIAEntryBoard::StaticClass(), Where, nullptr, nullptr, ESpawnActorCollisionHandlingMethod::AlwaysSpawn))
+		{
+			Board->Entry = Entry;
+			Board->FinishSpawning(Where);
+		}
+	}
 }
 
 void ADIAGameMode::EndPlay(const EEndPlayReason::Type Reason)

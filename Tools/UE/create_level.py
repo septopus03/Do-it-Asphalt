@@ -14,14 +14,24 @@ import unreal
 
 MAP_PATH = "/Game/Maps/L_Main"
 
-# Must equal LotLayout::PlayerStartYawDeg (this script runs inside Unreal and cannot read the C++ constant; the game
-# also sets the same yaw in code, so the map and the code agree on where the player looks at the start).
-PLAYER_START_YAW_DEG = 180.0
+# Must equal LotLayout::PlayerStart and LotLayout::PlayerStartYawDeg (this script runs inside Unreal and cannot read the C++
+# constants; the game also sets the same position and yaw in code, so the map and the code agree on where the player starts and looks).
+PLAYER_START_X_CM = -50.0
+PLAYER_START_Y_CM = -9850.0
+PLAYER_START_YAW_DEG = -90.0
 
 SUN_INTENSITY_LUX = 10.0
 # Bloom (default 0.675) smears the glare of the bright, sun-lit surfaces over the dark letters of the signs and washes them out.
 BLOOM_INTENSITY = 0.1
 SKY_LIGHT_INTENSITY = 1.0
+
+# Height fog in a light, cool colour: the car park (up to 200 m across) stays clear, but the shopping centre seen from the far
+# corner (about 190 m away) visibly pales, yet stays readable. Tuned by eye on screenshots (0.05 hardly shows, 0.15 swallows it).
+FOG_DENSITY = 0.07
+FOG_HEIGHT_FALLOFF = 0.02
+FOG_START_DISTANCE_CM = 3000.0
+FOG_MAX_OPACITY = 0.7
+FOG_COLOR = unreal.LinearColor(r=0.62, g=0.74, b=0.95, a=1.0)
 
 
 def spawn(actor_class, location=None, rotation=None, label=None):
@@ -60,14 +70,20 @@ def build():
     sky_light_component.set_mobility(unreal.ComponentMobility.MOVABLE)
     sky_light_component.set_editor_property("real_time_capture", True)
     sky_light_component.set_editor_property("intensity", SKY_LIGHT_INTENSITY)
-    spawn(unreal.ExponentialHeightFog, label="HeightFog")
+    fog = spawn(unreal.ExponentialHeightFog, label="HeightFog")
+    fog_component = fog.get_component_by_class(unreal.ExponentialHeightFogComponent)
+    fog_component.set_editor_property("fog_density", FOG_DENSITY)
+    fog_component.set_editor_property("fog_height_falloff", FOG_HEIGHT_FALLOFF)
+    fog_component.set_editor_property("start_distance", FOG_START_DISTANCE_CM)
+    fog_component.set_editor_property("fog_max_opacity", FOG_MAX_OPACITY)
+    fog_component.set_editor_property("fog_inscattering_luminance", FOG_COLOR)
     post_process = spawn(unreal.PostProcessVolume, label="PostProcess")
     post_process.set_editor_property("unbound", True)
     post_settings = post_process.get_editor_property("settings")
     post_settings.set_editor_property("override_bloom_intensity", True)
     post_settings.set_editor_property("bloom_intensity", BLOOM_INTENSITY)
     post_process.set_editor_property("settings", post_settings)
-    spawn(unreal.PlayerStart, location=unreal.Vector(x=-1600.0, y=0.0, z=100.0),
+    spawn(unreal.PlayerStart, location=unreal.Vector(x=PLAYER_START_X_CM, y=PLAYER_START_Y_CM, z=100.0),
           rotation=unreal.Rotator(roll=0.0, pitch=0.0, yaw=PLAYER_START_YAW_DEG), label="PlayerStart")
 
     if not level_subsystem.save_current_level():

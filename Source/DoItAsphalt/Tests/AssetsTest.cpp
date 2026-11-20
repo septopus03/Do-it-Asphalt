@@ -7,6 +7,8 @@
 #include "Engine/StaticMesh.h"
 #include "Dom/JsonObject.h"
 #include "Game/DIAAssets.h"
+#include "Game/DIAModelSizes.h"
+#include "PhysicsEngine/BodySetup.h"
 #include "Materials/MaterialInterface.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
@@ -136,6 +138,32 @@ bool FAllModelsImportedTest::RunTest(const FString& Parameters)
 		const FBox Box = Mesh->GetBoundingBox();
 		TestTrue(*FString::Printf(TEXT("%s min %s is within %.0f cm of %s"), Name, *Box.Min.ToString(), AssetsTestEnvelopeToleranceCm, *ExpectedMin.ToString()), Box.Min.Equals(ExpectedMin, AssetsTestEnvelopeToleranceCm));
 		TestTrue(*FString::Printf(TEXT("%s max %s is within %.0f cm of %s"), Name, *Box.Max.ToString(), AssetsTestEnvelopeToleranceCm, *ExpectedMax.ToString()), Box.Max.Equals(ExpectedMax, AssetsTestEnvelopeToleranceCm));
+	}
+	return true;
+}
+
+// The mall is a 100 x 100 m block: its collision is one box over the envelope (Tools/UE/import_models.py, BOX_COLLISION_MODELS), not the
+// convex hull of its facade relief, so the player stops at the wall plane of the footprint and cannot slip into a relief niche.
+DIA_TEST(FMallCollisionTest, "DoItAsphalt.Game.MallCollision")
+
+bool FMallCollisionTest::RunTest(const FString& Parameters)
+{
+	FVector Scale = FVector::OneVector;
+	UStaticMesh* Mesh = DIAAssets::LoadMeshOrFallback(TEXT("SM_Mall"), DIAAssets::EFallback::Cube, FVector(AssetsTestPlaceholderCm), Scale);
+	if (!TestNotNull(TEXT("SM_Mall loads"), Mesh) || !TestNotNull(TEXT("SM_Mall has a body setup"), Mesh->GetBodySetup()))
+	{
+		return false;
+	}
+	const FKAggregateGeom& Geometry = Mesh->GetBodySetup()->AggGeom;
+	TestEqual(TEXT("exactly one box element"), Geometry.BoxElems.Num(), 1);
+	TestEqual(TEXT("no convex element"), Geometry.ConvexElems.Num(), 0);
+	if (Geometry.BoxElems.Num() == 1)
+	{
+		// The box covers the envelope: 100 x 100 x 14.3 m, centred on X = Y = 0.
+		const FKBoxElem& Box = Geometry.BoxElems[0];
+		TestEqual(TEXT("box length"), static_cast<double>(Box.X), DIAModelSizes::MallCm.X, AssetsTestEnvelopeToleranceCm);
+		TestEqual(TEXT("box width"), static_cast<double>(Box.Y), DIAModelSizes::MallCm.Y, AssetsTestEnvelopeToleranceCm);
+		TestEqual(TEXT("box height"), static_cast<double>(Box.Z), DIAModelSizes::MallCm.Z, AssetsTestEnvelopeToleranceCm);
 	}
 	return true;
 }

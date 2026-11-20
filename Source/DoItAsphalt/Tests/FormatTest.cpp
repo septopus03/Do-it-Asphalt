@@ -54,6 +54,27 @@ bool FFormatTest::RunTest(const FString& Parameters)
 	Is(TEXT("item toast"), DIAFormat::ItemBoughtToast(ELotItem::Scoop), TEXT("Scoop bought"));
 	Is(TEXT("unlock name"), DIAFormat::UnlockName(ELotUnlock::Sprint), TEXT("Sprint"));
 	Is(TEXT("unlock toast"), DIAFormat::UnlockToast(ELotUnlock::Sprint), TEXT("Sprint unlocked"));
+	{
+		// The boards of the entry segments: name, entry cells, cells of the car park; UNLOCKED once the step is open.
+		FLotGame Game;
+		Is(TEXT("board of a new game"), DIAFormat::EntryBoard(Game, 0), TEXT("QUICK SWAP\nEntry 0 / 12\nCells 0 / 10"));
+		Is(TEXT("board of the exit"), DIAFormat::EntryBoard(Game, 5), TEXT("EXIT\nEntry 0 / 12\nCells 0 / 30,000"));
+		Game.DebugCompleteCells(5);
+		Is(TEXT("cells count for every board"), DIAFormat::EntryBoard(Game, 2), TEXT("STRIP WORK\nEntry 0 / 12\nCells 5 / 350"));
+		// 900 cells by index fill the first rows, which hold no cell of the entries 1 to 5; entry 3 gets 11 of its 12 cells.
+		Game.DebugCompleteCells(900);
+		for (int32 I = 0; I < AsphaltLot::CellsPerEntry - 1; ++I)
+		{
+			Game.DebugCompleteCell(AsphaltLot::EntryCell(3, I));
+		}
+		Is(TEXT("the cells never read above the threshold"), DIAFormat::EntryBoard(Game, 3), TEXT("AUTO PAVER\nEntry 11 / 12\nCells 800 / 800"));
+		for (int32 I = 0; I < AsphaltLot::CellsPerEntry; ++I)
+		{
+			Game.DebugCompleteCell(AsphaltLot::EntryCell(1, I));
+		}
+		Is(TEXT("an unlocked step"), DIAFormat::EntryBoard(Game, 1), TEXT("SPRINT\nUNLOCKED"));
+		TestTrue(TEXT("no board for a missing entry"), DIAFormat::EntryBoard(Game, 6).IsEmpty());
+	}
 	Is(TEXT("plant toast"), DIAFormat::PlantToast(3), TEXT("Plant level 3"));
 
 	// Every item and unlock has a name.

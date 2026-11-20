@@ -7,8 +7,9 @@
 #include "DIAGameMode.generated.h"
 
 /**
- * Builds the scene when play starts: the ground (the L-shaped car park) and the plant with its trough behind the bottom
- * edge; the player is an ADIACharacter that can walk around. Tools, shop, machines, mall and gate follow in later tasks.
+ * Builds the scene when play starts: the ground (the L-shaped car park), the plant with its trough behind the bottom
+ * edge, and the site around the car park (EnsureSite); the player is an ADIACharacter that can walk around, but only on the site.
+ * Tools, shop, machines and the gate follow in later tasks.
  */
 UCLASS(NotBlueprintable)
 class DOITASPHALT_API ADIAGameMode : public AGameModeBase
@@ -19,6 +20,9 @@ public:
 	ADIAGameMode();
 
 	virtual void StartPlay() override;
+
+	/** Builds the surroundings of the car park once: the mall, the kerb and fence with the invisible walls, and the six entry boards. Does nothing if they stand already. */
+	void EnsureSite();
 	virtual void EndPlay(const EEndPlayReason::Type Reason) override;
 
 	/** The player starts at LotLayout::PlayerStart, whatever PlayerStart actors the level has. */

@@ -118,6 +118,24 @@ FText DIAFormat::UnlockName(ELotUnlock Unlock)
 	}
 }
 
+FText DIAFormat::EntryBoard(const FLotGame& Game, int32 Entry)
+{
+	if (Entry < 0 || Entry >= AsphaltLot::NumEntries)
+	{
+		return FText::GetEmpty();
+	}
+	const ELotUnlock Unlock = static_cast<ELotUnlock>(Entry);
+	const FText Name = UnlockName(Unlock).ToUpper();
+	if (Game.IsUnlocked(Unlock))
+	{
+		return FText::Format(LOCTEXT("BoardUnlocked", "{0}\nUNLOCKED"), Name);
+	}
+	const int32 Threshold = LotBalance::UnlockCells[Entry];
+	return FText::Format(LOCTEXT("BoardLocked", "{0}\nEntry {1} / {2}\nCells {3} / {4}"), Name,
+		Count(Game.GetEntryProgress(Entry)), Count(AsphaltLot::CellsPerEntry),
+		Count(FMath::Min(Game.GetCompletedCells(), Threshold)), Count(Threshold));
+}
+
 FText DIAFormat::CreditsToast(double Credits)
 {
 	const int64 Whole = WholeCredits(Credits);
