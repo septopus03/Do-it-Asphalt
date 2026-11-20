@@ -39,6 +39,11 @@ done
 
 mkdir -p "$BUILDS_DIR"
 
+# Marker created before packaging: only an .app newer than this run's start counts, so a stale .app from an earlier run
+# can never make this one print BUILD SUCCESSFUL.
+START_MARK="$(mktemp "${TMPDIR:-/tmp}/dia-package-start.XXXXXX")"
+trap 'rm -f "$START_MARK"' EXIT
+
 "$RUN_UAT" BuildCookRun \
 	-project="$UPROJECT" \
 	-platform=Mac \
@@ -46,15 +51,15 @@ mkdir -p "$BUILDS_DIR"
 	-build -cook -stage -pak -archive \
 	-archivedirectory="$BUILDS_DIR"
 
-# RunUAT's exit code is trusted (set -e), but the result must also exist: look for the archived .app.
+# RunUAT's exit code is trusted (set -e), but the result must also exist: look for an .app archived by this run.
 APP=""
 while IFS= read -r -d '' CANDIDATE; do
 	APP="$CANDIDATE"
 	break
-done < <(find "$BUILDS_DIR" -maxdepth 3 -name '*.app' -type d -print0 2>/dev/null)
+done < <(find "$BUILDS_DIR" -maxdepth 3 -name '*.app' -type d -newer "$START_MARK" -print0 2>/dev/null)
 
 if [[ -z "$APP" ]]; then
-	echo "PACKAGING FAILED: RunUAT finished but no .app was found under $BUILDS_DIR" >&2
+	echo "PACKAGING FAILED: RunUAT finished but no .app produced by this run was found under $BUILDS_DIR" >&2
 	exit 1
 fi
 
