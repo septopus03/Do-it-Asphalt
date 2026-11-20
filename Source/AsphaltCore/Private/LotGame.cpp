@@ -33,6 +33,31 @@ namespace
 		return FMath::IsFinite(Point.X) && FMath::IsFinite(Point.Y);
 	}
 
+	constexpr int32 NumMovables = static_cast<int32>(ELotMovable::Count);
+
+	bool IsValidMovable(ELotMovable Movable)
+	{
+		return static_cast<int32>(Movable) >= 0 && static_cast<int32>(Movable) < NumMovables;
+	}
+
+	/** Only the suitcase and the cart hold asphalt. */
+	bool HoldsLitres(ELotMovable Movable)
+	{
+		return Movable == ELotMovable::Suitcase || Movable == ELotMovable::Cart;
+	}
+
+	/** The shop item behind a movable. */
+	ELotItem MovableItem(ELotMovable Movable)
+	{
+		switch (Movable)
+		{
+		case ELotMovable::Suitcase: return ELotItem::Suitcase;
+		case ELotMovable::Cart: return ELotItem::Cart;
+		case ELotMovable::Station: return ELotItem::Station;
+		default: return ELotItem::Finisher;
+		}
+	}
+
 	bool IsValidUnlock(ELotUnlock Unlock)
 	{
 		return static_cast<int32>(Unlock) >= 0 && static_cast<int32>(Unlock) < NumUnlocks;
@@ -137,6 +162,7 @@ bool FLotGame::BuyItem(ELotItem Item)
 	}
 	Credits -= GetItemPrice(Item);
 	bOwned[static_cast<int32>(Item)] = true;
+	PlaceBoughtItem(Item);
 	return true;
 }
 
@@ -224,6 +250,7 @@ void FLotGame::DebugGrantItem(ELotItem Item)
 	if (IsValidItem(Item))
 	{
 		bOwned[static_cast<int32>(Item)] = true;
+		PlaceBoughtItem(Item);
 	}
 }
 
@@ -350,37 +377,43 @@ double FLotGame::ScoopFromTrough(double Dt)
 	return Moved;
 }
 
-double FLotGame::GetSourceRate(ELotSource Source) const
-{
-	switch (Source)
-	{
-	case ELotSource::Plant:
-		return LotBalance::DispenseRateLPerS(PlantLevel);
-	default:
-		// The suitcase and the cart (TapRateLPerS) are completed together with them.
-		return 0.0;
-	}
-}
-
 double FLotGame::FillBucket(ELotSource Source, double Dt)
 {
 	if (!(Dt > 0.0) || !FMath::IsFinite(Dt) || !Owns(ELotItem::Bucket) || Hand == ELotHand::Bucket || !HandsFree())
 	{
 		return 0.0;
 	}
+	// Per source: the litres it holds and the rate they leave at.
+	double* SourceLitres = nullptr;
+	double Rate = 0.0;
+	switch (Source)
+	{
+	case ELotSource::Plant:
+		SourceLitres = &PlantStock;
+		Rate = LotBalance::DispenseRateLPerS(PlantLevel);
+		break;
+	case ELotSource::Suitcase:
+	case ELotSource::Cart:
+	{
+		const ELotMovable Movable = Source == ELotSource::Suitcase ? ELotMovable::Suitcase : ELotMovable::Cart;
+		if (OwnsMovable(Movable) && Held != Movable)
+		{
+			SourceLitres = &MovableLitres[static_cast<int32>(Movable)];
+			Rate = LotBalance::TapRateLPerS;
+		}
+		break;
+	}
+	default:
+		break;
+	}
+	if (SourceLitres == nullptr)
+	{
+		return 0.0;
+	}
 	double& Content = HandLitres[static_cast<int32>(ELotHand::Bucket)];
-	const double Rate = GetSourceRate(Source);
-	double Available = Rate > 0.0 ? TNumericLimits<double>::Max() : 0.0;
-	if (Source == ELotSource::Plant)
-	{
-		Available = PlantStock;
-	}
-	const double Moved = FMath::Max(0.0, FMath::Min3(Rate * FMath::Min(Dt, MaxTickSeconds), GetHandCapacity(ELotHand::Bucket) - Content, Available));
+	const double Moved = FMath::Max(0.0, FMath::Min3(Rate * FMath::Min(Dt, MaxTickSeconds), GetHandCapacity(ELotHand::Bucket) - Content, *SourceLitres));
 	Content += Moved;
-	if (Source == ELotSource::Plant)
-	{
-		PlantStock -= Moved;
-	}
+	*SourceLitres -= Moved;
 	return Moved;
 }
 
@@ -392,15 +425,10 @@ FLotEvents FLotGame::PourHand(FVector2D Aim, FVector2D From, double Dt)
 		return FLotEvents();
 	}
 	double& Content = HandLitres[static_cast<int32>(Hand)];
-	StreamBudget = FMath::Min(StreamBudget + LotBalance::HandPourRateLPerS * FMath::Min(Dt, MaxTickSeconds), Content);
-	const FLotPour Pour = Grid.PourDisc(Aim, Radius, StreamBudget, From);
-	Content = FMath::Max(0.0, Content - Pour.LitresUsed);
-	StreamBudget = FMath::Max(0.0, StreamBudget - Pour.LitresUsed);
-	// A rest the grid could still pay for means the whole footprint is taken: the stream does not wait for it.
-	if (StreamBudget + StreamEpsilon >= FLotGrid::LitresPerTexel)
+	const FLotPour Pour = SpendStream(StreamBudget, Content, LotBalance::HandPourRateLPerS * FMath::Min(Dt, MaxTickSeconds), [&](double Budget)
 	{
-		StreamBudget = 0.0;
-	}
+		return Grid.PourDisc(Aim, Radius, Budget, From);
+	});
 	return ApplyPour(Pour);
 }
 
@@ -428,7 +456,142 @@ FLotEvents FLotGame::Trowel(FVector2D A, FVector2D B)
 
 bool FLotGame::HandsFree() const
 {
-	return !IsHandBusy();
+	return !IsHandBusy() && Held == ELotMovable::Count;
+}
+
+bool FLotGame::OwnsMovable(ELotMovable Movable) const
+{
+	return IsValidMovable(Movable) && Owns(MovableItem(Movable));
+}
+
+bool FLotGame::Grab(ELotMovable Movable)
+{
+	if (!OwnsMovable(Movable) || Held != ELotMovable::Count || WorldState.bPlayerInCar)
+	{
+		return false;
+	}
+	Held = Movable;
+	WorldState.Movables[static_cast<int32>(Movable)].bHeld = true;
+	DoseBudget = 0.0;
+	return true;
+}
+
+void FLotGame::Release(FVector2D Pos, double YawDeg)
+{
+	if (Held == ELotMovable::Count)
+	{
+		return;
+	}
+	FLotMovable& Movable = WorldState.Movables[static_cast<int32>(Held)];
+	if (IsFinitePoint(Pos))
+	{
+		Movable.Pos = Pos;
+	}
+	if (FMath::IsFinite(YawDeg))
+	{
+		Movable.YawDeg = YawDeg;
+	}
+	Movable.bHeld = false;
+	Held = ELotMovable::Count;
+}
+
+double FLotGame::GetMovableLitres(ELotMovable Movable) const
+{
+	return HoldsLitres(Movable) ? MovableLitres[static_cast<int32>(Movable)] : 0.0;
+}
+
+double FLotGame::GetMovableCapacity(ELotMovable Movable) const
+{
+	switch (Movable)
+	{
+	case ELotMovable::Suitcase: return LotBalance::SuitcaseCapacityL;
+	case ELotMovable::Cart: return LotBalance::CartCapacityL;
+	default: return 0.0;
+	}
+}
+
+double FLotGame::FillMovable(ELotMovable Movable, double Dt)
+{
+	if (!HoldsLitres(Movable) || !OwnsMovable(Movable) || !(Dt > 0.0) || !FMath::IsFinite(Dt))
+	{
+		return 0.0;
+	}
+	double& Content = MovableLitres[static_cast<int32>(Movable)];
+	const double Moved = FMath::Max(0.0, FMath::Min3(LotBalance::DispenseRateLPerS(PlantLevel) * FMath::Min(Dt, MaxTickSeconds), GetMovableCapacity(Movable) - Content, PlantStock));
+	Content += Moved;
+	PlantStock -= Moved;
+	return Moved;
+}
+
+FLotEvents FLotGame::DoseSuitcase(FVector2D Mouth, FVector2D From, double Dt)
+{
+	const ELotMovable Suitcase = ELotMovable::Suitcase;
+	if (!OwnsMovable(Suitcase) || Held == Suitcase || !(Dt > 0.0) || !FMath::IsFinite(Dt) || !IsFinitePoint(Mouth) || !IsFinitePoint(From))
+	{
+		return FLotEvents();
+	}
+	const int32 Cell = AsphaltLot::CellAt(Mouth);
+	if (Cell == INDEX_NONE || Grid.IsCellComplete(Cell) || Grid.GetCellDone(Cell) + Grid.GetCellRaw(Cell) >= FLotGrid::TexelsPerCell)
+	{
+		// Nothing can be laid here: the flap closes and the stream starts anew elsewhere.
+		DoseBudget = 0.0;
+		return FLotEvents();
+	}
+	double& Content = MovableLitres[static_cast<int32>(Suitcase)];
+	const double Earned = LotBalance::SuitcaseDoseRateLPerS * FMath::Min(Dt, MaxTickSeconds);
+	const FLotPour Pour = SpendStream(DoseBudget, Content, Earned, [&](double Budget)
+	{
+		return Grid.DepositIntoCell(Cell, Budget, From, ELotTexel::Raw);
+	});
+	return ApplyPour(Pour);
+}
+
+FLotEvents FLotGame::LayCartStrip(FVector2D A, FVector2D B)
+{
+	if (Held != ELotMovable::Cart)
+	{
+		return FLotEvents();
+	}
+	double& Content = MovableLitres[static_cast<int32>(ELotMovable::Cart)];
+	const FLotPour Pour = Grid.Stamp(A, B, LotBalance::CartStripWidthCm, Content, ELotTexel::Raw);
+	Content = FMath::Max(0.0, Content - Pour.LitresUsed);
+	return ApplyPour(Pour);
+}
+
+FLotEvents FLotGame::FinisherPass(FVector2D A, FVector2D B)
+{
+	if (Held != ELotMovable::Finisher)
+	{
+		return FLotEvents();
+	}
+	return ApplyPour(Grid.FinishRaw(A, B, LotBalance::FinisherWidthCm));
+}
+
+void FLotGame::PlaceBoughtItem(ELotItem Item)
+{
+	for (int32 I = 0; I < NumMovables; ++I)
+	{
+		if (MovableItem(static_cast<ELotMovable>(I)) == Item)
+		{
+			WorldState.Movables[I].Pos = LotLayout::ItemSpawn(Item);
+			WorldState.Movables[I].YawDeg = 0.0;
+			WorldState.Movables[I].bHeld = false;
+		}
+	}
+}
+
+FLotPour FLotGame::SpendStream(double& Budget, double& Content, double Earned, TFunctionRef<FLotPour(double)> Spend)
+{
+	Budget = FMath::Min(Budget + Earned, Content);
+	const FLotPour Pour = Spend(Budget);
+	Content = FMath::Max(0.0, Content - Pour.LitresUsed);
+	Budget = FMath::Max(0.0, Budget - Pour.LitresUsed);
+	// A rest the grid could still pay for means the whole footprint is taken: the stream does not wait for it.
+	if (Budget + StreamEpsilon >= FLotGrid::LitresPerTexel)
+	{
+		Budget = 0.0;
+	}
+	return Pour;
 }
 
 FLotEvents FLotGame::ApplyPour(const FLotPour& Pour)

@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "LotBalance.h"
 #include "LotGrid.h"
+#include "LotLayout.h"
 #include "LotMap.h"
 
 /** Everything that happened during one game operation; operations can be summed with Append. */
@@ -24,6 +25,25 @@ struct ASPHALTCORE_API FLotEvents
 	bool bExitOpened = false;
 
 	void Append(const FLotEvents& Other);
+};
+
+/** Where one movable stands. The engine layer moves it; the core only keeps the position so it can be saved. */
+struct ASPHALTCORE_API FLotMovable
+{
+	FVector2D Pos = FVector2D::ZeroVector;
+	double YawDeg = 0.0;
+	bool bHeld = false;
+};
+
+/** Positions of the player and of everything that moves; plain state, no rules. */
+struct ASPHALTCORE_API FLotWorldState
+{
+	FVector2D PlayerPos = LotLayout::PlayerStart;
+	double PlayerYawDeg = LotLayout::PlayerStartYawDeg;
+	FLotMovable Movables[static_cast<int32>(ELotMovable::Count)];
+	FVector2D CarPos = FVector2D::ZeroVector;
+	double CarYawDeg = 0.0;
+	bool bPlayerInCar = false;
 };
 
 /**
@@ -105,7 +125,11 @@ public:
 	 * the stock allows. A stroke that moves nothing resets the stroke timer. Returns the litres moved by this call.
 	 */
 	double ScoopFromTrough(double Dt);
-	/** Moves DispenseRateLPerS * Dt from the plant stock into the bucket; the bucket must be owned and not in hand. Returns litres moved. */
+	/**
+	 * Moves litres from the source into the bucket: DispenseRateLPerS * Dt from the plant stock, TapRateLPerS * Dt from
+	 * the content of the suitcase or the cart. The bucket must be owned and not in hand, a movable source must be owned
+	 * and not held. Limited by the source content and the free room in the bucket. Returns litres moved.
+	 */
 	double FillBucket(ELotSource Source, double Dt);
 	/**
 	 * Pours from the bowl or the scoop in hand for Dt seconds: the stream budget grows by HandPourRateLPerS * Dt (at
@@ -117,6 +141,31 @@ public:
 	FLotEvents DumpBucket(FVector2D Aim, FVector2D From);
 	/** Turns the raw asphalt under the strip A->B (TrowelWidthCm wide) into finished asphalt; trowel in hand only. */
 	FLotEvents Trowel(FVector2D A, FVector2D B);
+
+	FLotWorldState& World() { return WorldState; }
+	const FLotWorldState& World() const { return WorldState; }
+	/** True if the item behind the movable is bought. */
+	bool OwnsMovable(ELotMovable Movable) const;
+	/** The movable the player holds; ELotMovable::Count means nothing. While something is held, no hand action works. */
+	ELotMovable GetHeld() const { return Held; }
+	/** Takes an owned movable; false if it is not owned, something is already held or the player sits in the car. */
+	bool Grab(ELotMovable Movable);
+	/** Lets go of the held movable at the given place (a non-finite position keeps the old one); nothing held does nothing. */
+	void Release(FVector2D Pos, double YawDeg);
+	/** Litres in the suitcase or the cart; 0 for the others. */
+	double GetMovableLitres(ELotMovable Movable) const;
+	double GetMovableCapacity(ELotMovable Movable) const;
+	/** Moves DispenseRateLPerS * Dt from the plant stock into the owned suitcase or cart; the engine decides where it stands. Returns litres moved. */
+	double FillMovable(ELotMovable Movable, double Dt);
+	/**
+	 * The owned, not held suitcase doses raw asphalt into the cell under Mouth for Dt seconds: the dose budget grows by
+	 * SuitcaseDoseRateLPerS * Dt (at most the content) and the part below one texel's price is carried to the next call.
+	 */
+	FLotEvents DoseSuitcase(FVector2D Mouth, FVector2D From, double Dt);
+	/** The held cart lays a raw strip CartStripWidthCm wide along A->B; its content is the budget. */
+	FLotEvents LayCartStrip(FVector2D A, FVector2D B);
+	/** The held finisher turns the raw asphalt of the strip A->B (FinisherWidthCm wide) into finished asphalt. */
+	FLotEvents FinisherPass(FVector2D A, FVector2D B);
 
 	void DebugGive(double CreditsToAdd);
 	void DebugGrantItem(ELotItem Item);
@@ -131,8 +180,13 @@ public:
 private:
 	/** True if hand actions are allowed: no swap in progress. */
 	bool HandsFree() const;
-	/** Litres moved per second from a source into the bucket; 0 for sources that are not available yet. */
-	double GetSourceRate(ELotSource Source) const;
+	/** Gives a movable bought item its place on the lot. */
+	void PlaceBoughtItem(ELotItem Item);
+	/**
+	 * Grows a stream budget by Earned (never above Content), spends it through Spend, charges the litres used to both
+	 * and drops a rest the grid could still pay for. Shared by the hand pour and the suitcase dose.
+	 */
+	FLotPour SpendStream(double& Budget, double& Content, double Earned, TFunctionRef<FLotPour(double)> Spend);
 	/** Books a pour: pays credits, adds litres, compares the unlock state before and after. */
 	FLotEvents ApplyPour(const FLotPour& Pour);
 
@@ -152,4 +206,10 @@ private:
 	double StrokeTimer = 0.0;
 	/** Litres of the pour stream earned but not yet spent (below one texel's price between calls). */
 	double StreamBudget = 0.0;
+	FLotWorldState WorldState;
+	ELotMovable Held = ELotMovable::Count;
+	/** Litres of the suitcase and the cart; the other movables stay at 0. */
+	double MovableLitres[static_cast<int32>(ELotMovable::Count)] = {};
+	/** Litres of the suitcase dose earned but not yet spent (below one texel's price between calls). */
+	double DoseBudget = 0.0;
 };
