@@ -15,6 +15,10 @@ namespace AsphaltHud
 	inline constexpr int32 MaxToasts = 3;
 	/** Z order of the overlay in the game viewport. */
 	inline constexpr int32 ViewportZOrder = 10;
+	/** The shop panel lies above the HUD. */
+	inline constexpr int32 ShopZOrder = 11;
+	/** The check view looks for the nearest unfinished cell at most this often (the search scans every cell). */
+	inline constexpr float CheckRefreshSeconds = 0.5f;
 	/** The win screen lies above everything. */
 	inline constexpr int32 WinZOrder = 12;
 	/** The main and pause menu lie above everything. */
@@ -31,6 +35,9 @@ namespace AsphaltHud
 	inline const FLinearColor PromptColor{1.f, 0.93f, 0.55f, 1.f};
 	inline const FLinearColor ShopPanelColor{0.04f, 0.05f, 0.07f, 0.94f};
 	inline const FLinearColor ShopRowColor{1.f, 1.f, 1.f, 0.07f};
+	/** Price colours of a row that is owned, or locked (dim), and of one that is on offer but too expensive. */
+	inline const FLinearColor ShopDimColor{0.78f, 0.80f, 0.84f, 0.55f};
+	inline const FLinearColor ShopLackColor{1.f, 0.45f, 0.40f, 1.f};
 	inline const FLinearColor ButtonColor{1.f, 0.62f, 0.15f, 1.f};
 	inline const FLinearColor ButtonHoverColor{1.f, 0.74f, 0.36f, 1.f};
 	inline const FLinearColor ButtonPressedColor{0.82f, 0.46f, 0.08f, 1.f};
@@ -75,6 +82,19 @@ namespace AsphaltHud
 	inline constexpr float MenuButtonSpacing = 14.f;
 	inline constexpr float MenuButtonWidth = 300.f;
 	inline constexpr float MenuQuestionButtonWidth = 140.f;
+	/** The check view's arrow and text, and their distance from the top edge. */
+	inline const FLinearColor CheckColor{1.f, 0.62f, 0.15f, 1.f};
+	inline constexpr int32 CheckArrowFontSize = 48;
+	inline constexpr float CheckTop = 250.f;
+	/** The shop: the font of a row, the columns (name with its reason, value, price, button), the gaps, the padding and the tallest the list grows. */
+	inline constexpr int32 ShopFontSize = 22;
+	inline constexpr float ShopNameWidth = 260.f;
+	inline constexpr float ShopValueWidth = 300.f;
+	inline constexpr float ShopPriceWidth = 100.f;
+	inline constexpr float ShopButtonWidth = 120.f;
+	inline constexpr float ShopRowSpacing = 6.f;
+	inline constexpr float ShopPadding = 26.f;
+	inline constexpr float ShopMaxListHeight = 760.f;
 	/** Distance of the toasts from the top edge. */
 	inline constexpr float ToastTop = 110.f;
 }

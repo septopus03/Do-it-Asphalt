@@ -3,6 +3,8 @@
 #include "UI/DIAFormat.h"
 #include "LotBalance.h"
 #include "LotMap.h"
+#include "Game/DIARefill.h"
+#include "Game/DIAWorldSubsystem.h"
 #include "UI/DIAHudStyle.h"
 
 #define LOCTEXT_NAMESPACE "DIAHud"
@@ -42,6 +44,98 @@ namespace
 	{
 		return FMath::Max<int64>(0, FMath::FloorToInt64(Value + 1e-9));
 	}
+
+	/** A rate or capacity from the balance tables as a whole number: 5200 -> "5,200". */
+	FText Whole(double Value)
+	{
+		return FText::AsCultureInvariant(Grouped(FMath::RoundToInt64(Value)));
+	}
+
+	/** "150 → 300" followed by the unit. */
+	FText Change(double From, double To, const FText& Unit)
+	{
+		return FText::Format(NSLOCTEXT("DIAShop", "Change", "{0} → {1} {2}"), Whole(From), Whole(To), Unit);
+	}
+
+	FText PerMinuteLitres() { return NSLOCTEXT("DIAShop", "LitresPerMinute", "l/min"); }
+	FText PerMinuteCells() { return NSLOCTEXT("DIAShop", "CellsPerMinute", "cells/min"); }
+
+	/** The vessel in the hand, or the suitcase or cart that is held: how much it holds and how much fits. False when there is none. */
+	bool GaugeOf(const FLotGame& Game, double& OutHave, double& OutCapacity)
+	{
+		const ELotMovable Held = Game.GetHeld();
+		if (Held == ELotMovable::Suitcase || Held == ELotMovable::Cart)
+		{
+			OutHave = Game.GetMovableLitres(Held);
+			OutCapacity = Game.GetMovableCapacity(Held);
+			return true;
+		}
+		if (Held != ELotMovable::Count)
+		{
+			return false;
+		}
+		OutHave = Game.GetHandLitres(Game.GetHand());
+		OutCapacity = Game.GetHandCapacity(Game.GetHand());
+		return OutCapacity > 0.0;
+	}
+
+	/** The first step that is not open yet; ELotUnlock::Count when all are. */
+	ELotUnlock NextStep(const FLotGame& Game)
+	{
+		for (int32 I = 0; I < static_cast<int32>(ELotUnlock::Count); ++I)
+		{
+			if (!Game.IsUnlocked(static_cast<ELotUnlock>(I)))
+			{
+				return static_cast<ELotUnlock>(I);
+			}
+		}
+		return ELotUnlock::Count;
+	}
+
+	/** What the item gives, from the balance tables: its size, its rate, or "from -> to" for an upgrade. */
+	FText ItemValue(ELotItem Item)
+	{
+		switch (Item)
+		{
+		case ELotItem::Scoop: return FText::Format(NSLOCTEXT("DIAShop", "Litres", "{0} l"), TenthsText(Tenths(LotBalance::ScoopLitres)));
+		case ELotItem::Bucket: return FText::Format(NSLOCTEXT("DIAShop", "Litres", "{0} l"), TenthsText(Tenths(LotBalance::HandCapacityL[static_cast<int32>(ELotHand::Bucket)])));
+		case ELotItem::Suitcase: return FText::Format(NSLOCTEXT("DIAShop", "Litres", "{0} l"), TenthsText(Tenths(LotBalance::SuitcaseCapacityL)));
+		case ELotItem::Cart: return FText::Format(NSLOCTEXT("DIAShop", "Litres", "{0} l"), TenthsText(Tenths(LotBalance::CartCapacityL)));
+		case ELotItem::Station: return NSLOCTEXT("DIAShop", "StationValue", "Refill anywhere");
+		case ELotItem::Finisher: return FText::Format(NSLOCTEXT("DIAShop", "Rate", "{0} {1}"), Whole(LotBalance::FinisherRateCellsPerMin), PerMinuteCells());
+		case ELotItem::AutoPaver: return FText::Format(NSLOCTEXT("DIAShop", "Rate", "{0} {1}"), Whole(LotBalance::AutoPaverRateCellsPerMin[0]), PerMinuteCells());
+		case ELotItem::AutoPaverFast: return Change(LotBalance::AutoPaverRateCellsPerMin[0], LotBalance::AutoPaverRateCellsPerMin[1], PerMinuteCells());
+		case ELotItem::AutoPaverFaster: return Change(LotBalance::AutoPaverRateCellsPerMin[1], LotBalance::AutoPaverRateCellsPerMin[2], PerMinuteCells());
+		case ELotItem::Car: return FText::Format(NSLOCTEXT("DIAShop", "Rate", "{0} {1}"), Whole(LotBalance::CarRateCellsPerMin[0]), PerMinuteCells());
+		case ELotItem::CarWideBar: return Change(LotBalance::CarRateCellsPerMin[0], LotBalance::CarRateCellsPerMin[1], PerMinuteCells());
+		default: return FText::GetEmpty();
+		}
+	}
+
+	/** Why an item that is not owned is not on offer: its step is closed ("350 cells + entry 3") or an item it upgrades is missing. */
+	FText LockReason(const FLotGame& Game, ELotItem Item)
+	{
+		const int32 Index = static_cast<int32>(Item);
+		const ELotUnlock Step = LotBalance::ItemUnlock[Index];
+		if (Step != ELotUnlock::Count && !Game.IsUnlocked(Step))
+		{
+			const int32 StepIndex = static_cast<int32>(Step);
+			// The entry is numbered from 1, as in the entry toast.
+			return FText::Format(NSLOCTEXT("DIAShop", "LockedStep", "{0} cells + entry {1}"), DIAFormat::Count(LotBalance::UnlockCells[StepIndex]), DIAFormat::Count(StepIndex + 1));
+		}
+		const ELotItem Required = LotBalance::ItemRequires[Index];
+		if (Required != ELotItem::Count && !Game.Owns(Required))
+		{
+			return FText::Format(NSLOCTEXT("DIAShop", "LockedItem", "needs {0}"), DIAFormat::ItemName(Required));
+		}
+		return FText::GetEmpty();
+	}
+
+	/** The plant's rate at a level, from the balance tables. */
+	double PlantRate(int32 Level)
+	{
+		return LotBalance::PlantRateLPerMin[FMath::Clamp(Level, 0, static_cast<int32>(std::size(LotBalance::PlantRateLPerMin)) - 1)];
+	}
 }
 
 FText DIAFormat::Count(int64 Value)
@@ -66,7 +160,7 @@ FText DIAFormat::Duration(double Seconds)
 
 FText DIAFormat::LitresPoured(double Litres)
 {
-	return FText::Format(LOCTEXT("LitresPoured", "{0} L"), Count(WholeCredits(Litres)));
+	return FText::Format(LOCTEXT("LitresPoured", "{0} l"), Count(WholeCredits(Litres)));
 }
 
 FText DIAFormat::Items(int32 Bought, int32 Total)
@@ -76,7 +170,7 @@ FText DIAFormat::Items(int32 Bought, int32 Total)
 
 FText DIAFormat::Litres(double Have, double Capacity)
 {
-	return FText::Format(LOCTEXT("Litres", "{0} / {1} L"), TenthsText(Tenths(Have)), TenthsText(Tenths(Capacity)));
+	return FText::Format(LOCTEXT("Litres", "{0} / {1} l"), TenthsText(Tenths(Have)), TenthsText(Tenths(Capacity)));
 }
 
 FText DIAFormat::Progress(int32 Done, int32 Total)
@@ -98,7 +192,7 @@ FText DIAFormat::ItemName(ELotItem Item)
 	case ELotItem::AutoPaver: return LOCTEXT("ItemAutoPaver", "Auto Paver");
 	case ELotItem::AutoPaverFast: return LOCTEXT("ItemAutoPaverFast", "Fast Auto Paver");
 	case ELotItem::AutoPaverFaster: return LOCTEXT("ItemAutoPaverFaster", "Faster Auto Paver");
-	case ELotItem::Car: return LOCTEXT("ItemCar", "Paver Truck");
+	case ELotItem::Car: return LOCTEXT("ItemCar", "Paver Car");
 	case ELotItem::CarWideBar: return LOCTEXT("ItemCarWideBar", "Wide Bar");
 	default: return FText::GetEmpty();
 	}
@@ -112,10 +206,96 @@ FText DIAFormat::UnlockName(ELotUnlock Unlock)
 	case ELotUnlock::Sprint: return LOCTEXT("UnlockSprint", "Sprint");
 	case ELotUnlock::StripWork: return LOCTEXT("UnlockStripWork", "Strip Work");
 	case ELotUnlock::AutoPaver: return LOCTEXT("UnlockAutoPaver", "Auto Paver");
-	case ELotUnlock::Car: return LOCTEXT("UnlockCar", "Paver Truck");
+	case ELotUnlock::Car: return LOCTEXT("UnlockCar", "Paver Car");
 	case ELotUnlock::Exit: return LOCTEXT("UnlockExit", "Exit");
 	default: return FText::GetEmpty();
 	}
+}
+
+FText DIAFormat::HandName(ELotHand Hand)
+{
+	switch (Hand)
+	{
+	case ELotHand::Bowl: return LOCTEXT("HandBowl", "Bowl");
+	case ELotHand::Scoop: return LOCTEXT("HandScoop", "Scoop");
+	case ELotHand::Bucket: return LOCTEXT("HandBucket", "Bucket");
+	case ELotHand::Trowel: return LOCTEXT("HandTrowel", "Trowel");
+	default: return FText::GetEmpty();
+	}
+}
+
+FText DIAFormat::UnlockEffect(ELotUnlock Unlock)
+{
+	switch (Unlock)
+	{
+	case ELotUnlock::QuickSwap: return LOCTEXT("EffectQuickSwap", "Hand tools change at once.");
+	case ELotUnlock::Sprint: return LOCTEXT("EffectSprint", "Hold Shift to run between the work and the trough.");
+	case ELotUnlock::StripWork: return LOCTEXT("EffectStripWork", "The portable station, the cart and the finisher are on offer: work in strips.");
+	case ELotUnlock::AutoPaver: return LOCTEXT("EffectAutoPaver", "The auto paver is on offer: mark a sector and it paves on its own.");
+	case ELotUnlock::Car: return LOCTEXT("EffectCar", "The paver car is on offer: pave the main aisles from the cab.");
+	case ELotUnlock::Exit: return LOCTEXT("EffectExit", "The exit gate is open: drive through it to finish.");
+	default: return FText::GetEmpty();
+	}
+}
+
+FText DIAFormat::HandLabel(const FLotGame& Game)
+{
+	switch (Game.GetHeld())
+	{
+	case ELotMovable::Suitcase: return ItemName(ELotItem::Suitcase);
+	case ELotMovable::Cart: return ItemName(ELotItem::Cart);
+	case ELotMovable::Station: return ItemName(ELotItem::Station);
+	case ELotMovable::Finisher: return ItemName(ELotItem::Finisher);
+	default: return HandName(Game.GetHand());
+	}
+}
+
+FText DIAFormat::HandGauge(const FLotGame& Game)
+{
+	double Have = 0.0;
+	double Capacity = 0.0;
+	return GaugeOf(Game, Have, Capacity) ? Litres(Have, Capacity) : FText::GetEmpty();
+}
+
+bool DIAFormat::IsInRefillZone(const FLotGame& Game)
+{
+	if (DIARefill::IsInZone(Game, Game.World().PlayerPos))
+	{
+		return true;
+	}
+	// The suitcase and the cart fill where they stand, also while the player pulls them.
+	const ELotMovable Held = Game.GetHeld();
+	return (Held == ELotMovable::Suitcase || Held == ELotMovable::Cart) && DIARefill::IsInZone(Game, Game.World().Movables[static_cast<int32>(Held)].Pos);
+}
+
+FText DIAFormat::RefillLine(const FLotGame& Game)
+{
+	return IsInRefillZone(Game) ? Litres(Game.GetPlantStock(), Game.GetPlantStorage()) : FText::GetEmpty();
+}
+
+FText DIAFormat::NextUnlock(const FLotGame& Game)
+{
+	const ELotUnlock Step = NextStep(Game);
+	if (Step == ELotUnlock::Count)
+	{
+		return FText::GetEmpty();
+	}
+	const int32 Index = static_cast<int32>(Step);
+	const int32 Threshold = LotBalance::UnlockCells[Index];
+	return FText::Format(LOCTEXT("NextUnlock", "Next: {0} – entry {1} / {2}, cells {3} / {4}"), UnlockName(Step),
+		Count(Game.GetEntryProgress(Index)), Count(AsphaltLot::CellsPerEntry), Count(FMath::Min(Game.GetCompletedCells(), Threshold)), Count(Threshold));
+}
+
+FText DIAFormat::NearestUnfinished(double DistanceCm)
+{
+	return FText::Format(LOCTEXT("NearestUnfinished", "Nearest unfinished: {0} m"), Count(FMath::RoundToInt64(DistanceCm / 100.0)));
+}
+
+double DIAFormat::ArrowDegrees(FVector2D From, FVector2D To, double ViewYawDeg)
+{
+	const FVector2D Delta = To - From;
+	const double Bearing = FMath::RadiansToDegrees(FMath::Atan2(Delta.Y, Delta.X));
+	return FMath::FindDeltaAngleDegrees(ViewYawDeg, Bearing);
 }
 
 FText DIAFormat::EntryBoard(const FLotGame& Game, int32 Entry)
@@ -149,7 +329,7 @@ FText DIAFormat::EntryToast(int32 Entry)
 
 FText DIAFormat::UnlockToast(ELotUnlock Unlock)
 {
-	return FText::Format(LOCTEXT("ToastUnlock", "{0} unlocked"), UnlockName(Unlock));
+	return FText::Format(LOCTEXT("ToastUnlock", "Unlocked: {0}\n{1}"), UnlockName(Unlock), UnlockEffect(Unlock));
 }
 
 FText DIAFormat::ItemBoughtToast(ELotItem Item)
@@ -173,6 +353,24 @@ bool FDIAHudModel::Update(const FLotGame& Game)
 	NewKey.Credits = WholeCredits(Game.GetCredits());
 	NewKey.CellsDone = Game.GetCompletedCells();
 	NewKey.CellsTotal = AsphaltLot::NumCells;
+	NewKey.Hand = static_cast<int32>(Game.GetHand());
+	NewKey.Held = static_cast<int32>(Game.GetHeld());
+	double Have = 0.0;
+	double Capacity = 0.0;
+	if (GaugeOf(Game, Have, Capacity))
+	{
+		NewKey.GaugeTenths = Tenths(Have);
+		NewKey.GaugeCapacityTenths = Tenths(Capacity);
+	}
+	// The stock moves all the time, so it only counts while it is shown.
+	if (DIAFormat::IsInRefillZone(Game))
+	{
+		NewKey.StockTenths = Tenths(Game.GetPlantStock());
+		NewKey.StorageTenths = Tenths(Game.GetPlantStorage());
+	}
+	const ELotUnlock Step = NextStep(Game);
+	NewKey.NextStep = static_cast<int32>(Step);
+	NewKey.NextEntryCells = Step == ELotUnlock::Count ? 0 : Game.GetEntryProgress(static_cast<int32>(Step));
 
 	if (RebuildCount > 0 && NewKey == Key)
 	{
@@ -184,7 +382,121 @@ bool FDIAHudModel::Update(const FLotGame& Game)
 	View.Credits = DIAFormat::Credits(Game.GetCredits());
 	View.Progress = DIAFormat::Progress(NewKey.CellsDone, NewKey.CellsTotal);
 	View.ProgressFraction = NewKey.CellsTotal > 0 ? static_cast<float>(FMath::Clamp(static_cast<double>(NewKey.CellsDone) / NewKey.CellsTotal, 0.0, 1.0)) : 0.f;
+	View.HandLabel = DIAFormat::HandLabel(Game);
+	View.HandGauge = DIAFormat::HandGauge(Game);
+	View.Refill = DIAFormat::RefillLine(Game);
+	View.Next = DIAFormat::NextUnlock(Game);
 	return true;
+}
+
+void FDIACheckModel::Update(const FLotGame& Game, bool bHeld, float DeltaSeconds)
+{
+	if (!bHeld)
+	{
+		View = FDIACheckView();
+		SinceSearch = 0.f;
+		return;
+	}
+	const bool bSwitchedOn = !View.bActive;
+	View.bActive = true;
+	SinceSearch += DeltaSeconds;
+	if (!bSwitchedOn && SinceSearch < AsphaltHud::CheckRefreshSeconds)
+	{
+		return;
+	}
+	SinceSearch = 0.f;
+	++SearchCount;
+
+	const FVector2D From = Game.World().PlayerPos;
+	const int32 Cell = Game.FindNearestIncomplete(From);
+	if (Cell == INDEX_NONE)
+	{
+		View.Nearest = FText::GetEmpty();
+		View.Target = FVector2D::ZeroVector;
+		return;
+	}
+	View.Target = AsphaltLot::CellCentre(Cell);
+	View.Nearest = DIAFormat::NearestUnfinished(FVector2D::Distance(From, View.Target));
+}
+
+bool FDIAShopModel::Update(const FLotGame& Game)
+{
+	constexpr int32 NumItems = static_cast<int32>(ELotItem::Count);
+	constexpr int32 MaxPlantLevel = static_cast<int32>(std::size(LotBalance::PlantPrice));
+
+	// The rows in their natural order: the plant, then the items.
+	FDIAShopRow Natural[NumRows];
+	FKey NewKey;
+	NewKey.PlantLevel = Game.GetPlantLevel();
+	{
+		FDIAShopRow& Row = Natural[0];
+		const bool bMax = NewKey.PlantLevel >= MaxPlantLevel;
+		Row.bPlant = true;
+		Row.Name = LOCTEXT("ShopPlant", "Plant");
+		Row.Value = bMax ? FText::Format(LOCTEXT("ShopRate", "{0} {1}"), Whole(PlantRate(NewKey.PlantLevel)), PerMinuteLitres())
+						 : Change(PlantRate(NewKey.PlantLevel), PlantRate(NewKey.PlantLevel + 1), PerMinuteLitres());
+		Row.State = bMax ? EDIAShopState::Owned : (Game.CanBuyPlant() ? EDIAShopState::Buy : EDIAShopState::NoCredits);
+		Row.Price = bMax ? FText::GetEmpty() : DIAFormat::Credits(Game.GetPlantNextPrice());
+	}
+	for (int32 I = 0; I < NumItems; ++I)
+	{
+		const ELotItem Item = static_cast<ELotItem>(I);
+		FDIAShopRow& Row = Natural[1 + I];
+		Row.Item = Item;
+		Row.Name = DIAFormat::ItemName(Item);
+		Row.Value = ItemValue(Item);
+		if (Game.Owns(Item))
+		{
+			Row.State = EDIAShopState::Owned;
+		}
+		else
+		{
+			Row.Price = DIAFormat::Credits(Game.GetItemPrice(Item));
+			if (Game.IsItemOffered(Item))
+			{
+				Row.State = Game.CanBuyItem(Item) ? EDIAShopState::Buy : EDIAShopState::NoCredits;
+			}
+			else
+			{
+				Row.State = EDIAShopState::Locked;
+				Row.Reason = LockReason(Game, Item);
+			}
+		}
+	}
+	for (int32 I = 0; I < NumRows; ++I)
+	{
+		NewKey.States[I] = static_cast<int32>(Natural[I].State);
+	}
+
+	if (RebuildCount > 0 && NewKey == Key)
+	{
+		return false;
+	}
+	Key = NewKey;
+	++RebuildCount;
+
+	// What can be bought stays on top; the owned rows follow in their own order.
+	int32 Next = 0;
+	for (const bool bOwnedPass : {false, true})
+	{
+		for (const FDIAShopRow& Row : Natural)
+		{
+			if ((Row.State == EDIAShopState::Owned) == bOwnedPass)
+			{
+				Rows[Next++] = Row;
+			}
+		}
+	}
+	return true;
+}
+
+bool FDIAShopModel::Buy(int32 Index, UDIAWorldSubsystem& Subsystem) const
+{
+	if (Index < 0 || Index >= NumRows || Rows[Index].State != EDIAShopState::Buy)
+	{
+		return false;
+	}
+	return Rows[Index].bPlant ? Subsystem.BuyPlant() : Subsystem.BuyItem(Rows[Index].Item);
 }
 
 int32 FDIAWinModel::ItemsBought(const FLotGame& Game)

@@ -50,6 +50,13 @@ public:
 	/** Reads the CPU copy of the coverage texture. False if the texel is outside the texture or there is no copy yet. */
 	bool GetCoverageTexel(int32 X, int32 Y, uint8& OutR, uint8& OutG) const;
 
+	/**
+	 * The check view: 1 turns every part of the lot without finished asphalt (bare or raw) orange, 0 shows the ground as it is.
+	 * Applied to the dynamic material (the value is kept for a material that is made later).
+	 */
+	void SetMissingHighlight(float Amount);
+	float GetMissingHighlight() const { return MissingHighlight; }
+
 	UTexture2D* GetCoverageTexture() const { return CoverageTexture; }
 	UMaterialInstanceDynamic* GetGroundMaterial() const { return GroundMaterial; }
 	/** How often the whole texture was uploaded since play began (a loaded or restarted game does that once). */
@@ -83,6 +90,7 @@ private:
 	TArray<uint8> Mirror;
 
 	int32 NumFullUploads = 0;
+	float MissingHighlight = 0.f;
 
 	FDIAStateSubscription StateSub;
 };

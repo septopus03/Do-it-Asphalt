@@ -53,6 +53,7 @@ FDIAInput FDIAInput::Create(UObject* Outer)
 	Input.Sprint = MakeAction(Outer, TEXT("IA_DIA_Sprint"), EInputActionValueType::Boolean);
 	Input.Interact = MakeAction(Outer, TEXT("IA_DIA_Interact"), EInputActionValueType::Boolean);
 	Input.Shop = MakeAction(Outer, TEXT("IA_DIA_Shop"), EInputActionValueType::Boolean);
+	Input.CheckView = MakeAction(Outer, TEXT("IA_DIA_CheckView"), EInputActionValueType::Boolean);
 	Input.Pause = MakeAction(Outer, TEXT("IA_DIA_Pause"), EInputActionValueType::Boolean);
 
 	// Esc has to close the pause menu while the game is paused.
@@ -81,6 +82,7 @@ FDIAInput FDIAInput::Create(UObject* Outer)
 	Context->MapKey(Input.Sprint, EKeys::LeftShift);
 	Context->MapKey(Input.Interact, EKeys::E);
 	Context->MapKey(Input.Shop, EKeys::Tab);
+	Context->MapKey(Input.CheckView, EKeys::V);
 	Context->MapKey(Input.Pause, EKeys::Escape);
 	return Input;
 }

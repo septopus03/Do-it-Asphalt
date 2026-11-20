@@ -12,8 +12,9 @@ class ADIAHUD;
 class UDIAWorldSubsystem;
 
 /**
- * The HUD layout (GDD chapter 11): money and shards top left, progress top right, the backpack (or car tank) bottom
- * centre with the plant's stock and the contextual prompt above it, toasts top centre. It owns no game state: the
+ * The HUD layout: credits top left, progress and the next unlock step top right, the vessel in the hand bottom right, the
+ * plant's stock (in the refill zone) and the contextual prompt bottom centre, toasts top centre, and the check view's
+ * arrow and distance below them while V is held. It owns no game state: the
  * numbers come from the world subsystem through FDIAHudModel, which is refreshed on OnStateChanged but only changes
  * what the widgets show when a displayed value changed; the widgets read the cached view through attribute lambdas.
  * Prompt and toasts are read from the ADIAHUD that created it. The widget is never hit-testable.
@@ -39,6 +40,8 @@ private:
 	TSharedRef<SWidget> BuildTopLeft();
 	TSharedRef<SWidget> BuildTopRight();
 	TSharedRef<SWidget> BuildBottom();
+	TSharedRef<SWidget> BuildHand();
+	TSharedRef<SWidget> BuildCheckView();
 	TSharedRef<SWidget> BuildToasts();
 
 	TWeakObjectPtr<ADIAHUD> Hud;

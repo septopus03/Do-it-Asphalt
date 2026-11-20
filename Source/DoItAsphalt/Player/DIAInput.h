@@ -55,11 +55,15 @@ struct DOITASPHALT_API FDIAInput
 	TObjectPtr<UInputAction> Sprint = nullptr;
 	UPROPERTY()
 	TObjectPtr<UInputAction> Interact = nullptr;
+	/** Tab: opens and closes the shop. */
 	UPROPERTY()
 	TObjectPtr<UInputAction> Shop = nullptr;
+	/** V, held: the check view (unfinished ground lit up, the way to the nearest unfinished cell). */
+	UPROPERTY()
+	TObjectPtr<UInputAction> CheckView = nullptr;
 	UPROPERTY()
 	TObjectPtr<UInputAction> Pause = nullptr;
 
-	/** WASD, mouse XY, left and right mouse button, Q, 1 - 4, F, G, left shift, E, Tab, Escape. All objects are owned by Outer. */
+	/** WASD, mouse XY, left and right mouse button, Q, 1 - 4, F, G, left shift, E, Tab, V, Escape. All objects are owned by Outer. */
 	static FDIAInput Create(UObject* Outer);
 };

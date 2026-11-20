@@ -5,14 +5,17 @@
 #include "Engine/Engine.h"
 #include "Engine/GameViewportClient.h"
 #include "Engine/World.h"
+#include "EngineUtils.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "Game/DIAWorldSubsystem.h"
 #include "Misc/App.h"
 #include "UI/DIAHudStyle.h"
 #include "Player/DIAPlayerController.h"
+#include "World/DIAGroundActor.h"
 #include "UI/SDIAHudOverlay.h"
 #include "UI/SDIAMenu.h"
+#include "UI/SDIAShopPanel.h"
 #include "UI/SDIAWinScreen.h"
 
 ADIAHUD::ADIAHUD()
@@ -36,12 +39,57 @@ void ADIAHUD::ShowToast(const FText& Text)
 	Toasts.Add(Text);
 }
 
+void ADIAHUD::ToggleShop()
+{
+	SetShopOpen(!bShopOpen);
+}
+
+void ADIAHUD::SetShopOpen(bool bOpen)
+{
+	// The win screen and the menu own the screen.
+	if (bShopOpen == bOpen || (bOpen && (bWinShown || IsMenuOpen())))
+	{
+		return;
+	}
+	bShopOpen = bOpen;
+	if (ShopPanel.IsValid())
+	{
+		ShopPanel->SetVisibility(bShopOpen ? EVisibility::SelfHitTestInvisible : EVisibility::Collapsed);
+	}
+	// The cursor and the mouse go to the panel (and back to the camera); the controller also lets go of what is held.
+	if (ADIAPlayerController* Controller = Cast<ADIAPlayerController>(GetOwningPlayerController()))
+	{
+		Controller->SetShopInput(bShopOpen);
+	}
+}
+
+void ADIAHUD::SetCheckView(bool bOn)
+{
+	if (bCheckView == bOn)
+	{
+		return;
+	}
+	bCheckView = bOn;
+	if (!Ground.IsValid())
+	{
+		for (TActorIterator<ADIAGroundActor> It(GetWorld()); It; ++It)
+		{
+			Ground = *It;
+		}
+	}
+	if (ADIAGroundActor* GroundActor = Ground.Get())
+	{
+		GroundActor->SetMissingHighlight(bOn ? 1.f : 0.f);
+	}
+}
+
 void ADIAHUD::ShowWinScreen()
 {
 	if (bWinShown)
 	{
 		return;
 	}
+	SetShopOpen(false);
 	bWinShown = true;
 	if (const UDIAWorldSubsystem* Subsystem = BoundSubsystem.Get())
 	{
@@ -107,6 +155,7 @@ void ADIAHUD::OpenMenu(EDIAMenuMode Mode)
 	{
 		return;
 	}
+	SetShopOpen(false);
 	MenuMode = Mode;
 	if (Menu.IsValid())
 	{
@@ -204,6 +253,8 @@ void ADIAHUD::EndPlay(const EEndPlayReason::Type Reason)
 	}
 	// The controller outlives the HUD's panels: give back what they took (the cursor, the input mode, the pause).
 	// A win screen that is still up releases its input too.
+	SetShopOpen(false);
+	SetCheckView(false);
 	HideWinScreen();
 	DismissMenu();
 	DestroyOverlay();
@@ -214,6 +265,10 @@ void ADIAHUD::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 	Toasts.Advance(DeltaSeconds);
+	if (const UDIAWorldSubsystem* Subsystem = BoundSubsystem.Get())
+	{
+		CheckModel.Update(Subsystem->GetGame(), bCheckView, DeltaSeconds);
+	}
 }
 
 void ADIAHUD::CreateOverlay(UDIAWorldSubsystem* Subsystem)
@@ -225,6 +280,10 @@ void ADIAHUD::CreateOverlay(UDIAWorldSubsystem* Subsystem)
 	}
 	Overlay = SNew(SDIAHudOverlay).Hud(this).Subsystem(Subsystem);
 	GEngine->GameViewport->AddViewportWidgetContent(Overlay.ToSharedRef(), AsphaltHud::ViewportZOrder);
+
+	ShopPanel = SNew(SDIAShopPanel).Hud(this).Subsystem(Subsystem);
+	ShopPanel->SetVisibility(bShopOpen ? EVisibility::SelfHitTestInvisible : EVisibility::Collapsed);
+	GEngine->GameViewport->AddViewportWidgetContent(ShopPanel.ToSharedRef(), AsphaltHud::ShopZOrder);
 
 	WinScreen = SNew(SDIAWinScreen)
 		.OnNewGame(FSimpleDelegate::CreateUObject(this, &ADIAHUD::NewGame))
@@ -259,6 +318,15 @@ void ADIAHUD::DestroyOverlay()
 			GEngine->GameViewport->RemoveViewportWidgetContent(WinScreen.ToSharedRef());
 		}
 		WinScreen.Reset();
+	}
+	if (ShopPanel.IsValid())
+	{
+		ShopPanel->Unbind();
+		if (GEngine && GEngine->GameViewport)
+		{
+			GEngine->GameViewport->RemoveViewportWidgetContent(ShopPanel.ToSharedRef());
+		}
+		ShopPanel.Reset();
 	}
 	if (Overlay.IsValid())
 	{

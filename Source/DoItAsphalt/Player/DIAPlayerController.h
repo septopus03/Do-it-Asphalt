@@ -14,7 +14,8 @@ struct FInputActionValue;
  * Creates the input assets, adds the mapping context to the local player and routes the actions to the character.
  * Pause (Esc) opens and closes the pause menu (the pause action also fires while the game is paused, so that Esc can
  * close the menu). Every frame it looks for the nearest interactable within reach and shows its prompt; Interact (E)
- * uses it. While a menu or the win screen is up there is no prompt and E does nothing.
+ * uses it. Tab opens and closes the shop and V holds the check view. While a menu, the shop or the win screen is up there
+ * is no prompt and E does nothing; the shop leaves the game running.
  */
 UCLASS(NotBlueprintable)
 class DOITASPHALT_API ADIAPlayerController : public APlayerController
@@ -32,6 +33,13 @@ public:
 	bool IsMenuInput() const { return bMenuInput; }
 
 	/**
+	 * Called by the HUD when the shop opens or closes: the cursor goes to the shop and the camera stops following the mouse (the
+	 * character stops using its hand, sprinting and looking at the work), but unlike a menu the game keeps running.
+	 */
+	void SetShopInput(bool bOpen);
+	bool IsShopInput() const { return bShopInput; }
+
+	/**
 	 * Called by the HUD when the win screen appears (bOn) or goes (a new game started from it, or a game that is not won was loaded):
 	 * the mouse cursor and the UI take all the input (UI only, so no key reaches the game any more) and the character stops.
 	 */
@@ -47,8 +55,13 @@ public:
 	void OnMove(const FInputActionValue& Value);
 	/** E: uses what is within reach. */
 	void OnInteract();
-	/** Esc: opens or closes the pause menu (nothing on the win screen). */
+	/** Esc: closes the shop if it is open, else opens or closes the pause menu (nothing on the win screen). */
 	void OnPause();
+	/** Tab: opens or closes the shop. */
+	void OnShop();
+	/** V, held: the check view; it does nothing while a menu, the shop or the win screen is up. */
+	void OnCheckViewStarted();
+	void OnCheckViewCompleted();
 	/** Use and WorkView: held buttons; they do nothing while a menu or the win screen is up. */
 	void OnUseStarted();
 	void OnUseCompleted();
@@ -68,10 +81,10 @@ private:
 	void OnSprintCompleted();
 
 	class ADIACharacter* GetDIACharacter() const;
-	/** Lets go of everything a UI that takes over the screen must not leave running: sprinting, using the item and the work view. */
+	/** Lets go of everything a UI that takes over the screen must not leave running: sprinting, using the item, the work view and the check view. */
 	void ReleaseControls();
-	/** The menu or the win screen covers the screen and owns the mouse: nothing behind it can be used. */
-	bool IsUiInput() const { return bMenuInput || bWinInput; }
+	/** The menu, the shop or the win screen covers the screen and owns the mouse: nothing behind it can be used. */
+	bool IsUiInput() const { return bMenuInput || bShopInput || bWinInput; }
 	/** The mouse cursor and the input mode that go with the UI that is up now (nothing to do without a window). */
 	void ApplyInputMode();
 	/** Sends the prompt of the nearest interactable to the HUD (a no-op for unchanged text). */
@@ -81,5 +94,6 @@ private:
 	FDIAInput Input;
 
 	bool bMenuInput = false;
+	bool bShopInput = false;
 	bool bWinInput = false;
 };

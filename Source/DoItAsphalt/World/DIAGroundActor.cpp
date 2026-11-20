@@ -120,6 +120,7 @@ void ADIAGroundActor::BeginPlay()
 	{
 		GroundMaterial = UMaterialInstanceDynamic::Create(Base, this);
 		GroundMaterial->SetTextureParameterValue(TEXT("CoverageTex"), CoverageTexture);
+		GroundMaterial->SetScalarParameterValue(TEXT("MissingHighlight"), MissingHighlight);
 		PlotMesh->SetMaterial(0, GroundMaterial);
 	}
 	else
@@ -134,6 +135,15 @@ void ADIAGroundActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	StateSub.Unbind(UDIAWorldSubsystem::Get(this));
 	Super::EndPlay(EndPlayReason);
+}
+
+void ADIAGroundActor::SetMissingHighlight(float Amount)
+{
+	MissingHighlight = Amount;
+	if (GroundMaterial)
+	{
+		GroundMaterial->SetScalarParameterValue(TEXT("MissingHighlight"), Amount);
+	}
 }
 
 void ADIAGroundActor::OnStateChanged()

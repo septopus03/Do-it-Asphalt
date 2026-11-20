@@ -10,12 +10,14 @@
 
 class SDIAHudOverlay;
 class SDIAMenu;
+class SDIAShopPanel;
+class ADIAGroundActor;
 class SDIAWinScreen;
 class UDIAWorldSubsystem;
 
 /**
  * The HUD actor: creates the Slate overlay in the game viewport (not when nothing can render, e.g. in tests), keeps the
- * contextual prompt, the toasts, the win screen (shown when the game is won) and the menu (the main menu
+ * contextual prompt, the toasts, the shop (Tab), the check view (V), the win screen (shown when the game is won) and the menu (the main menu
  * at the start, the pause menu on Esc), and turns the game's events into toasts. The game state stays in the subsystem. Where there
  * is no overlay (tests) the game starts without the menu; the menu's state and the input it takes are the same either way.
  */
@@ -60,6 +62,16 @@ public:
 	EDIAMenuMode GetMenuMode() const { return MenuMode; }
 	bool IsMenuOpen() const { return MenuMode != EDIAMenuMode::None; }
 
+	/** Tab: opens or closes the shop. The game keeps running; the mouse goes to the shop. Nothing opens over a menu or the win screen. */
+	void ToggleShop();
+	void SetShopOpen(bool bOpen);
+	bool IsShopOpen() const { return bShopOpen; }
+
+	/** The check view (V, held): unfinished ground turns orange and the HUD points to the nearest unfinished cell. */
+	void SetCheckView(bool bOn);
+	bool IsCheckView() const { return bCheckView; }
+	const FDIACheckView& GetCheckView() const { return CheckModel.GetView(); }
+
 	const FText& GetPrompt() const { return Prompt; }
 	const FDIAToasts& GetToasts() const { return Toasts; }
 	bool HasOverlay() const { return Overlay.IsValid(); }
@@ -90,7 +102,14 @@ private:
 
 	FText Prompt;
 	FDIAToasts Toasts;
+	bool bShopOpen = false;
+	bool bCheckView = false;
+	FDIACheckModel CheckModel;
 	TSharedPtr<SDIAHudOverlay> Overlay;
+	/** Built once with the overlay, hidden until the shop opens. */
+	TSharedPtr<SDIAShopPanel> ShopPanel;
+	/** The ground, found when the check view is first switched on. */
+	TWeakObjectPtr<ADIAGroundActor> Ground;
 	/** Built once with the overlay, hidden until the game is won. */
 	TSharedPtr<SDIAWinScreen> WinScreen;
 	bool bWinShown = false;

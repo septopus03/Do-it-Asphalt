@@ -62,6 +62,10 @@ void ADIAPlayerController::SetupInputComponent()
 	Enhanced->BindAction(Input.Hand3, ETriggerEvent::Started, this, &ADIAPlayerController::OnSelectHand, ELotHand::Bucket);
 	Enhanced->BindAction(Input.Hand4, ETriggerEvent::Started, this, &ADIAPlayerController::OnSelectHand, ELotHand::Trowel);
 	Enhanced->BindAction(Input.Interact, ETriggerEvent::Started, this, &ADIAPlayerController::OnInteract);
+	Enhanced->BindAction(Input.Shop, ETriggerEvent::Started, this, &ADIAPlayerController::OnShop);
+	Enhanced->BindAction(Input.CheckView, ETriggerEvent::Started, this, &ADIAPlayerController::OnCheckViewStarted);
+	Enhanced->BindAction(Input.CheckView, ETriggerEvent::Completed, this, &ADIAPlayerController::OnCheckViewCompleted);
+	Enhanced->BindAction(Input.CheckView, ETriggerEvent::Canceled, this, &ADIAPlayerController::OnCheckViewCompleted);
 	Enhanced->BindAction(Input.Pause, ETriggerEvent::Started, this, &ADIAPlayerController::OnPause);
 }
 
@@ -192,6 +196,30 @@ void ADIAPlayerController::OnInteract()
 	}
 }
 
+void ADIAPlayerController::OnShop()
+{
+	if (ADIAHUD* Hud = Cast<ADIAHUD>(GetHUD()))
+	{
+		Hud->ToggleShop();
+	}
+}
+
+void ADIAPlayerController::OnCheckViewStarted()
+{
+	if (ADIAHUD* Hud = Cast<ADIAHUD>(GetHUD()); Hud && !IsUiInput())
+	{
+		Hud->SetCheckView(true);
+	}
+}
+
+void ADIAPlayerController::OnCheckViewCompleted()
+{
+	if (ADIAHUD* Hud = Cast<ADIAHUD>(GetHUD()))
+	{
+		Hud->SetCheckView(false);
+	}
+}
+
 void ADIAPlayerController::OnPause()
 {
 	ADIAHUD* Hud = Cast<ADIAHUD>(GetHUD());
@@ -200,7 +228,30 @@ void ADIAPlayerController::OnPause()
 	{
 		return;
 	}
+	// Esc closes the shop first; with nothing open it opens or closes the pause menu.
+	if (bShopInput)
+	{
+		Hud->SetShopOpen(false);
+		return;
+	}
 	Hud->TogglePause();
+}
+
+void ADIAPlayerController::SetShopInput(bool bOpen)
+{
+	if (bShopInput == bOpen)
+	{
+		return;
+	}
+	bShopInput = bOpen;
+
+	// SetIgnoreLookInput counts: every open is matched by one close.
+	SetIgnoreLookInput(bOpen);
+	if (bOpen)
+	{
+		ReleaseControls();
+	}
+	ApplyInputMode();
 }
 
 void ADIAPlayerController::SetMenuInput(bool bOpen)
@@ -239,7 +290,7 @@ void ADIAPlayerController::ApplyInputMode()
 	}
 	else if (bUi)
 	{
-		// The menu is also left with a key (Esc), which the game has to hear.
+		// The shop and the menu are also left with a key (Tab, Esc), which the game has to hear.
 		FInputModeGameAndUI Mode;
 		Mode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
 		Mode.SetHideCursorDuringCapture(false);
@@ -259,6 +310,10 @@ void ADIAPlayerController::ReleaseControls()
 		Character->SetSprinting(false);
 		Character->SetUsing(false);
 		Character->SetWorkView(false);
+	}
+	if (ADIAHUD* Hud = Cast<ADIAHUD>(GetHUD()))
+	{
+		Hud->SetCheckView(false);
 	}
 }
 

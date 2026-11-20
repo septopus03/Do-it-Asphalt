@@ -175,6 +175,9 @@ def build_ground():
     softness = node(mat, unreal.MaterialExpressionScalarParameter, -1000, 300,
                     parameter_name="EdgeSoftness", default_value=0.1)
     world = node(mat, unreal.MaterialExpressionWorldPosition, -1000, 450)
+    # The check view (hold V) sets this to 1: every part of the lot without finished asphalt turns orange.
+    missing = node(mat, unreal.MaterialExpressionScalarParameter, -1000, 600,
+                   parameter_name="MissingHighlight", default_value=0.0)
 
     # One Custom node decides the whole look: rgb = base colour, a = roughness. The cell grid lines come from the
     # world position, so they need no texture; the lot shape (an L: the +X/+Y quadrant is the mall) is in the code.
@@ -198,11 +201,16 @@ colour = lerp(colour, float3(0.07036, 0.07036, 0.08022), wR);
 rough = lerp(rough, 1.0, wR);
 colour = lerp(colour, float3(0.01681, 0.01681, 0.01938), wG);
 rough = lerp(rough, 0.6, wG);
+// Check view: everything inside the lot that is not finished asphalt (bare ground and raw asphalt) turns orange.
+float missingMask = Missing * lot * (1.0 - wG);
+colour = lerp(colour, float3(1.0, 0.30, 0.02), missingMask);
+rough = lerp(rough, 0.7, missingMask);
 return float4(colour, rough);""",
-                    ["Coverage", "WorldPos", "Softness"], unreal.CustomMaterialOutputType.CMOT_FLOAT4)
+                    ["Coverage", "WorldPos", "Softness", "Missing"], unreal.CustomMaterialOutputType.CMOT_FLOAT4)
     link(coverage, ground, "Coverage", "RGB")
     link(world, ground, "WorldPos")
     link(softness, ground, "Softness")
+    link(missing, ground, "Missing")
 
     colour = node(mat, unreal.MaterialExpressionComponentMask, -250, 0, r=True, g=True, b=True, a=False)
     link(ground, colour, "")
@@ -211,7 +219,7 @@ return float4(colour, rough);""",
     link(ground, rough, "")
     mel.connect_material_property(rough, "", unreal.MaterialProperty.MP_ROUGHNESS)
 
-    expect_nodes(mat, 6)
+    expect_nodes(mat, 7)
     mel.recompile_material(mat)
     save(path)
 

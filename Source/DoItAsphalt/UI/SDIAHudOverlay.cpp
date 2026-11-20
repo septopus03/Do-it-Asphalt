@@ -3,6 +3,8 @@
 #include "UI/SDIAHudOverlay.h"
 #include "Game/DIAWorldSubsystem.h"
 #include "Styling/CoreStyle.h"
+#include "GameFramework/PlayerController.h"
+#include "Player/DIACharacter.h"
 #include "UI/DIAHUD.h"
 #include "UI/DIAHudStyle.h"
 #include "UI/DIAHudWidgets.h"
@@ -71,9 +73,17 @@ void SDIAHudOverlay::Construct(const FArguments& InArgs)
 		[
 			BuildToasts()
 		]
+		+ SOverlay::Slot().HAlign(HAlign_Center).VAlign(VAlign_Top).Padding(0.f, AsphaltHud::CheckTop, 0.f, 0.f)
+		[
+			BuildCheckView()
+		]
 		+ SOverlay::Slot().HAlign(HAlign_Center).VAlign(VAlign_Bottom).Padding(0.f, 0.f, 0.f, AsphaltHud::BottomMargin)
 		[
 			BuildBottom()
+		]
+		+ SOverlay::Slot().HAlign(HAlign_Right).VAlign(VAlign_Bottom).Padding(AsphaltHud::ScreenMargin)
+		[
+			BuildHand()
 		]
 	];
 }
@@ -135,6 +145,77 @@ TSharedRef<SWidget> SDIAHudOverlay::BuildTopRight()
 			[
 				MakeBar(TAttribute<float>::CreateLambda([this]() { return Model.GetView().ProgressFraction; }), AsphaltHud::ProgressColor, AsphaltHud::ProgressBarWidth)
 			]
+			// The next unlock step (hidden once every step is open).
+			+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Right).Padding(0.f, 8.f, 0.f, 0.f)
+			[
+				SNew(SBox)
+				.Visibility_Lambda([this]() { return Model.GetView().Next.IsEmpty() ? EVisibility::Collapsed : EVisibility::HitTestInvisible; })
+				[
+					AsphaltHud::MakeShadowedText(TAttribute<FText>::CreateLambda([this]() { return Model.GetView().Next; }), AsphaltHud::CaptionFontSize, AsphaltHud::PromptColor)
+				]
+			]
+		];
+}
+
+TSharedRef<SWidget> SDIAHudOverlay::BuildHand()
+{
+	// The item in the hand with how much it holds; the trowel has no gauge, so only its name shows.
+	return SNew(SBorder)
+		.BorderImage(&PanelBrush)
+		.BorderBackgroundColor(AsphaltHud::PanelColor)
+		.Padding(AsphaltHud::PanelPaddingH, AsphaltHud::PanelPaddingV)
+		[
+			SNew(SVerticalBox)
+			+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Right)
+			[
+				AsphaltHud::MakeShadowedText(TAttribute<FText>::CreateLambda([this]() { return Model.GetView().HandLabel; }), AsphaltHud::CaptionFontSize, AsphaltHud::CaptionColor)
+			]
+			+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Right)
+			[
+				SNew(SBox)
+				.Visibility_Lambda([this]() { return Model.GetView().HandGauge.IsEmpty() ? EVisibility::Collapsed : EVisibility::HitTestInvisible; })
+				[
+					AsphaltHud::MakeShadowedText(TAttribute<FText>::CreateLambda([this]() { return Model.GetView().HandGauge; }), AsphaltHud::BigFontSize, AsphaltHud::TextColor)
+				]
+			]
+		];
+}
+
+TSharedRef<SWidget> SDIAHudOverlay::BuildCheckView()
+{
+	TWeakObjectPtr<ADIAHUD> WeakHud = Hud;
+	auto View = [WeakHud]() { return WeakHud.IsValid() ? WeakHud->GetCheckView() : FDIACheckView(); };
+	return SNew(SBorder)
+		.BorderImage(&PanelBrush)
+		.BorderBackgroundColor(AsphaltHud::PanelColor)
+		.Padding(AsphaltHud::PanelPaddingH, AsphaltHud::PanelPaddingV)
+		.Visibility_Lambda([View]() { return View().Nearest.IsEmpty() ? EVisibility::Collapsed : EVisibility::HitTestInvisible; })
+		[
+			SNew(SHorizontalBox)
+			// The arrow: "→" turned so that straight up on the screen is straight ahead.
+			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0.f, 0.f, 16.f, 0.f)
+			[
+				SNew(STextBlock)
+				.Text(NSLOCTEXT("DIAHud", "CheckArrow", "→"))
+				.Font(FCoreStyle::GetDefaultFontStyle("Bold", AsphaltHud::CheckArrowFontSize))
+				.ColorAndOpacity(AsphaltHud::CheckColor)
+				.RenderTransformPivot(FVector2D(0.5, 0.5))
+				.RenderTransform_Lambda([WeakHud, View]()
+				{
+					const APlayerController* Controller = WeakHud.IsValid() ? WeakHud->GetOwningPlayerController() : nullptr;
+					const ADIACharacter* Character = Controller ? Cast<ADIACharacter>(Controller->GetPawn()) : nullptr;
+					const FDIACheckView Check = View();
+					const double Yaw = Controller ? Controller->GetControlRotation().Yaw : 0.0;
+					const FVector2D From = Character ? FVector2D(Character->GetActorLocation()) : FVector2D::ZeroVector;
+					// Right is 0 for the glyph, ahead (up) is -90.
+					const double Degrees = DIAFormat::ArrowDegrees(From, Check.Target, Yaw) - 90.0;
+					return TOptional<FSlateRenderTransform>(FSlateRenderTransform(FQuat2D(FMath::DegreesToRadians(Degrees))));
+				})
+			]
+			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
+			[
+				AsphaltHud::MakeShadowedText(TAttribute<FText>::CreateLambda([View]() { return View().Nearest; }), AsphaltHud::MediumFontSize, AsphaltHud::CheckColor)
+			]
 		];
 }
 
@@ -142,6 +223,26 @@ TSharedRef<SWidget> SDIAHudOverlay::BuildBottom()
 {
 	TWeakObjectPtr<ADIAHUD> WeakHud = Hud;
 	return SNew(SVerticalBox)
+		// The plant's stock, while a refill is within reach (hidden elsewhere).
+		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0.f, 0.f, 0.f, 10.f)
+		[
+			SNew(SBorder)
+			.BorderImage(&PanelBrush)
+			.BorderBackgroundColor(AsphaltHud::PanelColor)
+			.Padding(AsphaltHud::PanelPaddingH, AsphaltHud::PanelPaddingV)
+			.Visibility_Lambda([this]() { return Model.GetView().Refill.IsEmpty() ? EVisibility::Collapsed : EVisibility::HitTestInvisible; })
+			[
+				SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0.f, 0.f, 12.f, 0.f)
+				[
+					AsphaltHud::MakeShadowedText(NSLOCTEXT("DIAHud", "RefillCaption", "Plant stock"), AsphaltHud::CaptionFontSize, AsphaltHud::CaptionColor)
+				]
+				+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
+				[
+					AsphaltHud::MakeShadowedText(TAttribute<FText>::CreateLambda([this]() { return Model.GetView().Refill; }), AsphaltHud::MediumFontSize, AsphaltHud::TextColor)
+				]
+			]
+		]
 		// Contextual prompt (hidden while empty).
 		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0.f, 0.f, 0.f, 10.f)
 		[

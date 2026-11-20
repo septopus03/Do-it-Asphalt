@@ -11,7 +11,7 @@
 #include "UI/DIAFormat.h"
 #include "UI/DIAHudStyle.h"
 
-DIA_TEST(FFormatTest, "DoItAsphalt.Game.Format")
+DIA_TEST(FFormatTest, "DoItAsphalt.Game.Format.Text")
 
 bool FFormatTest::RunTest(const FString& Parameters)
 {
@@ -28,9 +28,9 @@ bool FFormatTest::RunTest(const FString& Parameters)
 	Is(TEXT("credits negative never shows a minus"), DIAFormat::Credits(-3.0), TEXT("0"));
 
 	// Litres: one decimal at most, rounded down so that "full" really means full.
-	Is(TEXT("litres 3.24 / 5"), DIAFormat::Litres(3.24, 5.0), TEXT("3.2 / 5 L"));
-	Is(TEXT("litres 200 / 200"), DIAFormat::Litres(200.0, 200.0), TEXT("200 / 200 L"));
-	Is(TEXT("litres 4.99 / 5 is not shown as full"), DIAFormat::Litres(4.99, 5.0), TEXT("4.9 / 5 L"));
+	Is(TEXT("litres 3.24 / 5"), DIAFormat::Litres(3.24, 5.0), TEXT("3.2 / 5 l"));
+	Is(TEXT("litres 200 / 200"), DIAFormat::Litres(200.0, 200.0), TEXT("200 / 200 l"));
+	Is(TEXT("litres 4.99 / 5 is not shown as full"), DIAFormat::Litres(4.99, 5.0), TEXT("4.9 / 5 l"));
 
 	// Progress: cells done / total and the percentage rounded down (100 % only when really done).
 	Is(TEXT("progress 137 / 30,000"), DIAFormat::Progress(137, AsphaltLot::NumCells), TEXT("137 / 30,000 · 0%"));
@@ -42,7 +42,7 @@ bool FFormatTest::RunTest(const FString& Parameters)
 	Is(TEXT("count"), DIAFormat::Count(1234567), TEXT("1,234,567"));
 	Is(TEXT("duration 754"), DIAFormat::Duration(754.0), TEXT("12:34"));
 	Is(TEXT("duration 3725"), DIAFormat::Duration(3725.0), TEXT("1:02:05"));
-	Is(TEXT("litres poured"), DIAFormat::LitresPoured(12345.9), TEXT("12,345 L"));
+	Is(TEXT("litres poured"), DIAFormat::LitresPoured(12345.9), TEXT("12,345 l"));
 	Is(TEXT("items owned"), DIAFormat::Items(8, 16), TEXT("8 / 16"));
 
 	// Toast and prompt texts.
@@ -53,7 +53,19 @@ bool FFormatTest::RunTest(const FString& Parameters)
 	Is(TEXT("item name"), DIAFormat::ItemName(ELotItem::AutoPaver), TEXT("Auto Paver"));
 	Is(TEXT("item toast"), DIAFormat::ItemBoughtToast(ELotItem::Scoop), TEXT("Scoop bought"));
 	Is(TEXT("unlock name"), DIAFormat::UnlockName(ELotUnlock::Sprint), TEXT("Sprint"));
-	Is(TEXT("unlock toast"), DIAFormat::UnlockToast(ELotUnlock::Sprint), TEXT("Sprint unlocked"));
+	Is(TEXT("car item name"), DIAFormat::ItemName(ELotItem::Car), TEXT("Paver Car"));
+	Is(TEXT("car upgrade name"), DIAFormat::ItemName(ELotItem::CarWideBar), TEXT("Wide Bar"));
+	Is(TEXT("car unlock name"), DIAFormat::UnlockName(ELotUnlock::Car), TEXT("Paver Car"));
+	Is(TEXT("hand name"), DIAFormat::HandName(ELotHand::Trowel), TEXT("Trowel"));
+	TestEqual(TEXT("unlock toast"), DIAFormat::UnlockToast(ELotUnlock::Sprint).ToString(), FString(TEXT("Unlocked: Sprint\n")) + DIAFormat::UnlockEffect(ELotUnlock::Sprint).ToString());
+	Is(TEXT("nearest unfinished"), DIAFormat::NearestUnfinished(4180.0), TEXT("Nearest unfinished: 42 m"));
+	Is(TEXT("nearest unfinished rounds to the nearest metre"), DIAFormat::NearestUnfinished(4260.0), TEXT("Nearest unfinished: 43 m"));
+	// The arrow: 0 = straight ahead, 90 = to the right (+Y when looking along +X), -90 = to the left, 180 = behind.
+	TestEqual(TEXT("arrow ahead"), DIAFormat::ArrowDegrees(FVector2D(0.0, 0.0), FVector2D(500.0, 0.0), 0.0), 0.0, 1e-6);
+	TestEqual(TEXT("arrow right"), DIAFormat::ArrowDegrees(FVector2D(0.0, 0.0), FVector2D(0.0, 500.0), 0.0), 90.0, 1e-6);
+	TestEqual(TEXT("arrow left"), DIAFormat::ArrowDegrees(FVector2D(0.0, 0.0), FVector2D(0.0, -500.0), 0.0), -90.0, 1e-6);
+	TestEqual(TEXT("arrow follows the view yaw"), DIAFormat::ArrowDegrees(FVector2D(0.0, 0.0), FVector2D(0.0, 500.0), 90.0), 0.0, 1e-6);
+	TestEqual(TEXT("arrow behind"), FMath::Abs(DIAFormat::ArrowDegrees(FVector2D(0.0, 0.0), FVector2D(-500.0, 0.0), 0.0)), 180.0, 1e-6);
 	{
 		// The boards of the entry segments: name, entry cells, cells of the car park; UNLOCKED once the step is open.
 		FLotGame Game;
@@ -85,6 +97,27 @@ bool FFormatTest::RunTest(const FString& Parameters)
 	for (int32 I = 0; I < static_cast<int32>(ELotUnlock::Count); ++I)
 	{
 		TestFalse(*FString::Printf(TEXT("unlock %d has a name"), I), DIAFormat::UnlockName(static_cast<ELotUnlock>(I)).IsEmpty());
+	}
+	return true;
+}
+
+DIA_TEST(FFormatNamesTest, "DoItAsphalt.Game.Format.Names")
+
+bool FFormatNamesTest::RunTest(const FString& Parameters)
+{
+	for (int32 I = 0; I < static_cast<int32>(ELotItem::Count); ++I)
+	{
+		TestFalse(*FString::Printf(TEXT("item %d has a name"), I), DIAFormat::ItemName(static_cast<ELotItem>(I)).IsEmpty());
+	}
+	for (int32 I = 0; I < static_cast<int32>(ELotUnlock::Count); ++I)
+	{
+		const ELotUnlock Unlock = static_cast<ELotUnlock>(I);
+		TestFalse(*FString::Printf(TEXT("unlock %d has a name"), I), DIAFormat::UnlockName(Unlock).IsEmpty());
+		TestFalse(*FString::Printf(TEXT("unlock %d says what it opens"), I), DIAFormat::UnlockEffect(Unlock).IsEmpty());
+	}
+	for (int32 I = 0; I < static_cast<int32>(ELotHand::Count); ++I)
+	{
+		TestFalse(*FString::Printf(TEXT("hand %d has a name"), I), DIAFormat::HandName(static_cast<ELotHand>(I)).IsEmpty());
 	}
 	return true;
 }
