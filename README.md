@@ -74,7 +74,7 @@ Začni v [`docs/README.md`](docs/README.md). Odtiaľ vedú:
 Automaticky overené (2026-11-20, `Scripts/build.sh && Scripts/test.sh`):
 
 - Automatické testy: `PASSED 125 / FAILED 0` (jadro `AsphaltCore` aj herný modul `DoItAsphalt`).
-- Simulácia balansu (test `DoItAsphalt.Core.BalanceSim.Playthrough`, súčasť týchto 125 testov): prechod hry trvá približne 50 minút a všetkých 35 vylepšení je kúpených pred dokončením 60 % buniek (hodnoty z `docs/01-herny-dizajn.md`).
+- Simulácia balansu (test `DoItAsphalt.Core.BalanceSim.Playthrough`, súčasť týchto 125 testov) prešla. Test vyžaduje: hra sa dá dohrať, východ sa otvorí, celkový čas je v rozsahu 45 – 100 minút, kúpi sa presne 35 vylepšení, všetky pred dokončením 75 % buniek, a v prvých 30 minútach nie je medzi nákupmi pauza dlhšia ako 4 minúty. Posledný beh nameral 50,4 min, 35 nákupov, posledný nákup pri 292 / 499 bunkách (približne 58 %), najdlhšia pauza v prvých 30 minútach 183 s. Cieľ z `docs/01-herny-dizajn.md` (približne 50 minút, všetky vylepšenia pred 60 % buniek) je návrhový cieľ; test ho nevynucuje presne, len v uvedených hraniciach.
 - Shipping cieľ `DoItAsphalt Mac Shipping` sa skompiluje a zlinkuje (`DoItAsphalt-Mac-Shipping`, približne 281 MB).
 - V Shipping binárke nie sú cheaty: v nej sa nenachádza žiadny reťazec `dia.Give`, `dia.Complete`, `dia.CompleteRoad`, `dia.SetLevels`, `dia.Special`, `dia.Teleport`, `dia.Prompt`, `dia.Toast`, `dia.Shop`, `dia.SkipMenu`, `dia.Camera`, `dia.TopView` ani `dia.ShotAndQuit`. Pozor: reťazce `TEXT()` sú v UE na Macu UTF-16, takže obyčajné `strings` ich nenájde ani tam, kde sú; hľadalo sa preto v UTF-16 aj v ASCII a kontrola sa overila na editorovej knižnici `libUnrealEditor-DoItAsphalt.dylib`, kde ich nájde (napríklad `dia.Give` 2x).
 
