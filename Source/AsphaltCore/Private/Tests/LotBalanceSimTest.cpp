@@ -42,8 +42,8 @@ DIA_TEST(FLotBalanceSimPlaythroughTest, "DoItAsphalt.Lot.BalanceSim.Playthrough"
  *    RefillRadiusCm of the source; an aim point must lie within ReachCm of the player.
  *
  * Modelling choices the core leaves open (none of them is a game number):
- *  - One trowel stroke drags over the length of one cell, ScoopCycleSeconds per stroke; a strip needs four lanes.
- *  - Transporting the finisher or the station uses CartPushSpeedCmS; pulling the suitcase SuitcasePullSpeedCmS.
+ *  - The trowel moves at TrowelSpeedCmS; the lanes cover the cart strip width.
+ *  - Pushing the finisher, carrying the station and the trowel use their own tunables; pulling the suitcase SuitcasePullSpeedCmS.
  *  - The core has no "enter the car" action; the player walks to the car and sets World().bPlayerInCar.
  *  - The station is moved only when the next target lies farther than StationRelocateCm from it, to 5 m from the target.
  *  - The car (3 m or 3.5 m bar) lays bands along the X axis and waits whenever the stock cannot pay the next step.
@@ -83,8 +83,6 @@ namespace
 	const double TrowelLaneSpacingCm = LotBalance::CartStripWidthCm / TrowelLanes;
 	/** Margin that keeps every point of a cell within ReachCm: half a cell diagonal. */
 	constexpr double CellReachMarginCm = AsphaltLot::CellCm * 0.71;
-	/** Speed of the trowel: one cell length per stroke. */
-	constexpr double TrowelSpeedCmS = AsphaltLot::CellCm / LotBalance::ScoopCycleSeconds;
 
 	constexpr int32 NumItems = static_cast<int32>(ELotItem::Count);
 	constexpr int32 NumUnlocks = static_cast<int32>(ELotUnlock::Count);
@@ -508,7 +506,7 @@ namespace
 			GoWithin(Station, LotBalance::InteractionRangeCm, WalkSpeed());
 			if (G.Grab(ELotMovable::Station))
 			{
-				Travel(Target - (Target - Station) / Distance * StationOffsetCm, LotBalance::CartPushSpeedCmS);
+				Travel(Target - (Target - Station) / Distance * StationOffsetCm, LotBalance::StationCarrySpeedCmS);
 				G.Release(Pos, 0.0);
 			}
 		}
@@ -803,7 +801,7 @@ namespace
 				const FVector2D End = (Lane % 2 == 0 ? Strip.A : Strip.B) + Offset;
 				Travel(Start, WalkSpeed());
 				Cur = EAct::Finish;
-				MoveAlong(End, TrowelSpeedCmS, [](double) { return true; }, [this](FVector2D From, FVector2D To)
+				MoveAlong(End, LotBalance::TrowelSpeedCmS, [](double) { return true; }, [this](FVector2D From, FVector2D To)
 				{
 					G.Trowel(From, To);
 				});
@@ -817,8 +815,8 @@ namespace
 			const double PassSeconds = FVector2D::Distance(Strip.A, Strip.B) / LotBalance::FinisherSpeedCmS();
 			// Start at the end that costs less: walk to the machine, push it to the start, pass; ending away from the cart costs the walk back.
 			const double ToMachine = FVector2D::Distance(Pos, Machine) / WalkSpeed();
-			const double CostFromA = ToMachine + FVector2D::Distance(Machine, Strip.A) / LotBalance::CartPushSpeedCmS + PassSeconds;
-			const double CostFromB = ToMachine + FVector2D::Distance(Machine, Strip.B) / LotBalance::CartPushSpeedCmS + PassSeconds
+			const double CostFromA = ToMachine + FVector2D::Distance(Machine, Strip.A) / LotBalance::FinisherPushSpeedCmS + PassSeconds;
+			const double CostFromB = ToMachine + FVector2D::Distance(Machine, Strip.B) / LotBalance::FinisherPushSpeedCmS + PassSeconds
 				+ FVector2D::Distance(Strip.A, Strip.B) / WalkSpeed();
 			const bool bFromA = CostFromA <= CostFromB;
 			ReleaseHeld();
@@ -827,7 +825,7 @@ namespace
 			{
 				return;
 			}
-			Travel(bFromA ? Strip.A : Strip.B, LotBalance::CartPushSpeedCmS);
+			Travel(bFromA ? Strip.A : Strip.B, LotBalance::FinisherPushSpeedCmS);
 			Cur = EAct::Finish;
 			MoveAlong(bFromA ? Strip.B : Strip.A, LotBalance::FinisherSpeedCmS(), [](double) { return true; }, [this](FVector2D From, FVector2D To)
 			{

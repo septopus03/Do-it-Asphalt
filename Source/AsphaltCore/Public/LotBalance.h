@@ -96,7 +96,7 @@ namespace LotBalance
 
 	// ---- Not fixed by the specification ----
 
-	/** Seconds of one scoop or trowel stroke. */
+	/** Seconds of one scoop stroke. */
 	inline constexpr double ScoopCycleSeconds = 0.5; // tunable
 	/** Litres per second poured from the bowl and the scoop. */
 	inline constexpr double HandPourRateLPerS = 1.0; // tunable
@@ -126,6 +126,12 @@ namespace LotBalance
 	inline constexpr double CartPushSpeedCmS = 400.0; // tunable
 	/** Speed while pushing the cart and laying asphalt. */
 	inline constexpr double CartLaySpeedCmS = 200.0; // tunable
+	/** Fastest the trowel's contact point follows the player's aim. */
+	inline constexpr double TrowelSpeedCmS = 200.0; // tunable
+	/** Speed while pushing the finisher with its bar raised (not finishing); while finishing the speed is FinisherSpeedCmS(). */
+	inline constexpr double FinisherPushSpeedCmS = 400.0; // tunable
+	/** Speed while carrying the portable station. */
+	inline constexpr double StationCarrySpeedCmS = 400.0; // tunable
 	/** Speed with which the auto paver moves into its sector. */
 	inline constexpr double AutoPaverSpeedCmS = 600.0; // tunable
 	/** Most litres the auto paver may hold as work budget; stops a long wait from storing a burst. */

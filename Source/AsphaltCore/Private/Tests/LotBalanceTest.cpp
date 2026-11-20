@@ -10,6 +10,7 @@
 
 DIA_TEST(FLotBalanceTablesTest, "DoItAsphalt.Lot.Balance.Tables")
 DIA_TEST(FLotBalanceDerivedTest, "DoItAsphalt.Lot.Balance.Derived")
+DIA_TEST(FLotBalanceMachineSpeedsTest, "DoItAsphalt.Lot.Balance.MachineSpeeds")
 DIA_TEST(FLotLayoutNothingFixedOnLotTest, "DoItAsphalt.Lot.Layout.NothingFixedOnLot")
 DIA_TEST(FLotLayoutStartTest, "DoItAsphalt.Lot.Layout.Start")
 
@@ -51,6 +52,15 @@ bool FLotBalanceDerivedTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("car speed, plain bar"), LotBalance::CarPaveSpeedCmS(0), 144.444, 0.01);
 	TestEqual(TEXT("car speed, wide bar"), LotBalance::CarPaveSpeedCmS(1), 142.857, 0.01);
 	TestEqual(TEXT("dispense rate"), LotBalance::DispenseRateLPerS(0), 2.5);
+	return true;
+}
+
+bool FLotBalanceMachineSpeedsTest::RunTest(const FString& Parameters)
+{
+	TestTrue(TEXT("trowel speed"), LotBalance::TrowelSpeedCmS > 0.0);
+	TestTrue(TEXT("finisher push speed"), LotBalance::FinisherPushSpeedCmS > 0.0);
+	TestTrue(TEXT("station carry speed"), LotBalance::StationCarrySpeedCmS > 0.0);
+	TestTrue(TEXT("pushing the finisher is faster than finishing"), LotBalance::FinisherPushSpeedCmS > LotBalance::FinisherSpeedCmS());
 	return true;
 }
 
