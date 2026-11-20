@@ -164,6 +164,7 @@ bool FWinModelTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("the first update builds the view"), Model.Update(Game));
 	TestEqual(TEXT("no items yet"), Model.GetView().Items.ToString(), FString::Printf(TEXT("0 / %d"), FDIAWinModel::ItemsTotal()));
 	TestEqual(TEXT("no credits earned yet"), Model.GetView().Credits.ToString(), FString(TEXT("0")));
+	TestEqual(TEXT("no cells paved yet"), Model.GetView().Cells.ToString(), FString(TEXT("0")));
 	TestFalse(TEXT("nothing changed"), Model.Update(Game));
 
 	// Credits earned are what the cells paid, not what is left in the purse.
@@ -173,7 +174,32 @@ bool FWinModelTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("items and plant levels count"), FDIAWinModel::ItemsBought(Game), 3);
 	TestTrue(TEXT("changes rebuild the view"), Model.Update(Game));
 	TestEqual(TEXT("credits earned"), Model.GetView().Credits.ToString(), FString(TEXT("2,000")));
+	TestEqual(TEXT("cells paved"), Model.GetView().Cells.ToString(), FString(TEXT("200")));
 	TestEqual(TEXT("items text"), Model.GetView().Items.ToString(), FString::Printf(TEXT("3 / %d"), FDIAWinModel::ItemsTotal()));
+	return true;
+}
+
+DIA_TEST(FCarFormatTest, "DoItAsphalt.Game.Car.Format")
+
+bool FCarFormatTest::RunTest(const FString& Parameters)
+{
+	TestEqual(TEXT("the way in"), DIAFormat::CarPrompt(false).ToString(), FString(TEXT("E – Get in")));
+	TestEqual(TEXT("the way out"), DIAFormat::CarPrompt(true).ToString(), FString(TEXT("E – Get out")));
+	TestEqual(TEXT("the sign says EXIT"), DIAFormat::ExitSign().ToString(), FString(TEXT("EXIT")));
+	TestFalse(TEXT("the toast for no room to get out has text"), DIAFormat::CarNoExitToast().IsEmpty());
+
+	// The hand panel shows the car while driving, never a stale vessel, and the HUD model notices the change.
+	FLotGame Game;
+	Game.DebugGrantItem(ELotItem::Car);
+	Game.DebugGrantItem(ELotItem::Bucket);
+	FDIAHudModel Model;
+	Model.Update(Game);
+	TestFalse(TEXT("on foot the hand shows the item"), Model.GetView().HandLabel.ToString() == TEXT("Car"));
+	Game.World().bPlayerInCar = true;
+	TestTrue(TEXT("getting in rebuilds the view"), Model.Update(Game));
+	TestEqual(TEXT("in the car the hand panel says Car"), Model.GetView().HandLabel.ToString(), FString(TEXT("Car")));
+	TestTrue(TEXT("and shows no vessel"), Model.GetView().HandGauge.IsEmpty());
+	TestEqual(TEXT("the label function agrees"), DIAFormat::HandLabel(Game).ToString(), FString(TEXT("Car")));
 	return true;
 }
 

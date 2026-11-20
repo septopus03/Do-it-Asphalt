@@ -267,14 +267,38 @@ void ADIALotEdge::BuildFrames()
 void ADIALotEdge::BuildWalls()
 {
 	const double Thick = DIASite::WallThicknessCm;
-	// Along the fence line, with the inner face where the panels stand and the ends running past the corners so that they seal.
+	// Along the fence line, with the inner face where the panels stand and the ends running past the corners so that they seal. The
+	// side with the exit gate has a gap there (the gate's posts close its ends, its arm the passage while it is closed).
+	const FVector2D Gate = LotLayout::GatePos();
+	const double GapHalf = DIASite::GateWallGapHalfCm;
 	for (const FRun& Side : OuterSides(OuterCm))
 	{
 		const FVector2D Direction = Side.Direction();
-		const FVector2D Centre = (Side.Start + Side.End) * 0.5 + Side.Outward * (Thick * 0.5 - DIAModelSizes::FenceCm.X * 0.5);
-		const double HalfLength = Side.Length() * 0.5 + Thick;
 		const bool bAlongX = FMath::Abs(Direction.X) > 0.5;
-		Walls.Add(AddWall(this, Centre, bAlongX ? FVector2D(HalfLength, Thick * 0.5) : FVector2D(Thick * 0.5, HalfLength)));
+		const double StartAlong = FVector2D::DotProduct(Side.Start, Direction);
+		const double Low = StartAlong - Thick;
+		const double High = StartAlong + Side.Length() + Thick;
+		const FVector2D Relative = Gate - Side.Start;
+		const double GateAlong = FVector2D::DotProduct(Relative, Direction) + StartAlong;
+		const bool bGateHere = FMath::Abs(FVector2D::DotProduct(Relative, Side.Outward)) <= 1.0 && GateAlong - GapHalf > Low && GateAlong + GapHalf < High;
+
+		TArray<TPair<double, double>> Spans;
+		if (bGateHere)
+		{
+			Spans.Emplace(Low, GateAlong - GapHalf);
+			Spans.Emplace(GateAlong + GapHalf, High);
+		}
+		else
+		{
+			Spans.Emplace(Low, High);
+		}
+		for (const TPair<double, double>& Span : Spans)
+		{
+			const double Middle = (Span.Key + Span.Value) * 0.5;
+			const FVector2D Centre = Side.Start + Direction * (Middle - StartAlong) + Side.Outward * (Thick * 0.5 - DIAModelSizes::FenceCm.X * 0.5);
+			const double HalfLength = (Span.Value - Span.Key) * 0.5;
+			Walls.Add(AddWall(this, Centre, bAlongX ? FVector2D(HalfLength, Thick * 0.5) : FVector2D(Thick * 0.5, HalfLength)));
+		}
 	}
 	// Along the strip's edges at the mall: from where the car park's side ends to the fence line. The walls are centred on the line
 	// where the mall begins, so that they only touch the car park.
@@ -301,8 +325,12 @@ void ADIALotEdge::BuildRoadEnds()
 			Turn.RotateVector(FVector(DIAModelSizes::RoadStubCm.X * 0.5, 0.0, DIAModelSizes::RoadStubCm.Z * 0.5)), TEXT("DIA_Asphalt"));
 		Stubs.Add(Stub);
 
-		// The barrier closes it at the fence; at the exit it stands in the gap of the fence, where the gate will be.
-		const double Distance = Entry == LotLayout::ExitEntry ? LotLayout::StripCm : LotLayout::StripCm - DIAModelSizes::FenceCm.X * 0.5 - DIAModelSizes::BarrierCm.X * 0.5;
+		// The barrier closes it at the fence; the exit has the gate in the gap of the fence instead (ADIAExitGate).
+		if (Entry == LotLayout::ExitEntry)
+		{
+			continue;
+		}
+		const double Distance = LotLayout::StripCm - DIAModelSizes::FenceCm.X * 0.5 - DIAModelSizes::BarrierCm.X * 0.5;
 		const FVector2D Where = Origin + Outward * Distance;
 		UStaticMeshComponent* Barrier = NewObject<UStaticMeshComponent>(this);
 		Barrier->SetupAttachment(GetRootComponent());

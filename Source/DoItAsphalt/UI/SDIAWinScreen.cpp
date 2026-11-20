@@ -32,6 +32,10 @@ void SDIAWinScreen::Construct(const FArguments& InArgs)
 		]
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 0.f, 0.f, AsphaltHud::WinRowSpacing)
 		[
+			BuildStatRow(NSLOCTEXT("DIAHud", "WinCells", "Cells paved"), [this]() { return Model.GetView().Cells; }, AsphaltHud::TextColor)
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 0.f, 0.f, AsphaltHud::WinRowSpacing)
+		[
 			BuildStatRow(NSLOCTEXT("DIAHud", "WinPoured", "Asphalt poured"), [this]() { return Model.GetView().Poured; }, AsphaltHud::TextColor)
 		]
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 0.f, 0.f, AsphaltHud::WinRowSpacing)

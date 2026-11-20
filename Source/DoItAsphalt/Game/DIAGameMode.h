@@ -22,7 +22,7 @@ public:
 
 	virtual void StartPlay() override;
 
-	/** Builds the surroundings of the car park once: the mall, the kerb and fence with the invisible walls, and the six entry boards. Does nothing if they stand already. */
+	/** Builds the surroundings of the car park once: the mall, the kerb and fence with the invisible walls, the exit gate and the six entry boards. Does nothing if they stand already. */
 	void EnsureSite();
 	/**
 	 * Makes the actors match the core for one movable: exactly one ADIAMovable of the kind if the game owns it (spawned at its
@@ -31,6 +31,8 @@ public:
 	void EnsureMovable(ELotMovable Kind);
 	/** Makes the actors match the core for the auto paver: exactly one ADIAAutoPaver while the game owns it, none otherwise. */
 	void EnsureAutoPaver();
+	/** Makes the actors match the core for the paver car: exactly one ADIAPaverCar while the game owns it (at the core's pose), none otherwise. */
+	void EnsureCar();
 	virtual void EndPlay(const EEndPlayReason::Type Reason) override;
 
 	/** The player starts at LotLayout::PlayerStart, whatever PlayerStart actors the level has. */
@@ -39,7 +41,7 @@ public:
 	virtual void RestartPlayerAtPlayerStart(AController* NewPlayer, AActor* StartSpot) override;
 
 private:
-	/** EnsureMovable for every kind and EnsureAutoPaver: the start of play, a purchase and a loaded or restarted game all end here. */
+	/** EnsureMovable for every kind, EnsureAutoPaver and EnsureCar: the start of play, a purchase and a loaded or restarted game all end here. */
 	void EnsureAllMovables();
 	void HandleItemBought(ELotItem Item) { EnsureAllMovables(); }
 

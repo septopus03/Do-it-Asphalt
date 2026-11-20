@@ -187,7 +187,7 @@ void ADIAMovable::SyncFromCore()
 		if (!bShownHeld)
 		{
 			bShownHeld = true;
-			bLaying = false;
+			ToolPath.Reset();
 			Collision->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		}
 		// The pose is the player's; the core's position is only written when it is let go.
@@ -211,7 +211,7 @@ void ADIAMovable::SyncFromCore()
 void ADIAMovable::PlaceStanding(FVector2D Where, double YawDeg)
 {
 	bShownHeld = false;
-	bLaying = false;
+	ToolPath.Reset();
 	TickAfter(nullptr);
 	SetActorLocationAndRotation(FVector(Where.X, Where.Y, 0.0), FRotator(0.0, YawDeg, 0.0));
 	Collision->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
@@ -383,34 +383,10 @@ bool ADIAMovable::NextToolPath(const ADIACharacter* Player, float DeltaSeconds, 
 {
 	if (!Player || !Player->IsUsing())
 	{
-		bLaying = false;
+		ToolPath.Reset();
 		return false;
 	}
-	const FVector2D Current = GetMouthPoint();
-	const float LastSeconds = PreviousWorkSeconds;
-	PreviousWorkSeconds = DeltaSeconds;
-	if (!bLaying)
-	{
-		// The first tick of a press: the previous point is the current one, so nothing is done yet.
-		bLaying = true;
-		PreviousMouth = Current;
-		return false;
-	}
-	if (Current.Equals(PreviousMouth, DIAMovable::MouthMoveToleranceCm))
-	{
-		// A tool that stands still works nothing, and a slow one adds up its steps.
-		return false;
-	}
-	if (FVector2D::Distance(Current, PreviousMouth) > SpeedCmS * FMath::Max(DeltaSeconds, LastSeconds) * DIAMovable::LayJumpSlack)
-	{
-		// More than a walk at the working speed can have covered: it jumped (a teleport) or swung (a quick turn). The path starts again here.
-		PreviousMouth = Current;
-		return false;
-	}
-	OutFrom = PreviousMouth;
-	OutTo = Current;
-	PreviousMouth = Current;
-	return true;
+	return ToolPath.Advance(GetMouthPoint(), DeltaSeconds, SpeedCmS, OutFrom, OutTo);
 }
 
 void ADIAMovable::WorkTheStrip(UDIAWorldSubsystem& Subsystem, const ADIACharacter* Player, float DeltaSeconds)
@@ -488,7 +464,7 @@ void ADIAMovable::Tick(float DeltaSeconds)
 	}
 	else
 	{
-		bLaying = false;
+		ToolPath.Reset();
 		const bool bTank = Kind == ELotMovable::Suitcase || Kind == ELotMovable::Cart;
 		if (bTank && DIARefill::IsInZone(Game, FVector2D(GetActorLocation().X, GetActorLocation().Y)))
 		{

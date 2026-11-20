@@ -64,6 +64,11 @@ namespace
 	bool GaugeOf(const FLotGame& Game, double& OutHave, double& OutCapacity)
 	{
 		const ELotMovable Held = Game.GetHeld();
+		// Behind the wheel there is no vessel.
+		if (Game.World().bPlayerInCar)
+		{
+			return false;
+		}
 		if (Held == ELotMovable::Suitcase || Held == ELotMovable::Cart)
 		{
 			OutHave = Game.GetMovableLitres(Held);
@@ -253,6 +258,10 @@ FText DIAFormat::UnlockEffect(ELotUnlock Unlock)
 
 FText DIAFormat::HandLabel(const FLotGame& Game)
 {
+	if (Game.World().bPlayerInCar)
+	{
+		return LOCTEXT("HandCar", "Car");
+	}
 	switch (Game.GetHeld())
 	{
 	case ELotMovable::Suitcase: return ItemName(ELotItem::Suitcase);
@@ -360,6 +369,21 @@ FText DIAFormat::ExitToast()
 	return LOCTEXT("ToastExit", "The exit is open!");
 }
 
+FText DIAFormat::CarPrompt(bool bInCar)
+{
+	return bInCar ? LOCTEXT("PromptGetOut", "E – Get out") : LOCTEXT("PromptGetIn", "E – Get in");
+}
+
+FText DIAFormat::CarNoExitToast()
+{
+	return LOCTEXT("ToastCarNoExit", "No room to get out here.");
+}
+
+FText DIAFormat::ExitSign()
+{
+	return LOCTEXT("ExitSign", "EXIT");
+}
+
 FText DIAFormat::SectorNumber(int32 Sector)
 {
 	return Count(Sector + 1);
@@ -428,6 +452,7 @@ bool FDIAHudModel::Update(const FLotGame& Game)
 	NewKey.CellsTotal = AsphaltLot::NumCells;
 	NewKey.Hand = static_cast<int32>(Game.GetHand());
 	NewKey.Held = static_cast<int32>(Game.GetHeld());
+	NewKey.InCar = Game.World().bPlayerInCar ? 1 : 0;
 	double Have = 0.0;
 	double Capacity = 0.0;
 	if (GaugeOf(Game, Have, Capacity))
@@ -649,6 +674,7 @@ bool FDIAWinModel::Update(const FLotGame& Game)
 	View.Time = DIAFormat::Duration(Game.GetPlaytimeSeconds());
 	View.Poured = DIAFormat::LitresPoured(Game.GetTotalLitres());
 	// Every credit comes from completed cells, so what was earned is what they paid; the purse is smaller after the shopping.
+	View.Cells = DIAFormat::Count(NewKey.Cells);
 	View.Credits = DIAFormat::Credits(NewKey.Cells * LotBalance::CreditsPerCell);
 	View.Items = DIAFormat::Items(NewKey.Bought, ItemsTotal());
 	return true;

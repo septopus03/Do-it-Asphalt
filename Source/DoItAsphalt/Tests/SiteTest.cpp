@@ -21,6 +21,7 @@
 #include "LotMap.h"
 #include "Tests/DIATestWorld.h"
 #include "World/DIAEntryBoard.h"
+#include "World/DIAExitGate.h"
 #include "World/DIAGroundActor.h"
 #include "World/DIALotEdge.h"
 #include "World/DIAMallActor.h"
@@ -171,7 +172,7 @@ bool FSiteCountsTest::RunTest(const FString& Parameters)
 
 	TestEqual(TEXT("four boxes of white frame per entry"), Edge->GetFrames()->GetInstanceCount(), 4 * AsphaltLot::NumEntries);
 	TestEqual(TEXT("old road at the entries 3, 4, 5"), Edge->GetStubs().Num(), 3);
-	TestEqual(TEXT("a barrier at each of them"), Edge->GetBarriers().Num(), 3);
+	TestEqual(TEXT("a barrier at the entries 3 and 4 (the exit gate stands at the entry 5)"), Edge->GetBarriers().Num(), 2);
 	return true;
 }
 
@@ -249,7 +250,11 @@ bool FSiteWallsTest::RunTest(const FString& Parameters)
 		if (Along <= SiteTestCutCm)
 		{
 			ExpectOut(FString::Printf(TEXT("top, x=%.0f"), Along), FVector2D(Along, 9000.0), FVector2D(Along, Out));
-			ExpectOut(FString::Printf(TEXT("right, y=%.0f"), Along), FVector2D(9000.0, Along), FVector2D(Out, Along));
+			// The wall has its gap at the gate (tested below).
+			if (FMath::Abs(Along - LotLayout::GatePos().Y) > DIASite::GateWallGapHalfCm)
+			{
+				ExpectOut(FString::Printf(TEXT("right, y=%.0f"), Along), FVector2D(9000.0, Along), FVector2D(Out, Along));
+			}
 		}
 	}
 	// The places where something else stands or the pieces meet: the gaps of the trough and the gate, the slits beside the gate's
@@ -258,9 +263,17 @@ bool FSiteWallsTest::RunTest(const FString& Parameters)
 	{
 		ExpectOut(FString::Printf(TEXT("trough gap, x=%.0f"), X), FVector2D(X, -9000.0), FVector2D(X, -Out));
 	}
-	for (const double Y : {LotLayout::GatePos().Y, LotLayout::GatePos().Y - 190.0, LotLayout::GatePos().Y + 190.0, LotLayout::GatePos().Y - 170.0, LotLayout::GatePos().Y + 170.0})
+	// The wall has a gap at the gate (the posts of its frame seal the ends of it): outside the posts the wall stands.
+	for (const double Y : {-300.0, -195.0, 195.0, 300.0})
 	{
-		ExpectOut(FString::Printf(TEXT("gate gap, y=%.0f"), Y), FVector2D(9000.0, Y), FVector2D(Out, Y));
+		ExpectOut(FString::Printf(TEXT("beside the gate posts, y=%.0f"), LotLayout::GatePos().Y + Y), FVector2D(9000.0, LotLayout::GatePos().Y + Y), FVector2D(Out, LotLayout::GatePos().Y + Y));
+	}
+	// Through the passage the walls do not stand; whether the way is shut is the gate's business (below).
+	for (const double Y : {-185.0, -100.0, 0.0, 100.0, 185.0})
+	{
+		FHitResult Hit;
+		TestFalse(*FString::Printf(TEXT("no wall in the gate gap, y=%.0f"), LotLayout::GatePos().Y + Y),
+			HitWall(FVector2D(9000.0, LotLayout::GatePos().Y + Y), FVector2D(Out, LotLayout::GatePos().Y + Y), Hit));
 	}
 	for (const double Offset : {-190.0, 0.0, 190.0})
 	{
@@ -303,6 +316,63 @@ bool FSiteWallsTest::RunTest(const FString& Parameters)
 			TestTrue(*FString::Printf(TEXT("%s: it is the mall"), Side.Name), Hit.GetActor() && Hit.GetActor()->IsA<ADIAMallActor>());
 			TestEqual(*FString::Printf(TEXT("%s: on its wall"), Side.Name), FVector2D::DotProduct(FVector2D(Hit.ImpactPoint), Side.Dir), Side.Outline, SiteTestTouchCm);
 		}
+	}
+
+	// The gate closes the gap while it is closed and frees it once the exit is open; its posts always stand.
+	const ADIAExitGate* Gate = nullptr;
+	for (TActorIterator<ADIAExitGate> It(World); It; ++It)
+	{
+		Gate = *It;
+	}
+	if (!TestNotNull(TEXT("the exit gate"), Gate))
+	{
+		return false;
+	}
+	TestTrue(TEXT("the gate stands at the gate position"), FVector2D(Gate->GetActorLocation()).Equals(LotLayout::GatePos(), 1.0));
+	// Rays at the height of the arm (the trace height of the walls misses it), from inside the car park outwards, answered by the gate only.
+	constexpr double ArmTraceZCm = 100.0;
+	FCollisionQueryParams GateOnly(SCENE_QUERY_STAT(SiteTestGate), false);
+	for (TActorIterator<AActor> It(World); It; ++It)
+	{
+		if (*It != Gate)
+		{
+			TInlineComponentArray<UPrimitiveComponent*> Components(*It);
+			for (UPrimitiveComponent* Component : Components)
+			{
+				GateOnly.AddIgnoredComponent(Component);
+			}
+		}
+	}
+	auto HitsGate = [&](double Y)
+	{
+		FHitResult Hit;
+		return World->LineTraceSingleByChannel(Hit, FVector(9000.0, LotLayout::GatePos().Y + Y, ArmTraceZCm), FVector(Out, LotLayout::GatePos().Y + Y, ArmTraceZCm), ECC_Pawn, GateOnly);
+	};
+	for (const double Y : {-175.0, -100.0, 0.0, 100.0, 165.0})
+	{
+		TestTrue(*FString::Printf(TEXT("closed: the arm stops the way, y=%.0f"), Y), HitsGate(Y));
+	}
+	for (const double Y : {-180.0, 180.0})
+	{
+		TestTrue(*FString::Printf(TEXT("the post stands, y=%.0f"), Y), HitsGate(Y));
+	}
+	UDIAWorldSubsystem* Subsystem = World->GetSubsystem<UDIAWorldSubsystem>();
+	if (!TestNotNull(TEXT("world subsystem"), Subsystem))
+	{
+		return false;
+	}
+	Subsystem->Dispatch(Subsystem->GetGame().DebugCompleteCells(AsphaltLot::NumCells));
+	for (int32 I = 0; I < 20; ++I)
+	{
+		Wrapper.TickTestWorld(0.1f);
+	}
+	for (const double Y : {-100.0, -50.0, 0.0, 100.0})
+	{
+		TestFalse(*FString::Printf(TEXT("open: the way is free, y=%.0f"), Y), HitsGate(Y));
+	}
+	for (const double Y : {-180.0, 180.0})
+	{
+		TestTrue(*FString::Printf(TEXT("open: the post still stands, y=%.0f"), Y), HitsGate(Y));
 	}
 	return true;
 }

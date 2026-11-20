@@ -1,0 +1,113 @@
+// Copyright Do it Asphalt. All Rights Reserved.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Game/DIAWorldSubsystem.h"
+#include "GameFramework/Actor.h"
+#include "DIAExitGate.generated.h"
+
+class UBoxComponent;
+class USphereComponent;
+class UStaticMeshComponent;
+class UTextRenderComponent;
+
+/** Numbers of the exit gate's presentation; its place is LotLayout's, the sizes of its models are in DIAModelSizes. */
+namespace DIAExitGate
+{
+	/** The barrier arm rises by this angle in this time once the exit is open. */
+	inline constexpr double OpenAngleDeg = 80.0;
+	inline constexpr double OpenSeconds = 1.5;
+	/** Height of the arm's axis above the ground; it must lie within the player's capsule and the car's box. */
+	inline constexpr double ArmHeightCm = 100.0;
+	/** The columns stand on both sides of the passage (20 cm square columns on 40 x 20 cm footings; the box covers the footing). */
+	inline const FVector PostCm(40.0, 20.0, 300.0);
+	/** The win trigger is a sphere of LotLayout::ExitTriggerRadiusCm centred at mid-height of the body, i.e. this high. */
+	inline constexpr double TriggerHeightCm = 100.0;
+	/**
+	 * The white sign board of the frame (2.0 x 0.5 m, centred at Z = 275 cm) stands proud of both faces of the beam, which are at X = +-11 cm;
+	 * the word is written just in front of each face (the +X face looks outwards, the -X face towards the lot).
+	 */
+	inline constexpr double SignFaceXCm = 11.0;
+	inline constexpr double SignTextOffsetCm = 0.6;
+	inline constexpr double SignCentreZCm = 275.0;
+	/** Height of the letters (the board is 50 cm high); the word fills about half of the board's width. */
+	inline constexpr double SignTextSizeCm = 44.0;
+	inline constexpr int32 ColumnCount = 2;
+	inline constexpr int32 SignFaceCount = 2;
+	/** Yaw of the text on the face towards the lot (-X); the one towards the road (+X) needs none. */
+	inline constexpr double LotFaceYawDeg = 180.0;
+	/** Colour of the letters (shown through the unlit M_DIA_Text material). A deep red: a lighter one turns salmon against the white board. */
+	inline const FColor SignColor(150, 0, 0);
+}
+
+/**
+ * The exit gate at LotLayout::GatePos, in the fence line across the road of entry LotLayout::ExitEntry: the frame (SM_ExitGate_Frame,
+ * its two columns are solid) and the barrier arm (SM_ExitGate_Barrier) that turns about its hinge at the left column. While the exit
+ * is closed the arm blocks pawns; when the core says the exit is open (FLotGame::IsExitOpen, also when the game was loaded that way,
+ * then at once) the arm rises by 80 degrees in 1.5 s and stops blocking. The trigger sphere beyond the gate wins the game
+ * (UDIAWorldSubsystem::Win, which the core ignores until the exit is open) when the player on foot or the car touches it. The gate
+ * mirrors the core and keeps no state of its own beyond the animation. The invisible wall of the lot edge has a gap here, which the
+ * gate closes while it is closed.
+ */
+UCLASS(NotBlueprintable)
+class DOITASPHALT_API ADIAExitGate : public AActor
+{
+	GENERATED_BODY()
+
+public:
+	ADIAExitGate();
+
+	/** Where the gate stands: LotLayout::GatePos, turned so that its X axis runs outwards (LotLayout::EntryOutward of the exit entry). */
+	static FTransform MakeTransform();
+
+	/** The arm is up and does not block any more. */
+	bool IsOpen() const { return OpenFraction >= 1.0; }
+	/** 0 with the arm down, 1 with the arm up (it follows the time while rising). */
+	double GetOpenFraction() const { return OpenFraction; }
+
+	UStaticMeshComponent* GetFrameMesh() const { return FrameMesh; }
+	UStaticMeshComponent* GetArmMesh() const { return ArmMesh; }
+	UBoxComponent* GetArmCollision() const { return ArmCollision; }
+	USphereComponent* GetTrigger() const { return Trigger; }
+	/** The word EXIT on the board: [0] on the face towards the lot (-X), [1] on the face towards the road (+X). */
+	UTextRenderComponent* GetSignText(int32 Side) const { return SignTexts.IsValidIndex(Side) ? SignTexts[Side].Get() : nullptr; }
+
+	virtual void Tick(float DeltaSeconds) override;
+
+protected:
+	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type Reason) override;
+
+private:
+	/** Follows the core: starts the rise when the exit opened, closes the arm again if it is no longer open. Runs on every state change, so it returns early when nothing differs. */
+	void SyncFromCore();
+	/** A game was loaded or started: the arm is up at once if the exit is open in it (no rise), down otherwise. */
+	void HandleGameReset();
+	/** Turns the arm to the open fraction and lets it block only while it is not up. */
+	void ApplyArm();
+	UFUNCTION()
+	void OnTriggerOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
+
+	UPROPERTY()
+	TObjectPtr<UStaticMeshComponent> FrameMesh;
+	UPROPERTY()
+	TArray<TObjectPtr<UBoxComponent>> PostCollisions;
+	/** The hinge: the arm and its collision turn with it. */
+	UPROPERTY()
+	TObjectPtr<USceneComponent> ArmPivot;
+	UPROPERTY()
+	TObjectPtr<UStaticMeshComponent> ArmMesh;
+	UPROPERTY()
+	TObjectPtr<UBoxComponent> ArmCollision;
+	UPROPERTY()
+	TObjectPtr<USphereComponent> Trigger;
+	UPROPERTY()
+	TArray<TObjectPtr<UTextRenderComponent>> SignTexts;
+
+	/** Seconds the arm has been rising. */
+	double OpenElapsed = 0.0;
+	double OpenFraction = 0.0;
+
+	FDIAStateSubscription StateSub;
+};

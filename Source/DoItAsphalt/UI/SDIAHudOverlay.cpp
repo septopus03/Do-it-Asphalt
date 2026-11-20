@@ -212,7 +212,8 @@ TSharedRef<SWidget> SDIAHudOverlay::BuildCheckView()
 				.RenderTransform_Lambda([WeakHud, View]()
 				{
 					const APlayerController* Controller = WeakHud.IsValid() ? WeakHud->GetOwningPlayerController() : nullptr;
-					const ADIACharacter* Character = Controller ? Cast<ADIACharacter>(Controller->GetPawn()) : nullptr;
+					// Whatever the player is: the character on foot, the car at the wheel.
+					const APawn* Character = Controller ? Controller->GetPawn() : nullptr;
 					const FDIACheckView Check = View();
 					const double Yaw = Controller ? Controller->GetControlRotation().Yaw : 0.0;
 					const FVector2D From = Character ? FVector2D(Character->GetActorLocation()) : FVector2D::ZeroVector;

@@ -14,7 +14,8 @@ struct FInputActionValue;
  * Creates the input assets, adds the mapping context to the local player and routes the actions to the character.
  * Pause (Esc) opens and closes the pause menu (the pause action also fires while the game is paused, so that Esc can
  * close the menu). Every frame it looks for the nearest interactable within reach and shows its prompt; Interact (E)
- * uses it. Tab opens and closes the shop and V holds the check view. While a menu, the shop or the win screen is up there
+ * uses it. While the player drives the paver car the same handlers steer it instead: WASD throttle and steering, the mouse
+ * turns the head, Use pours the bar and E gets out; the hand keys, G, F, the work view and V do nothing. Tab opens and closes the shop and V holds the check view. While a menu, the shop or the win screen is up there
  * is no prompt and E does nothing; the shop leaves the game running.
  */
 UCLASS(NotBlueprintable)
@@ -53,7 +54,9 @@ public:
 
 	/** The input handlers, bound to the actions; public so that tests can drive them without a keyboard. */
 	void OnMove(const FInputActionValue& Value);
-	/** E: uses what is within reach. */
+	/** The movement keys went up: a driven car stops accelerating and steering (the character stops by itself). */
+	void OnMoveStopped();
+	/** E: uses what is within reach; at the wheel of the car it gets out. */
 	void OnInteract();
 	/** Esc: closes the shop if it is open, else opens or closes the pause menu (nothing on the win screen). */
 	void OnPause();
@@ -89,6 +92,8 @@ private:
 	void OnSprintCompleted();
 
 	class ADIACharacter* GetDIACharacter() const;
+	/** The car the player drives; null on foot. */
+	class ADIAPaverCar* GetDIACar() const;
 	/** Lets go of everything a UI that takes over the screen must not leave running: sprinting, using the item, the flap, the work view and the check view. */
 	void ReleaseControls();
 	/** The menu, the shop or the win screen covers the screen and owns the mouse: nothing behind it can be used. */

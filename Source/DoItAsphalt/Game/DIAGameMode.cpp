@@ -12,10 +12,12 @@
 #include "UI/DIAHUD.h"
 #include "World/DIAAutoPaver.h"
 #include "World/DIAEntryBoard.h"
+#include "World/DIAExitGate.h"
 #include "World/DIAGroundActor.h"
 #include "World/DIALotEdge.h"
 #include "World/DIAMallActor.h"
 #include "World/DIAMovable.h"
+#include "World/DIAPaverCar.h"
 #include "World/DIAPlantActor.h"
 
 namespace
@@ -63,6 +65,8 @@ void ADIAGameMode::EnsureSite()
 	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 	World->SpawnActor<ADIAMallActor>(FVector(LotLayout::MallCentre.X, LotLayout::MallCentre.Y, 0.0), FRotator::ZeroRotator, Params);
 	World->SpawnActor<ADIALotEdge>(FVector::ZeroVector, FRotator::ZeroRotator, Params);
+	// The gate stands in the gap of the fence and the wall, where the old road leaves the lot.
+	World->SpawnActor<ADIAExitGate>(ADIAExitGate::StaticClass(), ADIAExitGate::MakeTransform(), Params);
 	for (int32 Entry = 0; Entry < AsphaltLot::NumEntries; ++Entry)
 	{
 		// The entry is set before BeginPlay, which builds the board according to it.
@@ -82,6 +86,48 @@ void ADIAGameMode::EnsureAllMovables()
 		EnsureMovable(static_cast<ELotMovable>(I));
 	}
 	EnsureAutoPaver();
+	EnsureCar();
+}
+
+void ADIAGameMode::EnsureCar()
+{
+	UWorld* World = GetWorld();
+	const UDIAWorldSubsystem* Subsystem = UDIAWorldSubsystem::Get(this);
+	if (!World || !Subsystem)
+	{
+		return;
+	}
+	const bool bOwned = Subsystem->GetGame().Owns(ELotItem::Car);
+	ADIAPaverCar* Kept = nullptr;
+	TArray<ADIAPaverCar*> Surplus;
+	for (TActorIterator<ADIAPaverCar> It(World); It; ++It)
+	{
+		if (It->IsActorBeingDestroyed())
+		{
+			continue;
+		}
+		if (bOwned && !Kept)
+		{
+			Kept = *It;
+		}
+		else
+		{
+			Surplus.Add(*It);
+		}
+	}
+	for (ADIAPaverCar* Actor : Surplus)
+	{
+		Actor->Destroy();
+	}
+	if (!bOwned || Kept)
+	{
+		return;
+	}
+	// It appears where the core has it.
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	const FLotWorldState& State = Subsystem->GetGame().World();
+	World->SpawnActor<ADIAPaverCar>(FVector(State.CarPos.X, State.CarPos.Y, DIAPaverCar::OriginHeightCm()), FRotator(0.0, State.CarYawDeg, 0.0), Params);
 }
 
 void ADIAGameMode::EnsureAutoPaver()

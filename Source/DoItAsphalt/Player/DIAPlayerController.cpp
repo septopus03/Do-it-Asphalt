@@ -15,6 +15,7 @@
 #include "Player/DIACharacter.h"
 #include "UI/DIAHUD.h"
 #include "World/DIAInteractable.h"
+#include "World/DIAPaverCar.h"
 
 void ADIAPlayerController::InitInputSystem()
 {
@@ -47,6 +48,8 @@ void ADIAPlayerController::SetupInputComponent()
 	}
 
 	Enhanced->BindAction(Input.Move, ETriggerEvent::Triggered, this, &ADIAPlayerController::OnMove);
+	Enhanced->BindAction(Input.Move, ETriggerEvent::Completed, this, &ADIAPlayerController::OnMoveStopped);
+	Enhanced->BindAction(Input.Move, ETriggerEvent::Canceled, this, &ADIAPlayerController::OnMoveStopped);
 	Enhanced->BindAction(Input.Look, ETriggerEvent::Triggered, this, &ADIAPlayerController::OnLook);
 	Enhanced->BindAction(Input.Sprint, ETriggerEvent::Started, this, &ADIAPlayerController::OnSprintStarted);
 	Enhanced->BindAction(Input.Sprint, ETriggerEvent::Completed, this, &ADIAPlayerController::OnSprintCompleted);
@@ -79,12 +82,32 @@ ADIACharacter* ADIAPlayerController::GetDIACharacter() const
 	return Cast<ADIACharacter>(GetPawn());
 }
 
+ADIAPaverCar* ADIAPlayerController::GetDIACar() const
+{
+	return Cast<ADIAPaverCar>(GetPawn());
+}
+
 void ADIAPlayerController::OnMove(const FInputActionValue& Value)
 {
 	const FVector2D Axis = Value.Get<FVector2D>();
 	if (ADIACharacter* Character = GetDIACharacter())
 	{
 		Character->DoMove(Axis.X, Axis.Y);
+	}
+	else if (ADIAPaverCar* Car = GetDIACar(); Car && !bWinInput)
+	{
+		// W and S are the throttle, A and D the steering; both stay set until the keys go up.
+		Car->SetSteer(Axis.X);
+		Car->SetThrottle(Axis.Y);
+	}
+}
+
+void ADIAPlayerController::OnMoveStopped()
+{
+	if (ADIAPaverCar* Car = GetDIACar())
+	{
+		Car->SetSteer(0.f);
+		Car->SetThrottle(0.f);
 	}
 }
 
@@ -95,6 +118,10 @@ void ADIAPlayerController::OnLook(const FInputActionValue& Value)
 	{
 		Character->DoLook(Axis.X, Axis.Y);
 	}
+	else if (ADIAPaverCar* Car = GetDIACar())
+	{
+		Car->DoLook(Axis.X, Axis.Y);
+	}
 }
 
 void ADIAPlayerController::OnUseStarted()
@@ -103,6 +130,11 @@ void ADIAPlayerController::OnUseStarted()
 	{
 		Character->SetUsing(true);
 	}
+	else if (ADIAPaverCar* Car = GetDIACar(); Car && !IsUiInput())
+	{
+		// In the car the button pours the spreader bar.
+		Car->SetPouring(true);
+	}
 }
 
 void ADIAPlayerController::OnUseCompleted()
@@ -110,6 +142,10 @@ void ADIAPlayerController::OnUseCompleted()
 	if (ADIACharacter* Character = GetDIACharacter())
 	{
 		Character->SetUsing(false);
+	}
+	else if (ADIAPaverCar* Car = GetDIACar())
+	{
+		Car->SetPouring(false);
 	}
 }
 
@@ -183,6 +219,11 @@ IDIAInteractable* ADIAPlayerController::FindInteractable() const
 	if (IsUiInput())
 	{
 		return nullptr;
+	}
+	// At the wheel the one thing E does is get out.
+	if (ADIAPaverCar* Car = GetDIACar())
+	{
+		return Car;
 	}
 	const ADIACharacter* Character = GetDIACharacter();
 	UWorld* World = GetWorld();
@@ -270,7 +311,8 @@ void ADIAPlayerController::OnShop()
 
 void ADIAPlayerController::OnCheckViewStarted()
 {
-	if (ADIAHUD* Hud = Cast<ADIAHUD>(GetHUD()); Hud && !IsUiInput())
+	// Not while driving: the check view looks down from the player's eyes.
+	if (ADIAHUD* Hud = Cast<ADIAHUD>(GetHUD()); Hud && !IsUiInput() && !GetDIACar())
 	{
 		Hud->SetCheckView(true);
 	}
@@ -375,6 +417,13 @@ void ADIAPlayerController::ReleaseControls()
 		Character->SetUsing(false);
 		Character->SetFlap(false);
 		Character->SetWorkView(false);
+	}
+	if (ADIAPaverCar* Car = GetDIACar())
+	{
+		// The same for the car: a UI that takes over the screen leaves it rolling to a stop.
+		Car->SetThrottle(0.f);
+		Car->SetSteer(0.f);
+		Car->SetPouring(false);
 	}
 	if (ADIAHUD* Hud = Cast<ADIAHUD>(GetHUD()))
 	{

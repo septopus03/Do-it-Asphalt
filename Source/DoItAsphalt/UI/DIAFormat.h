@@ -31,11 +31,11 @@ namespace DIAFormat
 	/** One short sentence on what an unlock step opens, for the toast; the entry boards show the name only. */
 	DOITASPHALT_API FText UnlockEffect(ELotUnlock Unlock);
 
-	/** What the player holds: the movable pulled or pushed along, else the item in the hand ("Bowl"). */
+	/** What the player holds: the movable pulled or pushed along, else the item in the hand ("Bowl"); "Car" while driving. */
 	DOITASPHALT_API FText HandLabel(const FLotGame& Game);
 	/**
-	 * The vessel in the hand: "1.3 / 2.5 l"; the suitcase or the cart while one is held (their content); empty for the trowel
-	 * and for any other held movable.
+	 * The vessel in the hand: "1.3 / 2.5 l"; the suitcase or the cart while one is held (their content); empty for the trowel,
+	 * for any other held movable and while driving.
 	 */
 	DOITASPHALT_API FText HandGauge(const FLotGame& Game);
 	/** True if the player, or the suitcase or cart held by the player, stands where asphalt can be drawn by hand. */
@@ -63,6 +63,12 @@ namespace DIAFormat
 	DOITASPHALT_API FText ItemBoughtToast(ELotItem Item);
 	DOITASPHALT_API FText PlantToast(int32 Level);
 	DOITASPHALT_API FText ExitToast();
+	/** The prompt of the paver car: "E – Get in" beside it, "E – Get out" while driving. */
+	DOITASPHALT_API FText CarPrompt(bool bInCar);
+	/** Toast when the player cannot get out of the car because no spot beside it is free. */
+	DOITASPHALT_API FText CarNoExitToast();
+	/** The word on the exit gate's sign. */
+	DOITASPHALT_API FText ExitSign();
 
 	/** The sector number the player sees: the index counted from 1 (the entries are numbered the same way). */
 	DOITASPHALT_API FText SectorNumber(int32 Sector);
@@ -128,6 +134,8 @@ private:
 		/** The item in the hand and the movable held (ELotHand / ELotMovable values). */
 		int32 Hand = -1;
 		int32 Held = -1;
+		/** 1 while the player drives the car (the hand panel then says so and shows no vessel). */
+		int32 InCar = -1;
 		/** The hand gauge in tenths of litres and its capacity; -1 when nothing is shown. */
 		int32 GaugeTenths = -1;
 		int32 GaugeCapacityTenths = -1;
@@ -277,6 +285,8 @@ struct FDIAWinView
 {
 	FText Time;
 	FText Poured;
+	/** Cells paved, "30,000". */
+	FText Cells;
 	FText Credits;
 	FText Items;
 };

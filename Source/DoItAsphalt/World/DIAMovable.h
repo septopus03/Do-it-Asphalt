@@ -7,6 +7,7 @@
 #include "GameFramework/Actor.h"
 #include "LotBalance.h"
 #include "World/DIAInteractable.h"
+#include "World/DIAToolPath.h"
 #include "DIAMovable.generated.h"
 
 class ADIACharacter;
@@ -18,10 +19,6 @@ namespace DIAMovable
 {
 	/** The free-space test lifts the footprint this high, so that the ground it stands on does not count as blocking. */
 	inline constexpr double ClearanceLiftCm = 2.0;
-	/** Two mouth points closer than this are the same point: the cart does not move, so it lays nothing. */
-	inline constexpr double MouthMoveToleranceCm = 0.01;
-	/** A mouth that moves further in one tick than the laying speed allows (times this slack) was moved, not driven: a teleport, a spin. Nothing is laid across the jump. */
-	inline constexpr double LayJumpSlack = 1.5;
 	/** How far the actor may be from the core's position before it is moved there; the core's number is the truth. */
 	inline constexpr double SyncToleranceCm = 0.5;
 	inline constexpr double SyncToleranceDeg = 0.5;
@@ -165,11 +162,8 @@ private:
 
 	/** The actor shows the held pose (collision off, tilted), as opposed to standing. */
 	bool bShownHeld = false;
-	/** The held cart or finisher is working: Use is down and the mouth had a point before. */
-	bool bLaying = false;
-	FVector2D PreviousMouth = FVector2D::ZeroVector;
-	/** The length of the previous tick of the work, for the bound on how far the mouth may have moved. */
-	float PreviousWorkSeconds = 0.0f;
+	/** The path of the held cart's mouth or the finisher's bar while Use is down. */
+	FDIAToolPath ToolPath;
 	/** The character this actor was ordered to tick after. */
 	TWeakObjectPtr<ADIACharacter> TickedAfter;
 	/** Content the level shows now, to skip the work when nothing changed. */

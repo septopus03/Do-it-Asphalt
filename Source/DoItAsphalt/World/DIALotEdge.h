@@ -22,6 +22,8 @@ namespace DIASite
 	inline constexpr double CurbEntryGapHalfCm = 200.0;
 	/** The fence stops this far either side of the gate. */
 	inline constexpr double GateGapHalfCm = 200.0;
+	/** The invisible wall stops this far either side of the gate: the outer faces of the gate frame's two columns. */
+	inline const double GateWallGapHalfCm = DIAModelSizes::ExitGateFrameCm.Y * 0.5;
 
 	/** White frame of an entry: width of the stripe, height of its underside above the ground, thickness. */
 	inline constexpr double FrameWidthCm = 5.0;
@@ -58,9 +60,10 @@ namespace DIASite
 /**
  * Everything at the edge of the car park that is not a machine: kerb (instanced SM_Curb, bevel towards the car park), fence
  * (instanced SM_Fence) along the outer edge of the strip, the invisible walls that keep the player on the site (along the
- * fence line and along the strip's edges at the shopping centre), the old road (SM_RoadStub) and SM_Barrier at the entries
- * 3, 4 and 5 (at the gate, the barrier stands in the fence gap until the gate replaces it), and the white frame of each of the
- * six entry segments on the ground. Only the walls and the barriers block the player; none of it stands on the car park.
+ * fence line and along the strip's edges at the shopping centre; the wall has a gap at the exit gate, which the gate's posts seal
+ * and its arm closes), the old road (SM_RoadStub) at the entries 3, 4 and 5, SM_Barrier at the entries 3 and 4 (the exit, entry 5,
+ * has the ADIAExitGate in the gap of the fence instead), and the white frame of each of the six entry segments on the ground.
+ * Only the walls and the barriers block the player; none of it stands on the car park.
  */
 UCLASS(NotBlueprintable)
 class DOITASPHALT_API ADIALotEdge : public AActor

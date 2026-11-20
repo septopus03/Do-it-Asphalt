@@ -25,6 +25,7 @@
 #include "LotMap.h"
 #include "UI/DIAHUD.h"
 #include "World/DIAMovable.h"
+#include "World/DIAPaverCar.h"
 #include "HAL/FileManager.h"
 #include "HAL/IConsoleManager.h"
 #include "Misc/Paths.h"
@@ -367,6 +368,34 @@ namespace DIACheats
 		}
 	}
 
+	/** Gets the player into the car wherever it stands: the same call as the E key makes (the player teleports to the car first). */
+	void EnterCar(const TArray<FString>& Args, UWorld* World)
+	{
+		UDIAWorldSubsystem* S = GetSubsystem(World);
+		APlayerController* PC = GetPlayerController(World);
+		if (!S || !PC)
+		{
+			return;
+		}
+		if (PC->GetPawn() && PC->GetPawn()->IsA<ADIAPaverCar>())
+		{
+			UE_LOG(LogDoItAsphalt, Warning, TEXT("dia.EnterCar: the player drives the car already"));
+			return;
+		}
+		ADIACharacter* Character = Cast<ADIACharacter>(PC->GetPawn());
+		TActorIterator<ADIAPaverCar> Car(S->GetWorld());
+		if (!Car)
+		{
+			UE_LOG(LogDoItAsphalt, Warning, TEXT("dia.EnterCar: there is no car (dia.Item Car)"));
+			return;
+		}
+		Car->Interact(Character);
+		if (!Car->HasDriver())
+		{
+			UE_LOG(LogDoItAsphalt, Warning, TEXT("dia.EnterCar: could not get in (something is held, or the player is not on foot)"));
+		}
+	}
+
 	void Teleport(const TArray<FString>& Args, UWorld* World)
 	{
 		if (!Usage(Args.Num() >= 2 && Args.Num() <= 4, TEXT("dia.Teleport <x> <y> [yaw] [pitch]")))
@@ -691,6 +720,7 @@ namespace DIACheats
 	FAutoConsoleCommandWithWorldAndArgs FinishStripCommand(TEXT("dia.FinishStrip"), TEXT("dia.FinishStrip <x> <y> [lengthM=4]: finishes the raw asphalt of a strip of the finisher's width from the point towards +X through the core (gives the finisher)"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&FinishStrip));
 	FAutoConsoleCommandWithWorldAndArgs PlaceCommand(TEXT("dia.Place"), TEXT("dia.Place <Suitcase|Cart|Station|Finisher> <x> <y> [yaw]: gives the movable if needed and sets it down at the point"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Place));
 	FAutoConsoleCommandWithWorldAndArgs PlantCommand(TEXT("dia.Plant"), TEXT("dia.Plant <0..5>: sets the plant level"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Plant));
+	FAutoConsoleCommandWithWorldAndArgs EnterCarCommand(TEXT("dia.EnterCar"), TEXT("dia.EnterCar: gets the player into the paver car (dia.Item Car first), like the E key beside it"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&EnterCar));
 	FAutoConsoleCommandWithWorldAndArgs TeleportCommand(TEXT("dia.Teleport"), TEXT("dia.Teleport <x> <y> [yaw] [pitch]"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Teleport));
 	FAutoConsoleCommandWithWorldAndArgs PromptCommand(TEXT("dia.Prompt"), TEXT("dia.Prompt <text>: sets the contextual prompt (no text hides it)"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Prompt));
 	FAutoConsoleCommandWithWorldAndArgs ToastCommand(TEXT("dia.Toast"), TEXT("dia.Toast <text>: shows a toast"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Toast));
