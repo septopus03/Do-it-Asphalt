@@ -91,4 +91,12 @@ Tieto body treba prejsť ručne v zabalenej hre (`.app` z `Scripts/package.sh`, 
 - `Tab` otvorí obchod a nákup sa prejaví.
 - Po zavretí a opätovnom otvorení hry ponúkne `Continue` rovnaký stav.
 - Myš a kurzor: v hlavnom menu, v obchode a v pauze je kurzor viditeľný a tlačidlá sa dajú klikať; počas hry je kurzor skrytý a myš otáča kamerou.
-- `Esc` otvorí pauzu a hra sa pozastaví; `Continue`, `New Game` a `Quit` v pauze aj v hlavnom menu fungujú.
+- `Esc` otvorí pauzu a hra sa pozastaví; v pauze fungujú `Resume`, `New Game` a `Quit`, v hlavnom menu `Continue`, `New Game` a `Quit`.
+- Zem a disk doplňovania pri výrobni sú viditeľné (základné tvary enginu sa pri balení vždy pribalia, `DirectoriesToAlwaysCook`).
+
+## Neimplementované z GDD
+
+Tieto dve veci z GDD nie sú v hre; zámerne sa nedoplnili a GDD zostáva nezmenené.
+
+- Šípka HUD k výrobni počas prvých 20 s (GDD, kapitola 5).
+- Krátke zablikanie dokončenej bunky (GDD, kapitola 4).

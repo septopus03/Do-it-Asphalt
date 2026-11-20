@@ -155,6 +155,8 @@ Skripty sú idempotentné – opätovné spustenie prepíše výsledok, nič nez
 - `FAsphaltGame::SaveToBytes()` / `LoadFromBytes()` – vlastný binárny formát s číslom verzie na začiatku a kontrolou dĺžok. Pokrytie sa ukladá ako bitové pole (51 kB).
 - `LoadFromBytes` načíta do dočasnej inštancie a až po úspechu ju vymení – pri chybe zostane pôvodný stav nedotknutý a vráti `false`.
 - Engine vrstva blob zabalí do `UDIASaveGame` a uloží do slotu `DoItAsphalt_Slot0`.
+- Každé uloženie zapíše slot aj jeho zálohu `<slot>_bak` (`DoItAsphalt_Slot0_bak`), takže prerušený zápis nikdy nezničí rozohranú hru.
+- Súbor slotu má za dátami vlastnú pätu: magic `DIAE` a CRC32 všetkého pred ňou. Engine čítačka sa na dĺžky spolieha, preto sa päta a CRC overia pred načítaním; poškodený primárny slot sa nahradí zálohou a ak je poškodená aj tá, ponúkne sa len nová hra.
 
 ### 5.8 Vozidlo a robot
 

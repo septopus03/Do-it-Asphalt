@@ -22,7 +22,7 @@ class UDIAInteractable : public UInterface
 };
 
 /**
- * Something the player can use with E: a kiosk now, later the portable station and the paver car. The player controller
+ * Something the player can use with E: the kiosk, the portable station or the paver car. The player controller
  * searches the registered interactables every frame, so both functions have to be cheap (no allocation, no work that is
  * not needed when nothing changed).
  */
