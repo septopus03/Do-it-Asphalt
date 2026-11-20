@@ -30,6 +30,59 @@ namespace
 	{
 		Character->SetActorLocation(Character->GetActorLocation() + FVector(Delta.X, Delta.Y, 0.0));
 	}
+
+	/** Slack of the bounds checks (cm). */
+	constexpr double CharEquipBoundsSlackCm = 3.0;
+	/** The backpack models are measured against the model list within this fraction of each side. */
+	constexpr double CharEquipBackpackSizeTolerance = 0.1;
+
+	/** The box a static mesh component fills in the world (a box in world axes, as loose as the mesh's own rotation makes it). */
+	FBox CharEquipWorldBox(const UStaticMeshComponent* Part)
+	{
+		return Part->CalcBounds(Part->GetComponentTransform()).GetBox();
+	}
+
+	/** The box of a spreader in world axes with the pivot's tilt taken out: the mesh's own bounds, placed by its transform relative to the pivot, then moved to the pivot's place. */
+	FBox CharEquipSpreaderBox(const UStaticMeshComponent* Part)
+	{
+		return Part->GetStaticMesh()->GetBoundingBox().TransformBy(Part->GetRelativeTransform()).ShiftBy(Part->GetAttachParent()->GetComponentLocation());
+	}
+
+	/**
+	 * One spreader must be as wide as the tool (the real model is SpreaderEndExtraCm wider because of the wheels at the bar's ends), rest on the
+	 * ground, cover the nozzle point and be centred CentreYCm from the actor. It is measured in the world axes of the character (the test does not turn
+	 * it) but without the tilt of the pivot: the world box of a tipped mesh is a loose box around it and would dip below the ground at its far corner.
+	 * Works for the placeholder box and the real model alike.
+	 */
+	void CharEquipCheckSpreader(FAutomationTestBase& Test, const TCHAR* What, const UStaticMeshComponent* Part, const ADIACharacter* Character, double WidthCm, double CentreYCm)
+	{
+		const FBox Box = CharEquipSpreaderBox(Part);
+		const FVector Actor = Character->GetActorLocation();
+		const FVector2D Nozzle = Character->GetNozzlePoint();
+		const FString Label(What);
+		Test.TestTrue(Label + TEXT(" is as wide as the tool"),
+			Box.Max.Y - Box.Min.Y >= WidthCm - CharEquipBoundsSlackCm && Box.Max.Y - Box.Min.Y <= WidthCm + DIAModelSizes::SpreaderEndExtraCm + CharEquipBoundsSlackCm);
+		Test.TestTrue(Label + TEXT(" is centred where it should be"), FMath::IsNearlyEqual((Box.Min.Y + Box.Max.Y) * 0.5 - Actor.Y, CentreYCm, CharEquipBoundsSlackCm));
+		Test.TestTrue(Label + TEXT(" rests on the ground"), FMath::IsNearlyEqual(Box.Min.Z, 0.0, CharEquipBoundsSlackCm));
+		Test.TestTrue(Label + TEXT(" covers the nozzle point, where the asphalt is laid"),
+			Box.Min.X - CharEquipBoundsSlackCm <= Nozzle.X && Nozzle.X <= Box.Max.X + CharEquipBoundsSlackCm);
+	}
+
+	/** A backpack must have the size of its model-list entry times the pivot's scale and hang on the back, within the height of the character. */
+	void CharEquipCheckBackpack(FAutomationTestBase& Test, const TCHAR* What, const UStaticMeshComponent* Part, const ADIACharacter* Character, int32 Tier)
+	{
+		const FString Label(What);
+		// The size is taken from the mesh and the component's scale rather than from the world box: the spine bone leans, so the world box is looser than the model.
+		const FVector Size = Part->GetStaticMesh()->GetBoundingBox().GetSize() * Part->GetComponentScale();
+		const FVector Wanted = DIAModelSizes::BackpackCm[Tier] * DIACharacter::BackpackScale;
+		Test.TestTrue(Label + TEXT(" has the size of the model list times the backpack scale"),
+			FMath::Abs(Size.X - Wanted.X) <= Wanted.X * CharEquipBackpackSizeTolerance && FMath::Abs(Size.Y - Wanted.Y) <= Wanted.Y * CharEquipBackpackSizeTolerance
+			&& FMath::Abs(Size.Z - Wanted.Z) <= Wanted.Z * CharEquipBackpackSizeTolerance);
+		const FBox Box = CharEquipWorldBox(Part);
+		Test.TestTrue(Label + TEXT(" hangs on the back"), Box.GetCenter().X < Character->GetActorLocation().X);
+		Test.TestTrue(Label + TEXT(" is within the height of the character"),
+			Box.Min.Z >= 0.0 && Box.Max.Z <= 2.0 * DIACharacter::CapsuleHalfHeightCm);
+	}
 }
 
 DIA_TEST(FCharacterPoursTest, "DoItAsphalt.Game.CharacterPours")
@@ -196,25 +249,18 @@ bool FCharacterEquipmentTest::RunTest(const FString& Parameters)
 
 	// The spreader is tipped about its bar (handle towards the body) and the backpack is drawn larger, but the bar still lies exactly on the
 	// nozzle point, which is where the asphalt is laid.
-	{
-		const FVector Bar = Character->GetSpreaderMesh()->GetComponentLocation();
-		const FVector2D Nozzle = Character->GetNozzlePoint();
-		TestTrue(TEXT("the visible bar is at the nozzle point"), FVector2D(Bar.X, Bar.Y).Equals(Nozzle, 1.0) && FMath::Abs(Bar.Z) < 5.0);
-		TestTrue(TEXT("the spreader leans its handle towards the body"),
-			FMath::IsNearlyEqual(Character->GetSpreaderMesh()->GetAttachParent()->GetRelativeRotation().Pitch, DIACharacter::SpreaderTiltDeg, 0.01));
-		TestTrue(TEXT("the backpack pivot carries the backpack scale"),
-			Character->GetBackpackPivot()->GetRelativeScale3D().Equals(FVector(DIACharacter::BackpackScale), 0.001));
-	}
+	TestTrue(TEXT("the spreader leans its handle towards the body"),
+		FMath::IsNearlyEqual(Character->GetSpreaderMesh()->GetAttachParent()->GetRelativeRotation().Pitch, DIACharacter::SpreaderTiltDeg, 0.01));
+	TestTrue(TEXT("the backpack pivot carries the backpack scale"),
+		Character->GetBackpackPivot()->GetRelativeScale3D().Equals(FVector(DIACharacter::BackpackScale), 0.001));
 
-	// Placeholders (no models yet): box 8 x W x 8 cm, W = tool width.
-	const UStaticMeshComponent* Spreader = Character->GetSpreaderMesh();
-	const bool bPlaceholder = Spreader->GetStaticMesh()->GetPathName().StartsWith(TEXT("/Engine/BasicShapes/"));
-	if (bPlaceholder)
-	{
-		TestTrue(TEXT("placeholder spreader is as wide as the tool"), Spreader->GetRelativeScale3D().Equals(FVector(0.08, 0.2, 0.08), 0.001));
-	}
+	// What is on screen is measured in the world, so that it holds for the placeholder boxes and for the real models alike.
+	const double ToolWidthCm0 = AsphaltBalance::ToolWidthM[0] * 100.0;
+	CharEquipCheckSpreader(*this, TEXT("spreader at level 0"), Character->GetSpreaderMesh(), Character, ToolWidthCm0, 0.0);
+	CharEquipCheckBackpack(*this, TEXT("backpack S"), Character->GetBackpackMesh(), Character, 0);
 
 	// Nothing is rebuilt while nothing changes.
+	const UStaticMeshComponent* Spreader = Character->GetSpreaderMesh();
 	const UStaticMeshComponent* Backpack = Character->GetBackpackMesh();
 	Wrapper.TickTestWorld(TickSeconds);
 	TestTrue(TEXT("spreader is kept while the levels stay"), Character->GetSpreaderMesh() == Spreader);
@@ -228,27 +274,31 @@ bool FCharacterEquipmentTest::RunTest(const FString& Parameters)
 	Wrapper.TickTestWorld(TickSeconds);
 	TestTrue(TEXT("tier 1 swaps the backpack"), Character->GetBackpackMesh() != nullptr && Character->GetBackpackMesh() != Backpack);
 	TestTrue(TEXT("the spreader stays"), Character->GetSpreaderMesh() == Spreader);
-	if (bPlaceholder && Character->GetBackpackMesh())
+	if (Character->GetBackpackMesh())
 	{
-		TestTrue(TEXT("backpack M placeholder size"), Character->GetBackpackMesh()->GetRelativeScale3D().Equals(DIAModelSizes::BackpackCm[1] / 100.0, 0.001));
+		CharEquipCheckBackpack(*this, TEXT("backpack M"), Character->GetBackpackMesh(), Character, AsphaltBalance::BackpackTier(3));
 	}
 
 	// A new tool level or the TwoHands special swaps the spreader.
-	Game.DebugSetLevel(EAsphaltUpgrade::Tool, 6);
+	const int32 TopToolLevel = static_cast<int32>(UE_ARRAY_COUNT(AsphaltBalance::ToolWidthM)) - 1;
+	const double TopToolWidthCm = AsphaltBalance::ToolWidthM[TopToolLevel] * 100.0;
+	Game.DebugSetLevel(EAsphaltUpgrade::Tool, TopToolLevel);
 	Wrapper.TickTestWorld(TickSeconds);
-	if (TestNotNull(TEXT("spreader after tool upgrade"), Character->GetSpreaderMesh()) && bPlaceholder)
+	if (TestNotNull(TEXT("spreader after tool upgrade"), Character->GetSpreaderMesh()))
 	{
-		TestTrue(TEXT("spreader is 200 cm wide"), Character->GetSpreaderMesh()->GetRelativeScale3D().Equals(FVector(0.08, 2.0, 0.08), 0.001));
+		CharEquipCheckSpreader(*this, TEXT("spreader at the top tool level"), Character->GetSpreaderMesh(), Character, TopToolWidthCm, 0.0);
 	}
 	Game.DebugGrantSpecial(EAsphaltSpecial::TwoHands);
 	Wrapper.TickTestWorld(TickSeconds);
-	// TwoHands: two spreaders of the level's width side by side (Y = -W/2 and +W/2), each 2 m wide here.
-	if (TestNotNull(TEXT("spreader after TwoHands"), Character->GetSpreaderMesh()) && TestNotNull(TEXT("second spreader after TwoHands"), Character->GetSecondSpreaderMesh()) && bPlaceholder)
+	// TwoHands: two spreaders of the level's width side by side (centres half a width to either side), together twice as wide as the level.
+	if (TestNotNull(TEXT("spreader after TwoHands"), Character->GetSpreaderMesh()) && TestNotNull(TEXT("second spreader after TwoHands"), Character->GetSecondSpreaderMesh()))
 	{
-		TestTrue(TEXT("each of the two spreaders is 200 cm wide"), Character->GetSpreaderMesh()->GetRelativeScale3D().Equals(FVector(0.08, 2.0, 0.08), 0.001)
-			&& Character->GetSecondSpreaderMesh()->GetRelativeScale3D().Equals(FVector(0.08, 2.0, 0.08), 0.001));
-		TestTrue(TEXT("they sit at Y = -100 and +100"), FMath::IsNearlyEqual(Character->GetSpreaderMesh()->GetRelativeLocation().Y, -100.0, 0.01)
-			&& FMath::IsNearlyEqual(Character->GetSecondSpreaderMesh()->GetRelativeLocation().Y, 100.0, 0.01));
+		CharEquipCheckSpreader(*this, TEXT("first of the two spreaders"), Character->GetSpreaderMesh(), Character, TopToolWidthCm, -TopToolWidthCm * 0.5);
+		CharEquipCheckSpreader(*this, TEXT("second of the two spreaders"), Character->GetSecondSpreaderMesh(), Character, TopToolWidthCm, TopToolWidthCm * 0.5);
+		const FBox Both = CharEquipSpreaderBox(Character->GetSpreaderMesh()) + CharEquipSpreaderBox(Character->GetSecondSpreaderMesh());
+		TestTrue(TEXT("together the two spreaders are as wide as the pouring width"),
+			Both.Max.Y - Both.Min.Y >= Game.GetToolWidthCm() - CharEquipBoundsSlackCm
+			&& Both.Max.Y - Both.Min.Y <= Game.GetToolWidthCm() + DIAModelSizes::SpreaderEndExtraCm + CharEquipBoundsSlackCm);
 	}
 
 	// Speed: walking, pouring (slower) and sprinting (only with the special).

@@ -24,6 +24,8 @@ namespace DIAModelSizes
 	/** Spreader placeholder: a flat strip of this depth (X) and height (Z); its width is the tool width. */
 	inline constexpr double SpreaderDepthCm = 8.0;
 	inline constexpr double SpreaderHeightCm = 8.0;
+	/** The real spreader models are this much wider than the bar (W + 0.10 m): the wheels at the bar's ends stick out. The placeholder is exactly W wide. */
+	inline constexpr double SpreaderEndExtraCm = 10.0;
 
 	/** Body of the plant (without the outlet); origin at the centre of the footprint on the ground. */
 	inline const FVector PlantCm(600.0, 400.0, 500.0);
