@@ -193,6 +193,21 @@ public:
 	 */
 	FLotEvents PourFromCar(FVector2D A, FVector2D B);
 
+	/** First four bytes of a save ("DIA2" in little-endian order). */
+	static constexpr uint32 SaveMagic = 0x32414944;
+	static constexpr int32 SaveVersion = 1;
+
+	/**
+	 * Serialises the whole game state (little-endian, fixed order, exact length) for the autosave slot. The pour
+	 * stream budgets, the scoop stroke timer and the movables' held flags are not saved; the last is derived on load.
+	 */
+	TArray<uint8> SaveToBytes() const;
+	/**
+	 * Replaces the game by the saved one. Returns false and leaves the game untouched unless the whole blob is valid,
+	 * consistent with the rules (owned items, vessel capacities, unlocks) and exactly as long as a save is.
+	 */
+	bool LoadFromBytes(TConstArrayView<uint8> Bytes);
+
 	void DebugGive(double CreditsToAdd);
 	void DebugGrantItem(ELotItem Item);
 	/** Sets the plant level; a level outside 0..5 is ignored. The stock is clipped to the new storage. */

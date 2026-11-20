@@ -1,6 +1,7 @@
 // Copyright Do it Asphalt. All Rights Reserved.
 
 #include "LotGame.h"
+#include "LotSaveIO.h"
 
 namespace
 {
@@ -44,6 +45,18 @@ namespace
 	bool HoldsLitres(ELotMovable Movable)
 	{
 		return Movable == ELotMovable::Suitcase || Movable == ELotMovable::Cart;
+	}
+
+	/** Hand items that hold litres (the bowl, the scoop and the bucket); the trowel is last and holds nothing. */
+	constexpr int32 NumLitreHands = static_cast<int32>(ELotHand::Trowel);
+	static_assert(static_cast<int32>(ELotHand::Trowel) == static_cast<int32>(ELotHand::Count) - 1, "the trowel is the last hand item");
+	/** Rounding slack when a loaded amount of litres is compared with its limit. */
+	constexpr double LoadSlackL = 1e-6;
+
+	/** True if the stored held-movable value is a movable or "nothing" (ELotMovable::Count). */
+	bool IsValidHeld(int32 Value)
+	{
+		return Value >= 0 && Value <= NumMovables;
 	}
 
 	/** The shop item behind a movable. */
@@ -755,4 +768,213 @@ FLotEvents FLotGame::ApplyPour(const FLotPour& Pour)
 		}
 	}
 	return Events;
+}
+
+TArray<uint8> FLotGame::SaveToBytes() const
+{
+	TArray<uint8> Bytes;
+	Bytes.Reserve(8192);
+	LotSaveIO::FWriter W(Bytes);
+
+	W.WriteU32(SaveMagic);
+	W.WriteI32(SaveVersion);
+	W.WriteI32(AsphaltLot::NumCells);
+	W.WriteI32(FLotGrid::Size);
+
+	W.WriteDouble(Credits);
+	W.WriteDouble(PlaytimeSeconds);
+	W.WriteDouble(TotalLitres);
+
+	W.WriteI32(PlantLevel);
+	W.WriteDouble(PlantStock);
+
+	for (const bool bItem : bOwned)
+	{
+		W.WriteBool(bItem);
+	}
+
+	W.WriteI32(static_cast<int32>(Hand));
+	for (int32 I = 0; I < NumLitreHands; ++I)
+	{
+		W.WriteDouble(HandLitres[I]);
+	}
+	W.WriteDouble(SwapRemaining);
+
+	W.WriteDouble(MovableLitres[static_cast<int32>(ELotMovable::Suitcase)]);
+	W.WriteDouble(MovableLitres[static_cast<int32>(ELotMovable::Cart)]);
+	W.WriteI32(static_cast<int32>(Held));
+
+	W.WriteI32(AutoPaverSector);
+	W.WriteI32(AutoPaverStep);
+	W.WriteVector(AutoPaverPos);
+	W.WriteBool(bAutoPaverTravelling);
+	W.WriteDouble(AutoPaverBudget);
+
+	W.WriteBool(bWon);
+
+	W.WriteVector(WorldState.PlayerPos);
+	W.WriteDouble(WorldState.PlayerYawDeg);
+	for (const FLotMovable& Movable : WorldState.Movables)
+	{
+		W.WriteVector(Movable.Pos);
+		W.WriteDouble(Movable.YawDeg);
+	}
+	W.WriteVector(WorldState.CarPos);
+	W.WriteDouble(WorldState.CarYawDeg);
+	W.WriteBool(WorldState.bPlayerInCar);
+
+	Grid.Write(Bytes);
+	return Bytes;
+}
+
+bool FLotGame::LoadFromBytes(TConstArrayView<uint8> Bytes)
+{
+	LotSaveIO::FReader R(Bytes);
+	uint32 Magic = 0;
+	int32 Version = 0;
+	int32 NumCells = 0;
+	int32 Side = 0;
+	if (!R.ReadU32(Magic) || Magic != SaveMagic || !R.ReadI32(Version) || Version != SaveVersion
+		|| !R.ReadI32(NumCells) || NumCells != AsphaltLot::NumCells || !R.ReadI32(Side) || Side != FLotGrid::Size)
+	{
+		return false;
+	}
+
+	// Everything is parsed into a temporary game and swapped in only when the whole blob is valid.
+	FLotGame Loaded;
+
+	if (!R.ReadFinite(Loaded.Credits) || Loaded.Credits < 0.0
+		|| !R.ReadFinite(Loaded.PlaytimeSeconds) || Loaded.PlaytimeSeconds < 0.0
+		|| !R.ReadFinite(Loaded.TotalLitres) || Loaded.TotalLitres < 0.0)
+	{
+		return false;
+	}
+
+	if (!R.ReadI32(Loaded.PlantLevel) || Loaded.PlantLevel < 0 || Loaded.PlantLevel > MaxPlantLevel
+		|| !R.ReadFinite(Loaded.PlantStock) || Loaded.PlantStock < 0.0 || Loaded.PlantStock > Loaded.GetPlantStorage() + LoadSlackL)
+	{
+		return false;
+	}
+
+	for (bool& bItem : Loaded.bOwned)
+	{
+		if (!R.ReadBool(bItem))
+		{
+			return false;
+		}
+	}
+	for (int32 I = 0; I < NumItems; ++I)
+	{
+		const ELotItem Required = LotBalance::ItemRequires[I];
+		if (Loaded.bOwned[I] && Required != ELotItem::Count && !Loaded.Owns(Required))
+		{
+			return false;
+		}
+	}
+
+	int32 HandValue = 0;
+	if (!R.ReadI32(HandValue) || HandValue < 0 || HandValue >= static_cast<int32>(ELotHand::Count))
+	{
+		return false;
+	}
+	Loaded.Hand = static_cast<ELotHand>(HandValue);
+	if (!Loaded.CanSelectHand(Loaded.Hand))
+	{
+		return false;
+	}
+	for (int32 I = 0; I < NumLitreHands; ++I)
+	{
+		if (!R.ReadFinite(Loaded.HandLitres[I]) || Loaded.HandLitres[I] < 0.0 || Loaded.HandLitres[I] > LotBalance::HandCapacityL[I] + LoadSlackL)
+		{
+			return false;
+		}
+		// A vessel that is not owned has never been filled.
+		if (Loaded.HandLitres[I] > 0.0 && !Loaded.CanSelectHand(static_cast<ELotHand>(I)))
+		{
+			return false;
+		}
+	}
+	if (!R.ReadFinite(Loaded.SwapRemaining) || Loaded.SwapRemaining < 0.0 || Loaded.SwapRemaining > LotBalance::SwapSeconds)
+	{
+		return false;
+	}
+
+	for (const ELotMovable Vessel : {ELotMovable::Suitcase, ELotMovable::Cart})
+	{
+		double& Litres = Loaded.MovableLitres[static_cast<int32>(Vessel)];
+		if (!R.ReadFinite(Litres) || Litres < 0.0 || Litres > Loaded.GetMovableCapacity(Vessel) + LoadSlackL || (Litres > 0.0 && !Loaded.OwnsMovable(Vessel)))
+		{
+			return false;
+		}
+	}
+	int32 HeldValue = 0;
+	if (!R.ReadI32(HeldValue) || !IsValidHeld(HeldValue))
+	{
+		return false;
+	}
+	Loaded.Held = static_cast<ELotMovable>(HeldValue);
+
+	if (!R.ReadI32(Loaded.AutoPaverSector) || (Loaded.AutoPaverSector != INDEX_NONE && (Loaded.AutoPaverSector < 0 || Loaded.AutoPaverSector >= AsphaltLot::NumSectors))
+		|| !R.ReadI32(Loaded.AutoPaverStep) || Loaded.AutoPaverStep < 0 || Loaded.AutoPaverStep >= AsphaltLot::CellsPerSector
+		|| !R.ReadVector(Loaded.AutoPaverPos)
+		|| !R.ReadBool(Loaded.bAutoPaverTravelling)
+		|| !R.ReadFinite(Loaded.AutoPaverBudget) || Loaded.AutoPaverBudget < 0.0 || Loaded.AutoPaverBudget > LotBalance::AutoPaverBudgetCapL)
+	{
+		return false;
+	}
+	// Without a sector the auto paver idles, and only the owned one can have a sector.
+	if (Loaded.AutoPaverSector == INDEX_NONE ? (Loaded.AutoPaverStep != 0 || Loaded.bAutoPaverTravelling || Loaded.AutoPaverBudget != 0.0) : !Loaded.Owns(ELotItem::AutoPaver))
+	{
+		return false;
+	}
+
+	if (!R.ReadBool(Loaded.bWon))
+	{
+		return false;
+	}
+
+	FLotWorldState& World = Loaded.WorldState;
+	if (!R.ReadVector(World.PlayerPos) || !R.ReadFinite(World.PlayerYawDeg))
+	{
+		return false;
+	}
+	for (FLotMovable& Movable : World.Movables)
+	{
+		// The held flag is not stored; it follows from the held movable below.
+		if (!R.ReadVector(Movable.Pos) || !R.ReadFinite(Movable.YawDeg))
+		{
+			return false;
+		}
+	}
+	if (!R.ReadVector(World.CarPos) || !R.ReadFinite(World.CarYawDeg) || !R.ReadBool(World.bPlayerInCar))
+	{
+		return false;
+	}
+	if (World.bPlayerInCar && (!Loaded.Owns(ELotItem::Car) || Loaded.Held != ELotMovable::Count))
+	{
+		return false;
+	}
+	if (Loaded.Held != ELotMovable::Count)
+	{
+		if (!Loaded.OwnsMovable(Loaded.Held))
+		{
+			return false;
+		}
+		World.Movables[static_cast<int32>(Loaded.Held)].bHeld = true;
+	}
+
+	// The grid is the rest of the blob, to the last byte.
+	TConstArrayView<uint8> GridBytes;
+	int32 GridBytesRead = 0;
+	if (!R.ReadBlock(R.Remaining(), GridBytes) || !Loaded.Grid.Read(GridBytes, GridBytesRead) || GridBytesRead != GridBytes.Num())
+	{
+		return false;
+	}
+	if (Loaded.bWon && !Loaded.IsExitOpen())
+	{
+		return false;
+	}
+
+	*this = MoveTemp(Loaded);
+	return true;
 }

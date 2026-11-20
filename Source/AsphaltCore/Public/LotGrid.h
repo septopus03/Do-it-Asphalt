@@ -77,6 +77,20 @@ public:
 	/** Size * Size ELotTexel values, row after row (index Y * Size + X). */
 	TConstArrayView<uint8> GetTexels() const;
 
+	/**
+	 * Appends the grid to Out in the save format: a bit per cell (lowest bit first) that is set for complete cells,
+	 * the number of in-progress cells, then for each of them, in ascending order, its index and its 400 texels at two
+	 * bits each (row after row inside the cell). Texels of complete cells and of untouched cells are not stored.
+	 */
+	void Write(TArray<uint8>& Out) const;
+	/**
+	 * Replaces the grid by the one in the front of In and sets OutBytesRead to the bytes it took. Anything beyond that
+	 * is the caller's business. Returns false and leaves the grid and OutBytesRead untouched if the data is truncated,
+	 * out of range, not in the canonical form that Write produces or contradicts itself. On success the counters are
+	 * rebuilt and every sector is marked dirty, so the whole picture is drawn again.
+	 */
+	bool Read(TConstArrayView<uint8> In, int32& OutBytesRead);
+
 	/** Empties Out, then appends the area changed since the last call, at most one rectangle per sector (texel coordinates, Max exclusive). */
 	void ConsumeDirtyRects(TArray<FIntRect>& Out);
 

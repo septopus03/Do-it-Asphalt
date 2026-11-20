@@ -2,6 +2,7 @@
 
 #include "LotGrid.h"
 #include "Algo/Sort.h"
+#include "LotSaveIO.h"
 #include <algorithm>
 
 namespace
@@ -65,6 +66,26 @@ namespace
 	bool IsFinite(const FVector2D& V)
 	{
 		return FMath::IsFinite(V.X) && FMath::IsFinite(V.Y);
+	}
+
+	/** Bytes of the complete-cell bitset of a save: one bit per cell, 30 000 cells fill 3 750 bytes exactly. */
+	constexpr int32 SaveCompleteBytes = AsphaltLot::NumCells / 8;
+	/** Bytes of the texels of one in-progress cell: 400 texels at 2 bits fill 100 bytes exactly. */
+	constexpr int32 SaveCellBytes = FLotGrid::TexelsPerCell / 4;
+	/** An in-progress record: the cell index and its packed texels. */
+	constexpr int32 SaveRecordBytes = 4 + SaveCellBytes;
+	static_assert(AsphaltLot::NumCells % 8 == 0, "the complete-cell bitset has no padding bits");
+	static_assert(FLotGrid::TexelsPerCell % 4 == 0, "the packed texels of a cell have no padding bits");
+
+	/** Gives every sector (numbered as AsphaltLot::SectorOf) the rectangle of its texels. */
+	void MakeAllSectorsDirty(TArray<FIntRect>& Dirty)
+	{
+		for (int32 Sector = 0; Sector < AsphaltLot::NumSectors; ++Sector)
+		{
+			const int32 Row = Sector < 50 ? Sector / 10 : 5 + (Sector - 50) / 5;
+			const int32 Col = Sector < 50 ? Sector % 10 : (Sector - 50) % 5;
+			Dirty[Sector] = FIntRect(Col * TexelsPerSectorSide, Row * TexelsPerSectorSide, (Col + 1) * TexelsPerSectorSide, (Row + 1) * TexelsPerSectorSide);
+		}
 	}
 
 	bool CandidateLess(double KeyA, int32 IndexA, double KeyB, int32 IndexB)
@@ -414,4 +435,122 @@ void FLotGrid::ConsumeDirtyRects(TArray<FIntRect>& Out)
 			Rect = FIntRect(TNumericLimits<int32>::Max(), TNumericLimits<int32>::Max(), TNumericLimits<int32>::Lowest(), TNumericLimits<int32>::Lowest());
 		}
 	}
+}
+
+void FLotGrid::Write(TArray<uint8>& Out) const
+{
+	TArray<int32> InProgress;
+	const int32 BitsAt = Out.AddZeroed(SaveCompleteBytes);
+	for (int32 Cell = 0; Cell < AsphaltLot::NumCells; ++Cell)
+	{
+		if (IsCellComplete(Cell))
+		{
+			Out[BitsAt + Cell / 8] |= static_cast<uint8>(1 << (Cell % 8));
+		}
+		else if (CellDone[Cell] + CellRaw[Cell] > 0)
+		{
+			InProgress.Add(Cell);
+		}
+	}
+
+	Out.Reserve(Out.Num() + 4 + InProgress.Num() * SaveRecordBytes);
+	LotSaveIO::FWriter Writer(Out);
+	Writer.WriteI32(InProgress.Num());
+	for (const int32 Cell : InProgress)
+	{
+		Writer.WriteI32(Cell);
+		const FIntPoint Coord = AsphaltLot::CellCoord(Cell);
+		const int32 PackedAt = Out.AddZeroed(SaveCellBytes);
+		for (int32 I = 0; I < TexelsPerCell; ++I)
+		{
+			const int32 Texel = Texels[TexelIndexOf(Coord.X * TexelsPerCellSide + I % TexelsPerCellSide, Coord.Y * TexelsPerCellSide + I / TexelsPerCellSide)];
+			Out[PackedAt + I / 4] |= static_cast<uint8>(Texel << (2 * (I % 4)));
+		}
+	}
+}
+
+bool FLotGrid::Read(TConstArrayView<uint8> In, int32& OutBytesRead)
+{
+	LotSaveIO::FReader Reader(In);
+	TConstArrayView<uint8> Bits;
+	int32 InProgressCount = 0;
+	if (!Reader.ReadBlock(SaveCompleteBytes, Bits) || !Reader.ReadI32(InProgressCount))
+	{
+		return false;
+	}
+	// The count may not drive anything beyond what the remaining bytes can hold.
+	if (InProgressCount < 0 || InProgressCount > AsphaltLot::NumCells || static_cast<int64>(InProgressCount) * SaveRecordBytes > Reader.Remaining())
+	{
+		return false;
+	}
+
+	// Everything is built on the side and taken over only when the whole grid is valid.
+	TArray<uint8> NewTexels;
+	NewTexels.SetNumZeroed(Size * Size);
+	TArray<uint16> NewDone;
+	NewDone.SetNumZeroed(AsphaltLot::NumCells);
+	TArray<uint16> NewRaw;
+	NewRaw.SetNumZeroed(AsphaltLot::NumCells);
+	int32 NewComplete = 0;
+
+	for (int32 Cell = 0; Cell < AsphaltLot::NumCells; ++Cell)
+	{
+		if ((Bits[Cell / 8] >> (Cell % 8)) & 1)
+		{
+			const FIntPoint Coord = AsphaltLot::CellCoord(Cell);
+			for (int32 Y = Coord.Y * TexelsPerCellSide; Y < (Coord.Y + 1) * TexelsPerCellSide; ++Y)
+			{
+				FMemory::Memset(&NewTexels[TexelIndexOf(Coord.X * TexelsPerCellSide, Y)], static_cast<uint8>(ELotTexel::Done), TexelsPerCellSide);
+			}
+			NewDone[Cell] = TexelsPerCell;
+			++NewComplete;
+		}
+	}
+
+	int32 Previous = INDEX_NONE;
+	for (int32 Record = 0; Record < InProgressCount; ++Record)
+	{
+		int32 Cell = 0;
+		TConstArrayView<uint8> Packed;
+		if (!Reader.ReadI32(Cell) || !Reader.ReadBlock(SaveCellBytes, Packed))
+		{
+			return false;
+		}
+		// Ascending, inside the car park and not at the same time complete.
+		if (Cell <= Previous || Cell >= AsphaltLot::NumCells || NewDone[Cell] != 0)
+		{
+			return false;
+		}
+		Previous = Cell;
+
+		const FIntPoint Coord = AsphaltLot::CellCoord(Cell);
+		int32 Done = 0;
+		int32 Raw = 0;
+		for (int32 I = 0; I < TexelsPerCell; ++I)
+		{
+			const uint8 Texel = (Packed[I / 4] >> (2 * (I % 4))) & 3;
+			if (Texel > static_cast<uint8>(ELotTexel::Done))
+			{
+				return false;
+			}
+			Done += Texel == static_cast<uint8>(ELotTexel::Done) ? 1 : 0;
+			Raw += Texel == static_cast<uint8>(ELotTexel::Raw) ? 1 : 0;
+			NewTexels[TexelIndexOf(Coord.X * TexelsPerCellSide + I % TexelsPerCellSide, Coord.Y * TexelsPerCellSide + I / TexelsPerCellSide)] = Texel;
+		}
+		// A cell at the threshold should have been complete; an untouched cell is not written at all.
+		if (Done >= ThresholdTexels || Done + Raw == 0)
+		{
+			return false;
+		}
+		NewDone[Cell] = static_cast<uint16>(Done);
+		NewRaw[Cell] = static_cast<uint16>(Raw);
+	}
+
+	Texels = MoveTemp(NewTexels);
+	CellDone = MoveTemp(NewDone);
+	CellRaw = MoveTemp(NewRaw);
+	CompleteCount = NewComplete;
+	MakeAllSectorsDirty(Dirty);
+	OutBytesRead = Reader.GetPosition();
+	return true;
 }
