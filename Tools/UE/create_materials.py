@@ -219,6 +219,8 @@ return float4(colour, rough);""",
 def build_flat():
     path, mat = get_or_create("M_DIA_Flat", unreal.Material, unreal.MaterialFactoryNew())
     clear_expressions(mat)
+    # The kerb, fence and frames are instanced meshes; without this flag the engine swaps the material for its default grid.
+    mat.set_editor_property("used_with_instanced_static_meshes", True)
 
     colour = node(mat, unreal.MaterialExpressionVectorParameter, -600, 0,
                   parameter_name="BaseColor", default_value=unreal.LinearColor(0.5, 0.5, 0.5, 1.0))

@@ -4,6 +4,7 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "AsphaltTest.h"
+#include "Components/BoxComponent.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Components/PrimitiveComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -194,36 +195,95 @@ bool FSiteWallsTest::RunTest(const FString& Parameters)
 		FVector2D Dir;
 		double Outline;
 	};
-	// Each starts inside the car park and goes straight out through its side; Outline is that side's coordinate along Dir.
-	const FOutward Sides[] = {
-		{TEXT("bottom"), FVector2D(-5000.0, -5000.0), FVector2D(0.0, -1.0), SiteTestHalfCm},
-		{TEXT("left"), FVector2D(-5000.0, -5000.0), FVector2D(-1.0, 0.0), SiteTestHalfCm},
-		{TEXT("top"), FVector2D(-5000.0, 5000.0), FVector2D(0.0, 1.0), SiteTestHalfCm},
-		{TEXT("right"), FVector2D(5000.0, -3000.0), FVector2D(1.0, 0.0), SiteTestHalfCm},
-		{TEXT("right, at the gate"), FVector2D(5000.0, -5000.0), FVector2D(1.0, 0.0), SiteTestHalfCm},
-		{TEXT("bottom, at the trough"), FVector2D(LotLayout::TroughPos.X, -5000.0), FVector2D(0.0, -1.0), SiteTestHalfCm},
-	};
-	for (const FOutward& Side : Sides)
+	// Outline is the coordinate of a side along Dir (used by the rays into the mall).
+	// Only the walls answer these rays: every other component of the world (fence, barriers, trough, plant, kiosks, mall, ground) is
+	// ignored, so that a missing or misplaced wall cannot be hidden by something else standing in the way.
+	const ADIALotEdge* Edge = nullptr;
+	for (TActorIterator<ADIALotEdge> It(World); It; ++It)
 	{
-		const FVector2D End = Side.From + Side.Dir * (SiteTestHalfCm * 2.0 + SiteTestWallReachCm);
-		FHitResult Hit;
-		if (TestTrue(*FString::Printf(TEXT("%s: something blocks the way out"), Side.Name), TraceHit(World, Side.From, End, Hit)))
+		Edge = *It;
+	}
+	if (!TestNotNull(TEXT("the edge actor"), Edge))
+	{
+		return false;
+	}
+	auto IsWall = [Edge](const UPrimitiveComponent* Component)
+	{
+		return Edge->GetWalls().ContainsByPredicate([Component](const TObjectPtr<UBoxComponent>& Wall) { return Wall == Component; });
+	};
+	FCollisionQueryParams WallsOnly(SCENE_QUERY_STAT(SiteTestWalls), false);
+	for (TActorIterator<AActor> It(World); It; ++It)
+	{
+		TInlineComponentArray<UPrimitiveComponent*> Components(*It);
+		for (UPrimitiveComponent* Component : Components)
 		{
-			const double Beyond = FVector2D::DotProduct(FVector2D(Hit.ImpactPoint), Side.Dir) - Side.Outline;
-			TestTrue(*FString::Printf(TEXT("%s: stopped %.0f cm beyond the outline"), Side.Name, Beyond), Beyond <= SiteTestWallReachCm);
-			TestTrue(*FString::Printf(TEXT("%s: and not before the car park ends"), Side.Name), Beyond >= 0.0);
+			if (!IsWall(Component))
+			{
+				WallsOnly.AddIgnoredComponent(Component);
+			}
 		}
 	}
+	auto HitWall = [&](FVector2D From, FVector2D To, FHitResult& Hit)
+	{
+		return World->LineTraceSingleByChannel(Hit, FVector(From.X, From.Y, SiteTestTraceZCm), FVector(To.X, To.Y, SiteTestTraceZCm), ECC_Pawn, WallsOnly)
+			&& IsWall(Hit.GetComponent());
+	};
+	// How far beyond the car park's outline a point lies (the larger of the two axes, as the outline is a square with a corner cut out).
+	auto Beyond = [](const FVector& Point) { return FMath::Max(FMath::Abs(Point.X), FMath::Abs(Point.Y)) - SiteTestHalfCm; };
+	auto ExpectOut = [&](const FString& What, FVector2D From, FVector2D To)
+	{
+		FHitResult Hit;
+		if (TestTrue(*FString::Printf(TEXT("%s: a wall stops the way out"), *What), HitWall(From, To, Hit)))
+		{
+			TestTrue(*FString::Printf(TEXT("%s: within 12.5 m of the outline (%.0f cm)"), *What, Beyond(Hit.ImpactPoint)), Beyond(Hit.ImpactPoint) <= SiteTestWallReachCm);
+		}
+	};
 
-	// The strip's edges at the mall: from the strip beside the car park along the mall's side walls the way is closed too.
+	// A sweep every 5 m along each of the four outer sides, straight out of the car park (the ends of the sides run into the strip's corners).
+	const double Out = SiteTestHalfCm + SiteTestWallReachCm;
+	const double Step = 500.0;
+	for (double Along = -11000.0; Along <= 11000.0; Along += Step)
+	{
+		ExpectOut(FString::Printf(TEXT("bottom, x=%.0f"), Along), FVector2D(Along, -9000.0), FVector2D(Along, -Out));
+		ExpectOut(FString::Printf(TEXT("left, y=%.0f"), Along), FVector2D(-9000.0, Along), FVector2D(-Out, Along));
+		if (Along <= SiteTestCutCm)
+		{
+			ExpectOut(FString::Printf(TEXT("top, x=%.0f"), Along), FVector2D(Along, 9000.0), FVector2D(Along, Out));
+			ExpectOut(FString::Printf(TEXT("right, y=%.0f"), Along), FVector2D(9000.0, Along), FVector2D(Out, Along));
+		}
+	}
+	// The places where something else stands or the pieces meet: the gaps of the trough and the gate, the slits beside the gate's
+	// barrier, the entries' road ends, and a diagonal into each outer corner (and into the two corners beside the mall).
+	for (const double X : {LotLayout::TroughPos.X, LotLayout::TroughPos.X - 349.0, LotLayout::TroughPos.X + 299.0, AsphaltLot::EntryCentre(0).X})
+	{
+		ExpectOut(FString::Printf(TEXT("trough gap, x=%.0f"), X), FVector2D(X, -9000.0), FVector2D(X, -Out));
+	}
+	for (const double Y : {LotLayout::GatePos().Y, LotLayout::GatePos().Y - 190.0, LotLayout::GatePos().Y + 190.0, LotLayout::GatePos().Y - 170.0, LotLayout::GatePos().Y + 170.0})
+	{
+		ExpectOut(FString::Printf(TEXT("gate gap, y=%.0f"), Y), FVector2D(9000.0, Y), FVector2D(Out, Y));
+	}
+	for (const double Offset : {-190.0, 0.0, 190.0})
+	{
+		ExpectOut(FString::Printf(TEXT("entry 3 road end, y=%.0f"), Offset), FVector2D(-9000.0, AsphaltLot::EntryCentre(3).Y + Offset), FVector2D(-Out, AsphaltLot::EntryCentre(3).Y + Offset));
+		ExpectOut(FString::Printf(TEXT("entry 4 road end, x=%.0f"), Offset), FVector2D(AsphaltLot::EntryCentre(4).X + Offset, 9000.0), FVector2D(AsphaltLot::EntryCentre(4).X + Offset, Out));
+	}
+	ExpectOut(TEXT("corner bottom-left"), FVector2D(-9000.0, -9000.0), FVector2D(-Out, -Out));
+	ExpectOut(TEXT("corner bottom-right"), FVector2D(9000.0, -9000.0), FVector2D(Out, -Out));
+	ExpectOut(TEXT("corner top-left"), FVector2D(-9000.0, 9000.0), FVector2D(-Out, Out));
+	ExpectOut(TEXT("corner beside the mall, east"), FVector2D(9000.0, -1000.0), FVector2D(Out, 250.0));
+	ExpectOut(TEXT("corner beside the mall, north"), FVector2D(-1000.0, 9000.0), FVector2D(250.0, Out));
+
+	// The strips beside the mall: just past the end of the car park's side, going along the mall, a wall closes the strip on the line where the mall begins.
 	const FOutward Closed[] = {
-		{TEXT("strip beside the mall, east"), FVector2D(LotLayout::StripCm * 0.5 + SiteTestHalfCm, -500.0), FVector2D(0.0, 1.0), 0.0},
-		{TEXT("strip beside the mall, north"), FVector2D(-500.0, LotLayout::StripCm * 0.5 + SiteTestHalfCm), FVector2D(1.0, 0.0), 0.0},
+		{TEXT("strip beside the mall, east"), FVector2D(SiteTestHalfCm + 100.0, -500.0), FVector2D(0.0, 1.0), 0.0},
+		{TEXT("strip beside the mall, east, near the fence"), FVector2D(LotLayout::StripCm + SiteTestHalfCm - 100.0, -500.0), FVector2D(0.0, 1.0), 0.0},
+		{TEXT("strip beside the mall, north"), FVector2D(-500.0, SiteTestHalfCm + 100.0), FVector2D(1.0, 0.0), 0.0},
+		{TEXT("strip beside the mall, north, near the fence"), FVector2D(-500.0, LotLayout::StripCm + SiteTestHalfCm - 100.0), FVector2D(1.0, 0.0), 0.0},
 	};
 	for (const FOutward& Side : Closed)
 	{
 		FHitResult Hit;
-		if (TestTrue(*FString::Printf(TEXT("%s: a wall closes the strip"), Side.Name), TraceHit(World, Side.From, Side.From + Side.Dir * 1000.0, Hit)))
+		if (TestTrue(*FString::Printf(TEXT("%s: a wall closes the strip"), Side.Name), HitWall(Side.From, Side.From + Side.Dir * 1000.0, Hit)))
 		{
 			TestTrue(*FString::Printf(TEXT("%s: on the line where the mall begins"), Side.Name),
 				FMath::Abs(FVector2D::DotProduct(FVector2D(Hit.ImpactPoint), Side.Dir)) <= 100.0);

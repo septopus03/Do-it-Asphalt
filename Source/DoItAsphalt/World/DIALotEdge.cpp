@@ -30,7 +30,7 @@ namespace
 		double HalfCm;
 	};
 
-	double YawDeg(FVector2D Direction)
+	double EdgeYawDeg(FVector2D Direction)
 	{
 		return FMath::RadiansToDegrees(FMath::Atan2(Direction.Y, Direction.X));
 	}
@@ -217,7 +217,7 @@ void ADIALotEdge::BuildCurbs()
 	const FInstanceLook Look = SetInstancedModel(Curbs, TEXT("SM_Curb"), DIAAssets::EFallback::Cube, DIAModelSizes::CurbCm, TEXT("DIA_Concrete"));
 	for (const FRun& Run : DIASite::CurbRuns())
 	{
-		AddPieces(Curbs, Look, Run, DIASite::CurbPitchCm, DIAModelSizes::CurbCm.X * 0.5, YawDeg(-Run.Outward));
+		AddPieces(Curbs, Look, Run, DIASite::CurbPitchCm, DIAModelSizes::CurbCm.X * 0.5, EdgeYawDeg(-Run.Outward));
 	}
 }
 
@@ -227,7 +227,7 @@ void ADIALotEdge::BuildFence()
 	const FInstanceLook Look = SetInstancedModel(Fence, TEXT("SM_Fence"), DIAAssets::EFallback::Cube, DIAModelSizes::FenceCm, TEXT("DIA_Steel"));
 	for (const FRun& Run : DIASite::FenceRuns())
 	{
-		AddPieces(Fence, Look, Run, DIASite::FencePitchCm, 0.0, YawDeg(Run.Outward));
+		AddPieces(Fence, Look, Run, DIASite::FencePitchCm, 0.0, EdgeYawDeg(Run.Outward));
 	}
 }
 
@@ -289,7 +289,7 @@ void ADIALotEdge::BuildRoadEnds()
 	{
 		const FVector2D Origin = AsphaltLot::EntryCentre(Entry);
 		const FVector2D Outward = AsphaltLot::EntryOutward(Entry);
-		const FRotator Turn(0.0, YawDeg(Outward), 0.0);
+		const FRotator Turn(0.0, EdgeYawDeg(Outward), 0.0);
 
 		// The old road runs from the edge of the car park to the fence (the model's +X is its length).
 		UStaticMeshComponent* Stub = NewObject<UStaticMeshComponent>(this);
