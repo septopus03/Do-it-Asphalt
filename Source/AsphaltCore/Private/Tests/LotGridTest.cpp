@@ -25,6 +25,7 @@ DIA_TEST(FLotCompleteRawBlocksTest, "DoItAsphalt.Lot.Complete.RawBlocksThreshold
 DIA_TEST(FLotGridCompleteCellTest, "DoItAsphalt.Lot.Grid.CompleteCell")
 DIA_TEST(FLotGridDirtyRectsTest, "DoItAsphalt.Lot.Grid.DirtyRects")
 DIA_TEST(FLotStampMidCallCompletionTest, "DoItAsphalt.Lot.Stamp.MidCallCompletion")
+DIA_TEST(FLotGridNonFiniteInputsTest, "DoItAsphalt.Lot.Grid.NonFiniteInputs")
 
 namespace
 {
@@ -418,6 +419,51 @@ bool FLotStampMidCallCompletionTest::RunTest(const FString& Parameters)
 	// 20 texels to complete cell 0 (the free remainder is not paid) plus 380 for cell 1.
 	TestEqual(TEXT("paid texels"), R.TexelsChanged, 20 + 380);
 	TestNearlyEqual(TEXT("litres"), R.LitresUsed, 10.0, Tolerance);
+	return true;
+}
+
+bool FLotGridNonFiniteInputsTest::RunTest(const FString& Parameters)
+{
+	const double Bad[3] = {NAN, INFINITY, -INFINITY};
+	const FVector2D C0 = AsphaltLot::CellCentre(0);
+	const FVector2D Good = C0 + FVector2D(10.0, 0.0);
+
+	FLotGrid G;
+	// Raw asphalt in cell 0 so that FinishRaw has something it must not touch.
+	G.DepositIntoCell(0, 2.5, C0, ELotTexel::Raw);
+	const int32 RawBefore = CountState(G, ELotTexel::Raw);
+
+	int32 Calls = 0;
+	const auto Check = [&](const TCHAR* What, const FLotPour& R)
+	{
+		++Calls;
+		TestNearlyEqual(FString(What) + TEXT(": litres"), R.LitresUsed, 0.0, Tolerance);
+		TestEqual(FString(What) + TEXT(": texels"), R.TexelsChanged, 0);
+		TestEqual(FString(What) + TEXT(": completed"), R.CompletedCells.Num(), 0);
+	};
+
+	for (const double V : Bad)
+	{
+		const FVector2D BadX(V, 0.0);
+		const FVector2D BadY(0.0, V);
+		Check(TEXT("Stamp A"), G.Stamp(BadX, Good, 100.0, 100.0, ELotTexel::Done));
+		Check(TEXT("Stamp B"), G.Stamp(Good, BadY, 100.0, 100.0, ELotTexel::Raw));
+		Check(TEXT("Stamp width"), G.Stamp(C0, Good, V, 100.0, ELotTexel::Done));
+		Check(TEXT("Stamp litres"), G.Stamp(C0, Good, 100.0, V, ELotTexel::Done));
+		Check(TEXT("PourDisc centre"), G.PourDisc(BadY, 15.0, 100.0, C0));
+		Check(TEXT("PourDisc radius"), G.PourDisc(C0, V, 100.0, C0));
+		Check(TEXT("PourDisc from"), G.PourDisc(C0, 15.0, 100.0, BadX));
+		Check(TEXT("PourDisc litres"), G.PourDisc(C0, 15.0, V, C0));
+		Check(TEXT("Deposit from"), G.DepositIntoCell(1, 100.0, BadY, ELotTexel::Done));
+		Check(TEXT("Deposit litres"), G.DepositIntoCell(1, V, C0, ELotTexel::Done));
+		Check(TEXT("FinishRaw A"), G.FinishRaw(BadX, Good, 100.0));
+		Check(TEXT("FinishRaw B"), G.FinishRaw(Good, BadY, 100.0));
+		Check(TEXT("FinishRaw width"), G.FinishRaw(C0, Good, V));
+	}
+	TestEqual(TEXT("calls made"), Calls, 39);
+	TestEqual(TEXT("raw asphalt untouched"), CountState(G, ELotTexel::Raw), RawBefore);
+	TestEqual(TEXT("nothing finished"), CountState(G, ELotTexel::Done), 0);
+	TestEqual(TEXT("no complete cell"), G.NumCompleteCells(), 0);
 	return true;
 }
 

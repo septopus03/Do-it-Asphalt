@@ -62,6 +62,11 @@ namespace
 		return static_cast<int32>(FMath::Min(FMath::FloorToDouble((MaxLitres + LitreEpsilon) / FLotGrid::LitresPerTexel), (double)TNumericLimits<int32>::Max()));
 	}
 
+	bool IsFinite(const FVector2D& V)
+	{
+		return FMath::IsFinite(V.X) && FMath::IsFinite(V.Y);
+	}
+
 	bool CandidateLess(double KeyA, int32 IndexA, double KeyB, int32 IndexB)
 	{
 		return KeyA < KeyB || (KeyA == KeyB && IndexA < IndexB);
@@ -228,7 +233,7 @@ void FLotGrid::CollectStampCandidates(FVector2D A, FVector2D B, double WidthCm, 
 
 FLotPour FLotGrid::Stamp(FVector2D A, FVector2D B, double WidthCm, double MaxLitres, ELotTexel State)
 {
-	if (State == ELotTexel::Free || !(MaxLitres > 0.0) || !(WidthCm >= 0.0))
+	if (State == ELotTexel::Free || !FMath::IsFinite(MaxLitres) || !(MaxLitres > 0.0) || !FMath::IsFinite(WidthCm) || !(WidthCm >= 0.0) || !IsFinite(A) || !IsFinite(B))
 	{
 		return FLotPour();
 	}
@@ -239,7 +244,7 @@ FLotPour FLotGrid::Stamp(FVector2D A, FVector2D B, double WidthCm, double MaxLit
 
 FLotPour FLotGrid::PourDisc(FVector2D Centre, double RadiusCm, double MaxLitres, FVector2D From)
 {
-	if (!(MaxLitres > 0.0) || !(RadiusCm >= 0.0))
+	if (!FMath::IsFinite(MaxLitres) || !(MaxLitres > 0.0) || !FMath::IsFinite(RadiusCm) || !(RadiusCm >= 0.0) || !IsFinite(Centre) || !IsFinite(From))
 	{
 		return FLotPour();
 	}
@@ -287,7 +292,7 @@ FLotPour FLotGrid::PourDisc(FVector2D Centre, double RadiusCm, double MaxLitres,
 
 FLotPour FLotGrid::DepositIntoCell(int32 Cell, double MaxLitres, FVector2D From, ELotTexel State)
 {
-	if (State == ELotTexel::Free || Cell < 0 || Cell >= AsphaltLot::NumCells || IsCellComplete(Cell) || !(MaxLitres > 0.0))
+	if (State == ELotTexel::Free || Cell < 0 || Cell >= AsphaltLot::NumCells || IsCellComplete(Cell) || !FMath::IsFinite(MaxLitres) || !(MaxLitres > 0.0) || !IsFinite(From))
 	{
 		return FLotPour();
 	}
@@ -332,7 +337,7 @@ FLotPour FLotGrid::DepositIntoCell(int32 Cell, double MaxLitres, FVector2D From,
 FLotPour FLotGrid::FinishRaw(FVector2D A, FVector2D B, double WidthCm)
 {
 	FLotPour Result;
-	if (!(WidthCm >= 0.0))
+	if (!FMath::IsFinite(WidthCm) || !(WidthCm >= 0.0) || !IsFinite(A) || !IsFinite(B))
 	{
 		return Result;
 	}
