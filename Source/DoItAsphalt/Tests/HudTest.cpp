@@ -248,14 +248,16 @@ bool FCheckModelTest::RunTest(const FString& Parameters)
 {
 	FLotGame Game;
 	FDIACheckModel Model;
-	Game.World().PlayerPos = FVector2D(0.0, -9950.0);
+	const FVector2D From(0.0, -9950.0);
 
-	Model.Update(Game, false, 1.0f);
+	Model.Update(Game, false, 1.0f, From);
 	TestFalse(TEXT("off: inactive"), Model.GetView().bActive);
 	TestTrue(TEXT("off: no text"), Model.GetView().Nearest.IsEmpty());
 	TestEqual(TEXT("off: nothing is searched"), Model.GetSearchCount(), 0);
 
-	Model.Update(Game, true, 0.016f);
+	Game.World().PlayerPos = FVector2D(0.0, 9000.0); // a stale copy in the core must not matter
+	Model.Update(Game, true, 0.016f, From);
+	TestTrue(TEXT("the search starts from the position it is given"), Model.GetView().Target.Y < -9000.0);
 	TestTrue(TEXT("on: active"), Model.GetView().bActive);
 	TestEqual(TEXT("on: searched at once"), Model.GetSearchCount(), 1);
 	TestFalse(TEXT("a text for the nearest cell"), Model.GetView().Nearest.IsEmpty());
@@ -263,21 +265,21 @@ bool FCheckModelTest::RunTest(const FString& Parameters)
 	// Twice a second at most.
 	for (int32 I = 0; I < 10; ++I)
 	{
-		Model.Update(Game, true, 0.04f);
+		Model.Update(Game, true, 0.04f, From);
 	}
 	TestEqual(TEXT("0.4 s later: still the first search"), Model.GetSearchCount(), 1);
-	Model.Update(Game, true, 0.11f);
+	Model.Update(Game, true, 0.11f, From);
 	TestEqual(TEXT("past half a second: searched again"), Model.GetSearchCount(), 2);
 
-	Model.Update(Game, false, 0.1f);
+	Model.Update(Game, false, 0.1f, From);
 	TestFalse(TEXT("released: inactive"), Model.GetView().bActive);
 	TestTrue(TEXT("released: no text"), Model.GetView().Nearest.IsEmpty());
-	Model.Update(Game, true, 0.016f);
+	Model.Update(Game, true, 0.016f, From);
 	TestEqual(TEXT("held again: searched at once"), Model.GetSearchCount(), 3);
 
 	// Nothing unfinished: no text, but the view is on.
 	Game.DebugCompleteCells(AsphaltLot::NumCells);
-	Model.Update(Game, true, 1.0f);
+	Model.Update(Game, true, 1.0f, From);
 	TestTrue(TEXT("all done: active"), Model.GetView().bActive);
 	TestTrue(TEXT("all done: no text"), Model.GetView().Nearest.IsEmpty());
 	return true;
@@ -321,6 +323,11 @@ bool FHudCheckViewTest::RunTest(const FString& Parameters)
 	FLotGame& Game = Subsystem->GetGame();
 	Game.DebugCompleteCells(5 * AsphaltLot::Side);
 	Game.World().PlayerPos = FVector2D(0.0, -9950.0);
+	ADIACharacter* Character = DIATest::SpawnCharacter(World, FVector2D(0.0, -9950.0));
+	if (!TestNotNull(TEXT("character"), Character))
+	{
+		return false;
+	}
 
 	TestFalse(TEXT("the check view starts off"), Hud->IsCheckView());
 	TestEqual(TEXT("no highlight at first"), Highlight(), 0.f);
@@ -332,10 +339,12 @@ bool FHudCheckViewTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("the ground highlights what is missing"), Highlight(), 1.f);
 	Wrapper.TickTestWorld(0.1f);
 	TestTrue(TEXT("the HUD is active"), Hud->GetCheckView().bActive);
-	const int32 Nearest = Game.FindNearestIncomplete(Game.World().PlayerPos);
+	// Distance and arrow come from where the pawn is, not from the core's copy.
+	const FVector2D Here(Character->GetActorLocation());
+	const int32 Nearest = Game.FindNearestIncomplete(Here);
 	if (TestTrue(TEXT("something is unfinished"), Nearest != INDEX_NONE))
 	{
-		const double Expected = FVector2D::Distance(Game.World().PlayerPos, AsphaltLot::CellCentre(Nearest)) / 100.0;
+		const double Expected = FVector2D::Distance(Here, AsphaltLot::CellCentre(Nearest)) / 100.0;
 		TestEqual(TEXT("about five metres"), Expected, 5.0, 1.0);
 		TestTrue(TEXT("the text names the distance"), Hud->GetCheckView().Nearest.ToString().Contains(FString::Printf(TEXT("%d m"), FMath::RoundToInt(Expected))));
 		TestTrue(TEXT("the arrow points at the cell"), Hud->GetCheckView().Target.Equals(AsphaltLot::CellCentre(Nearest), 1.0));

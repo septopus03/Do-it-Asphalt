@@ -141,8 +141,8 @@ struct FDIACheckView
 class DOITASPHALT_API FDIACheckModel
 {
 public:
-	/** Advances by DeltaSeconds; Held is whether the check view is on. The position searched from is the player's in the game. */
-	void Update(const FLotGame& Game, bool bHeld, float DeltaSeconds);
+	/** Advances by DeltaSeconds; Held is whether the check view is on. From is where the player actually is (the pawn's location in cm), read by the caller at this moment. */
+	void Update(const FLotGame& Game, bool bHeld, float DeltaSeconds, const FVector2D& From);
 
 	const FDIACheckView& GetView() const { return View; }
 	/** How often the cells were scanned; for tests. */
@@ -184,6 +184,19 @@ struct FDIAShopRow
 };
 
 /**
+ * What a purchase asks for, named by what is bought and not by the row it was shown in (the rows move when something is
+ * bought). The plant is named by the level it expects to buy.
+ */
+struct FDIAShopTarget
+{
+	bool bValid = false;
+	bool bPlant = false;
+	ELotItem Item = ELotItem::Count;
+	/** For the plant: the level the player has now, i.e. the level before the purchase. */
+	int32 PlantLevel = -1;
+};
+
+/**
  * The rows of the shop: the plant's next level first, then the items in ELotItem order, with the owned rows moved to the
  * end (keeping their order). Like FDIAHudModel it rebuilds the rows only when something shown changed: the state of
  * each row and the plant level (the credits themselves are not shown), and the subsystem reports a state change on every tick.
@@ -198,8 +211,15 @@ public:
 	bool Update(const FLotGame& Game);
 
 	const FDIAShopRow& GetRow(int32 Index) const { return Rows[FMath::Clamp(Index, 0, NumRows - 1)]; }
-	/** Buys what the row offers through the world subsystem (which broadcasts it); false if the row cannot be bought. */
-	bool Buy(int32 Index, class UDIAWorldSubsystem& Subsystem) const;
+	/** What a row offers, as a purchase request that stays right when the rows move; invalid for a row that cannot be bought. */
+	FDIAShopTarget TargetOf(int32 Index, const FLotGame& Game) const;
+	/**
+	 * Buys the target through the world subsystem (which broadcasts it). It checks the game itself, not the rows: an item
+	 * already owned, no longer affordable or no longer offered, or a plant that is not at the level the request expected, buys
+	 * nothing. A purchase within AsphaltHud::ShopClickGuardSeconds of the last one is refused too, so one click sequence
+	 * (a double click) buys at most one thing. NowSeconds is the clock of the caller.
+	 */
+	bool Buy(const FDIAShopTarget& Target, class UDIAWorldSubsystem& Subsystem, double NowSeconds);
 	/** How often the rows were rebuilt; for tests. */
 	int32 GetRebuildCount() const { return RebuildCount; }
 
@@ -209,6 +229,8 @@ private:
 		int32 PlantLevel = -1;
 		/** EDIAShopState of the plant and of each item, in their own order. */
 		int32 States[NumRows] = {};
+		/** Why each item is locked (0 not, 1 its step is closed, 2 an item is missing): the reason text depends on it. */
+		int32 Locks[static_cast<int32>(ELotItem::Count)] = {};
 
 		bool operator==(const FKey& Other) const = default;
 	};
@@ -216,6 +238,7 @@ private:
 	FKey Key;
 	FDIAShopRow Rows[NumRows];
 	int32 RebuildCount = 0;
+	double LastBuySeconds = -1.0e9;
 };
 
 /** What the win screen shows, already formatted. */

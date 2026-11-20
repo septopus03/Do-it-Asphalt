@@ -36,6 +36,7 @@ public:
 
 private:
 	void HandleStateChanged();
+	void HandlePressed(int32 Row);
 	FReply HandleBuy(int32 Row);
 	TSharedRef<SWidget> BuildRow(int32 Row);
 
@@ -44,6 +45,8 @@ private:
 	FDelegateHandle StateHandle;
 
 	FDIAShopModel Model;
+	/** What the button that is held down would buy, named by item (or plant level), not by row: the rows move when something is bought. */
+	FDIAShopTarget Pressed;
 	FSlateRoundedBoxBrush PanelBrush{FLinearColor::White, AsphaltHud::PanelCornerRadius};
 	FSlateRoundedBoxBrush RowBrush{FLinearColor::White, AsphaltHud::RowCornerRadius};
 	FButtonStyle ButtonStyle;

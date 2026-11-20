@@ -112,19 +112,32 @@ namespace
 		}
 	}
 
-	/** Why an item that is not owned is not on offer: its step is closed ("350 cells + entry 3") or an item it upgrades is missing. */
-	FText LockReason(const FLotGame& Game, ELotItem Item)
+	/** Why an item is not on offer, as a cheap number: 0 nothing, 1 its step is closed, 2 an item it upgrades is missing. */
+	int32 LockKind(const FLotGame& Game, ELotItem Item)
 	{
 		const int32 Index = static_cast<int32>(Item);
 		const ELotUnlock Step = LotBalance::ItemUnlock[Index];
 		if (Step != ELotUnlock::Count && !Game.IsUnlocked(Step))
+		{
+			return 1;
+		}
+		const ELotItem Required = LotBalance::ItemRequires[Index];
+		return Required != ELotItem::Count && !Game.Owns(Required) ? 2 : 0;
+	}
+
+	/** The text for it: "350 cells + entry 3" or "needs Auto Paver". */
+	FText LockReason(const FLotGame& Game, ELotItem Item)
+	{
+		const int32 Index = static_cast<int32>(Item);
+		const ELotUnlock Step = LotBalance::ItemUnlock[Index];
+		if (LockKind(Game, Item) == 1)
 		{
 			const int32 StepIndex = static_cast<int32>(Step);
 			// The entry is numbered from 1, as in the entry toast.
 			return FText::Format(NSLOCTEXT("DIAShop", "LockedStep", "{0} cells + entry {1}"), DIAFormat::Count(LotBalance::UnlockCells[StepIndex]), DIAFormat::Count(StepIndex + 1));
 		}
 		const ELotItem Required = LotBalance::ItemRequires[Index];
-		if (Required != ELotItem::Count && !Game.Owns(Required))
+		if (LockKind(Game, Item) == 2)
 		{
 			return FText::Format(NSLOCTEXT("DIAShop", "LockedItem", "needs {0}"), DIAFormat::ItemName(Required));
 		}
@@ -389,7 +402,7 @@ bool FDIAHudModel::Update(const FLotGame& Game)
 	return true;
 }
 
-void FDIACheckModel::Update(const FLotGame& Game, bool bHeld, float DeltaSeconds)
+void FDIACheckModel::Update(const FLotGame& Game, bool bHeld, float DeltaSeconds, const FVector2D& From)
 {
 	if (!bHeld)
 	{
@@ -407,7 +420,6 @@ void FDIACheckModel::Update(const FLotGame& Game, bool bHeld, float DeltaSeconds
 	SinceSearch = 0.f;
 	++SearchCount;
 
-	const FVector2D From = Game.World().PlayerPos;
 	const int32 Cell = Game.FindNearestIncomplete(From);
 	if (Cell == INDEX_NONE)
 	{
@@ -424,48 +436,28 @@ bool FDIAShopModel::Update(const FLotGame& Game)
 	constexpr int32 NumItems = static_cast<int32>(ELotItem::Count);
 	constexpr int32 MaxPlantLevel = static_cast<int32>(std::size(LotBalance::PlantPrice));
 
-	// The rows in their natural order: the plant, then the items.
-	FDIAShopRow Natural[NumRows];
+	// The key first, from cheap queries: this runs on every tick, so nothing is formatted unless it changed.
 	FKey NewKey;
 	NewKey.PlantLevel = Game.GetPlantLevel();
-	{
-		FDIAShopRow& Row = Natural[0];
-		const bool bMax = NewKey.PlantLevel >= MaxPlantLevel;
-		Row.bPlant = true;
-		Row.Name = LOCTEXT("ShopPlant", "Plant");
-		Row.Value = bMax ? FText::Format(LOCTEXT("ShopRate", "{0} {1}"), Whole(PlantRate(NewKey.PlantLevel)), PerMinuteLitres())
-						 : Change(PlantRate(NewKey.PlantLevel), PlantRate(NewKey.PlantLevel + 1), PerMinuteLitres());
-		Row.State = bMax ? EDIAShopState::Owned : (Game.CanBuyPlant() ? EDIAShopState::Buy : EDIAShopState::NoCredits);
-		Row.Price = bMax ? FText::GetEmpty() : DIAFormat::Credits(Game.GetPlantNextPrice());
-	}
+	const bool bPlantMax = NewKey.PlantLevel >= MaxPlantLevel;
+	NewKey.States[0] = static_cast<int32>(bPlantMax ? EDIAShopState::Owned : (Game.CanBuyPlant() ? EDIAShopState::Buy : EDIAShopState::NoCredits));
 	for (int32 I = 0; I < NumItems; ++I)
 	{
 		const ELotItem Item = static_cast<ELotItem>(I);
-		FDIAShopRow& Row = Natural[1 + I];
-		Row.Item = Item;
-		Row.Name = DIAFormat::ItemName(Item);
-		Row.Value = ItemValue(Item);
-		if (Game.Owns(Item))
+		EDIAShopState State = EDIAShopState::Owned;
+		if (!Game.Owns(Item))
 		{
-			Row.State = EDIAShopState::Owned;
-		}
-		else
-		{
-			Row.Price = DIAFormat::Credits(Game.GetItemPrice(Item));
 			if (Game.IsItemOffered(Item))
 			{
-				Row.State = Game.CanBuyItem(Item) ? EDIAShopState::Buy : EDIAShopState::NoCredits;
+				State = Game.CanBuyItem(Item) ? EDIAShopState::Buy : EDIAShopState::NoCredits;
 			}
 			else
 			{
-				Row.State = EDIAShopState::Locked;
-				Row.Reason = LockReason(Game, Item);
+				State = EDIAShopState::Locked;
+				NewKey.Locks[I] = LockKind(Game, Item);
 			}
 		}
-	}
-	for (int32 I = 0; I < NumRows; ++I)
-	{
-		NewKey.States[I] = static_cast<int32>(Natural[I].State);
+		NewKey.States[1 + I] = static_cast<int32>(State);
 	}
 
 	if (RebuildCount > 0 && NewKey == Key)
@@ -474,6 +466,35 @@ bool FDIAShopModel::Update(const FLotGame& Game)
 	}
 	Key = NewKey;
 	++RebuildCount;
+
+	// The rows in their natural order: the plant, then the items.
+	FDIAShopRow Natural[NumRows];
+	{
+		FDIAShopRow& Row = Natural[0];
+		Row.bPlant = true;
+		Row.Name = LOCTEXT("ShopPlant", "Plant");
+		Row.Value = bPlantMax ? FText::Format(LOCTEXT("ShopRate", "{0} {1}"), Whole(PlantRate(NewKey.PlantLevel)), PerMinuteLitres())
+							  : Change(PlantRate(NewKey.PlantLevel), PlantRate(NewKey.PlantLevel + 1), PerMinuteLitres());
+		Row.State = static_cast<EDIAShopState>(NewKey.States[0]);
+		Row.Price = bPlantMax ? FText::GetEmpty() : DIAFormat::Credits(Game.GetPlantNextPrice());
+	}
+	for (int32 I = 0; I < NumItems; ++I)
+	{
+		const ELotItem Item = static_cast<ELotItem>(I);
+		FDIAShopRow& Row = Natural[1 + I];
+		Row.Item = Item;
+		Row.Name = DIAFormat::ItemName(Item);
+		Row.Value = ItemValue(Item);
+		Row.State = static_cast<EDIAShopState>(NewKey.States[1 + I]);
+		if (Row.State != EDIAShopState::Owned)
+		{
+			Row.Price = DIAFormat::Credits(Game.GetItemPrice(Item));
+		}
+		if (Row.State == EDIAShopState::Locked)
+		{
+			Row.Reason = LockReason(Game, Item);
+		}
+	}
 
 	// What can be bought stays on top; the owned rows follow in their own order.
 	int32 Next = 0;
@@ -490,13 +511,34 @@ bool FDIAShopModel::Update(const FLotGame& Game)
 	return true;
 }
 
-bool FDIAShopModel::Buy(int32 Index, UDIAWorldSubsystem& Subsystem) const
+FDIAShopTarget FDIAShopModel::TargetOf(int32 Index, const FLotGame& Game) const
 {
+	FDIAShopTarget Target;
 	if (Index < 0 || Index >= NumRows || Rows[Index].State != EDIAShopState::Buy)
+	{
+		return Target;
+	}
+	Target.bValid = true;
+	Target.bPlant = Rows[Index].bPlant;
+	Target.Item = Rows[Index].Item;
+	Target.PlantLevel = Game.GetPlantLevel();
+	return Target;
+}
+
+bool FDIAShopModel::Buy(const FDIAShopTarget& Target, UDIAWorldSubsystem& Subsystem, double NowSeconds)
+{
+	if (!Target.bValid || NowSeconds - LastBuySeconds < AsphaltHud::ShopClickGuardSeconds)
 	{
 		return false;
 	}
-	return Rows[Index].bPlant ? Subsystem.BuyPlant() : Subsystem.BuyItem(Rows[Index].Item);
+	// The game decides, not the rows: they may be older than the click.
+	const FLotGame& Game = Subsystem.GetGame();
+	const bool bBought = Target.bPlant ? (Game.GetPlantLevel() == Target.PlantLevel && Subsystem.BuyPlant()) : Subsystem.BuyItem(Target.Item);
+	if (bBought)
+	{
+		LastBuySeconds = NowSeconds;
+	}
+	return bBought;
 }
 
 int32 FDIAWinModel::ItemsBought(const FLotGame& Game)

@@ -121,6 +121,31 @@ bool FShopRequirementsTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+DIA_TEST(FShopReasonTest, "DoItAsphalt.Game.Shop.ReasonFollowsTheGame")
+
+bool FShopReasonTest::RunTest(const FString& Parameters)
+{
+	// The locked reason is part of what the model watches: when its step opens, the text moves from the step to the item.
+	FLotGame Game;
+	FDIAShopModel Model;
+	Model.Update(Game);
+	const int32 Faster = RowOfItem(Model, ELotItem::AutoPaverFaster);
+	TestEqual(TEXT("closed step"), Model.GetRow(Faster).Reason.ToString(), FString(TEXT("800 cells + entry 4")));
+	const int32 Rebuilds = Model.GetRebuildCount();
+	Game.DebugCompleteCells(LotBalance::UnlockCells[static_cast<int32>(ELotUnlock::AutoPaver)]);
+	for (int32 Entry = 0; Entry <= static_cast<int32>(ELotUnlock::AutoPaver); ++Entry)
+	{
+		for (int32 I = 0; I < AsphaltLot::CellsPerEntry; ++I)
+		{
+			Game.DebugCompleteCell(AsphaltLot::EntryCell(Entry, I));
+		}
+	}
+	TestTrue(TEXT("opening the step rebuilds"), Model.Update(Game));
+	TestEqual(TEXT("one pass"), Model.GetRebuildCount(), Rebuilds + 1);
+	TestEqual(TEXT("the reason names the item now"), Model.GetRow(RowOfItem(Model, ELotItem::AutoPaverFaster)).Reason.ToString(), FString(TEXT("needs Fast Auto Paver")));
+	return true;
+}
+
 DIA_TEST(FShopPlantMaxTest, "DoItAsphalt.Game.Shop.PlantMax")
 
 bool FShopPlantMaxTest::RunTest(const FString& Parameters)
@@ -167,9 +192,9 @@ bool FShopBuyThroughModelTest::RunTest(const FString& Parameters)
 	const int32 Scoop = RowOfItem(Model, ELotItem::Scoop);
 	TestEqual(TEXT("the scoop is the first item row"), Scoop, 1);
 	TestTrue(TEXT("it can be bought"), Model.GetRow(Scoop).State == EDIAShopState::Buy);
-	TestFalse(TEXT("the plant row cannot be bought with ten credits"), Model.Buy(0, *Subsystem));
+	TestFalse(TEXT("the plant row cannot be bought with ten credits"), Model.Buy(Model.TargetOf(0, Game), *Subsystem, 100.0));
 
-	TestTrue(TEXT("bought through the row"), Model.Buy(Scoop, *Subsystem));
+	TestTrue(TEXT("bought through the row"), Model.Buy(Model.TargetOf(Scoop, Game), *Subsystem, 100.0));
 	TestEqual(TEXT("the credits are spent"), Game.GetCredits(), 0.0);
 	TestTrue(TEXT("the scoop is owned"), Game.Owns(ELotItem::Scoop));
 	TestEqual(TEXT("the purchase was broadcast"), Broadcasts, 1);
@@ -178,7 +203,7 @@ bool FShopBuyThroughModelTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("the owned row is the last one"), Moved, FDIAShopModel::NumRows - 1);
 	TestTrue(TEXT("it is owned"), Model.GetRow(Moved).State == EDIAShopState::Owned);
 	TestTrue(TEXT("owned rows have no price"), Model.GetRow(Moved).Price.IsEmpty());
-	TestFalse(TEXT("a row cannot be bought twice"), Model.Buy(Moved, *Subsystem));
+	TestFalse(TEXT("a row cannot be bought twice"), Model.Buy(Model.TargetOf(Moved, Game), *Subsystem, 200.0));
 	TestEqual(TEXT("the bucket moved up"), Model.GetRow(1).Item, ELotItem::Bucket);
 
 	// Owned rows keep their order at the end.
@@ -190,8 +215,80 @@ bool FShopBuyThroughModelTest::RunTest(const FString& Parameters)
 	// The plant goes through the subsystem as well.
 	Game.DebugGive(1000.0);
 	Model.Update(Game);
-	TestTrue(TEXT("the plant is bought through the row"), Model.Buy(0, *Subsystem));
+	TestTrue(TEXT("the plant is bought through the row"), Model.Buy(Model.TargetOf(0, Game), *Subsystem, 300.0));
 	TestEqual(TEXT("one level more"), Game.GetPlantLevel(), 1);
+	return true;
+}
+
+DIA_TEST(FShopDoubleClickTest, "DoItAsphalt.Game.Shop.DoubleClick")
+
+bool FShopDoubleClickTest::RunTest(const FString& Parameters)
+{
+	FTestWorldWrapper Wrapper;
+	if (!DIATest::StartGameWorld(Wrapper, *this))
+	{
+		return false;
+	}
+	UDIAWorldSubsystem* Subsystem = Wrapper.GetTestWorld()->GetSubsystem<UDIAWorldSubsystem>();
+	if (!TestNotNull(TEXT("world subsystem"), Subsystem))
+	{
+		return false;
+	}
+	FLotGame& Game = Subsystem->GetGame();
+	Game.DebugGive(500.0 - Game.GetCredits());
+	FDIAShopModel Model;
+	Model.Update(Game);
+
+	// A double click on the scoop: the same row index is pressed twice. The rebuild after the first purchase moves the
+	// bucket under the cursor; the second press must not buy it.
+	const int32 Row = RowOfItem(Model, ELotItem::Scoop);
+	const FDIAShopTarget First = Model.TargetOf(Row, Game);
+	TestTrue(TEXT("the scoop can be bought"), First.bValid && !First.bPlant && First.Item == ELotItem::Scoop);
+	TestTrue(TEXT("the first click buys the scoop"), Model.Buy(First, *Subsystem, 10.0));
+	Model.Update(Game);
+	const FDIAShopTarget Second = Model.TargetOf(Row, Game);
+	TestTrue(TEXT("the same row now offers the bucket"), Second.bValid && Second.Item == ELotItem::Bucket);
+	TestFalse(TEXT("the second click of the sequence buys nothing"), Model.Buy(Second, *Subsystem, 10.05));
+	TestFalse(TEXT("the bucket is not owned"), Game.Owns(ELotItem::Bucket));
+	TestEqual(TEXT("only the scoop was paid"), Game.GetCredits(), 490.0);
+
+	// A press that was captured before the rebuild still names the scoop, which is owned now: nothing happens, even long after.
+	TestFalse(TEXT("a stale request for an owned item does nothing"), Model.Buy(First, *Subsystem, 50.0));
+	TestEqual(TEXT("no credits spent"), Game.GetCredits(), 490.0);
+
+	// A later, separate click buys the bucket.
+	TestTrue(TEXT("a click after the guard buys the next item"), Model.Buy(Second, *Subsystem, 60.0));
+	TestTrue(TEXT("the bucket is owned"), Game.Owns(ELotItem::Bucket));
+
+	// A request for something that is no longer affordable or offered does nothing.
+	Game.DebugGive(-Game.GetCredits());
+	Model.Update(Game);
+	FDIAShopTarget Suitcase;
+	Suitcase.bValid = true;
+	Suitcase.Item = ELotItem::Suitcase;
+	TestFalse(TEXT("not affordable any more"), Model.Buy(Suitcase, *Subsystem, 100.0));
+	TestFalse(TEXT("nothing bought"), Game.Owns(ELotItem::Suitcase));
+	FDIAShopTarget Station;
+	Station.bValid = true;
+	Station.Item = ELotItem::Station;
+	Game.DebugGive(100000.0);
+	TestFalse(TEXT("not offered (locked)"), Model.Buy(Station, *Subsystem, 200.0));
+	TestFalse(TEXT("the invalid target buys nothing"), Model.Buy(FDIAShopTarget(), *Subsystem, 300.0));
+
+	// The plant: one press sequence buys one level, a stale request for a level already bought nothing, a later click the next.
+	FDIAShopModel PlantModel;
+	PlantModel.Update(Game);
+	const FDIAShopTarget Plant = PlantModel.TargetOf(0, Game);
+	TestTrue(TEXT("the plant request"), Plant.bValid && Plant.bPlant && Plant.PlantLevel == 0);
+	TestTrue(TEXT("first click: level 1"), PlantModel.Buy(Plant, *Subsystem, 400.0));
+	TestEqual(TEXT("level 1"), Game.GetPlantLevel(), 1);
+	PlantModel.Update(Game);
+	TestFalse(TEXT("the second click of the double click: nothing"), PlantModel.Buy(PlantModel.TargetOf(0, Game), *Subsystem, 400.1));
+	TestEqual(TEXT("still level 1"), Game.GetPlantLevel(), 1);
+	TestFalse(TEXT("a request for the level that was bought: nothing"), PlantModel.Buy(Plant, *Subsystem, 500.0));
+	TestEqual(TEXT("still level 1 after it"), Game.GetPlantLevel(), 1);
+	TestTrue(TEXT("a separate click buys level 2"), PlantModel.Buy(PlantModel.TargetOf(0, Game), *Subsystem, 500.0));
+	TestEqual(TEXT("level 2"), Game.GetPlantLevel(), 2);
 	return true;
 }
 
@@ -228,6 +325,14 @@ bool FShopOnlyChangesTest::RunTest(const FString& Parameters)
 	Game.DebugGive(5.0);
 	TestTrue(TEXT("ten credits buy the scoop"), Model.Update(Game));
 	TestEqual(TEXT("one rebuild more"), Model.GetRebuildCount(), Rebuilds + 1);
+
+	// An unchanged key formats nothing: the rebuild counter counts the passes that format the rows.
+	const int32 Passes = Model.GetRebuildCount();
+	for (int32 I = 0; I < 50; ++I)
+	{
+		Model.Update(Game);
+	}
+	TestEqual(TEXT("an unchanged key does no row formatting"), Model.GetRebuildCount(), Passes);
 	return true;
 }
 

@@ -89,7 +89,7 @@ void SDIAShopPanel::Construct(const FArguments& InArgs)
 					]
 					+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Bottom).Padding(24.f, 0.f, 0.f, 4.f)
 					[
-						AsphaltHud::MakeShadowedText(NSLOCTEXT("DIAHud", "ShopHint", "Tab - close"), AsphaltHud::CaptionFontSize, AsphaltHud::CaptionColor)
+						AsphaltHud::MakeShadowedText(NSLOCTEXT("DIAHud", "ShopHint", "Tab / Esc - close"), AsphaltHud::CaptionFontSize, AsphaltHud::CaptionColor)
 					]
 				]
 				+ SVerticalBox::Slot().AutoHeight()
@@ -122,13 +122,24 @@ void SDIAShopPanel::HandleStateChanged()
 	}
 }
 
+void SDIAShopPanel::HandlePressed(int32 Row)
+{
+	// What is under the cursor when the button goes down is what the click buys, whatever the rows do until it is released.
+	if (const UDIAWorldSubsystem* S = Subsystem.Get())
+	{
+		Pressed = Model.TargetOf(Row, S->GetGame());
+	}
+}
+
 FReply SDIAShopPanel::HandleBuy(int32 Row)
 {
 	if (UDIAWorldSubsystem* S = Subsystem.Get())
 	{
-		const bool bPlant = Model.GetRow(Row).bPlant;
+		// A click without a press that was seen (it should not happen) buys what the row shows now.
+		const FDIAShopTarget Target = Pressed.bValid ? Pressed : Model.TargetOf(Row, S->GetGame());
+		Pressed = FDIAShopTarget();
 		// Buying goes through the subsystem, which broadcasts it: an item gives its toast, the model and the character refresh.
-		if (Model.Buy(Row, *S) && bPlant)
+		if (Model.Buy(Target, *S, FPlatformTime::Seconds()) && Target.bPlant)
 		{
 			if (ADIAHUD* H = Hud.Get())
 			{
@@ -200,6 +211,7 @@ TSharedRef<SWidget> SDIAShopPanel::BuildRow(int32 Row)
 					.VAlign(VAlign_Center)
 					.ContentPadding(FMargin(0.f, 4.f))
 					.IsEnabled_Lambda([this, Index]() { return Model.GetRow(Index).State == EDIAShopState::Buy; })
+					.OnPressed(FSimpleDelegate::CreateSP(this, &SDIAShopPanel::HandlePressed, Index))
 					.OnClicked(FOnClicked::CreateSP(this, &SDIAShopPanel::HandleBuy, Index))
 					[
 						SNew(STextBlock)

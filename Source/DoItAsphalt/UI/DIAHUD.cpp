@@ -11,6 +11,7 @@
 #include "Game/DIAWorldSubsystem.h"
 #include "Misc/App.h"
 #include "UI/DIAHudStyle.h"
+#include "Player/DIACharacter.h"
 #include "Player/DIAPlayerController.h"
 #include "World/DIAGroundActor.h"
 #include "UI/SDIAHudOverlay.h"
@@ -267,7 +268,13 @@ void ADIAHUD::Tick(float DeltaSeconds)
 	Toasts.Advance(DeltaSeconds);
 	if (const UDIAWorldSubsystem* Subsystem = BoundSubsystem.Get())
 	{
-		CheckModel.Update(Subsystem->GetGame(), bCheckView, DeltaSeconds);
+		// Where the player is now: the character's own location. The core's PlayerPos is only written by the character's tick,
+		// which may run after this one in the same frame, so it is not read here.
+		const UWorld* World = GetWorld();
+		TActorIterator<ADIACharacter> Character(World);
+		const bool bHeld = bCheckView && Character;
+		const FVector2D From = Character ? FVector2D(Character->GetActorLocation()) : FVector2D::ZeroVector;
+		CheckModel.Update(Subsystem->GetGame(), bHeld, DeltaSeconds, From);
 	}
 }
 
