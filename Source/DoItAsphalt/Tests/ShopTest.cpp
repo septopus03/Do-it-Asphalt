@@ -110,7 +110,7 @@ bool FShopModelTest::RunTest(const FString& Parameters)
 	Is(TEXT("change 2"), Model.GetRow(2).Change, TEXT("15 L/min → 20 L/min"));
 	Is(TEXT("price 0 is in shards"), Model.GetRow(0).Price, TEXT("1 shard"));
 	Is(TEXT("price 1"), Model.GetRow(1).Price, TEXT("25"));
-	Is(TEXT("price 2"), Model.GetRow(2).Price, TEXT("15"));
+	Is(TEXT("price 2"), Model.GetRow(2).Price, TEXT("30"));
 	for (int32 I = 0; I < FDIAShopModel::NumRows; ++I)
 	{
 		TestTrue(TEXT("affordable: the button is active"), Model.GetRow(I).bCanBuy);
@@ -123,7 +123,7 @@ bool FShopModelTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("more money, same buttons: no rebuild"), Model.Update(Game));
 	TestEqual(TEXT("rebuild count is unchanged"), Model.GetRebuildCount(), Rebuilds);
 
-	// Too poor: the plant (15) and the sprayer (25) cannot be bought with 10 money, the backpack not without shards.
+	// Too poor: the plant (30) and the sprayer (25) cannot be bought with 10 money, the backpack not without shards.
 	FAsphaltGame Poor;
 	Poor.DebugGive(10.0, 0);
 	FDIAShopModel PoorModel;
@@ -132,11 +132,11 @@ bool FShopModelTest::RunTest(const FString& Parameters)
 	{
 		TestFalse(TEXT("too poor: the button is inactive"), PoorModel.GetRow(I).bCanBuy);
 	}
-	Poor.DebugGive(15.0, 0);
-	TestTrue(TEXT("25 money: the buttons change"), PoorModel.Update(Poor));
+	Poor.DebugGive(20.0, 0);
+	TestTrue(TEXT("30 money: the buttons change"), PoorModel.Update(Poor));
 	TestFalse(TEXT("backpack still needs a shard"), PoorModel.GetRow(0).bCanBuy);
 	TestTrue(TEXT("sprayer is affordable at 25"), PoorModel.GetRow(1).bCanBuy);
-	TestTrue(TEXT("plant is affordable at 25"), PoorModel.GetRow(2).bCanBuy);
+	TestTrue(TEXT("plant is affordable at 30"), PoorModel.GetRow(2).bCanBuy);
 
 	// Buying moves the row on to the next level.
 	TestTrue(TEXT("buy the backpack"), Game.Buy(EAsphaltUpgrade::Backpack));

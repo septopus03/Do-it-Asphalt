@@ -102,7 +102,7 @@ Tento dokument je záväzný popis hry. Všetko, čo pôvodná špecka neurčila
 | **Peniaze** | 1 za každý vyliaty liter | nástroj, výrobňa, špeciálne vylepšenia |
 | **Shardy** | 1 za každú dokončenú bunku | batoh |
 
-Maximum v celej hre: 499 shardov a približne 9 700 – 9 980 peňazí (podľa toho, koľko škár dokončí hra sama). Všetky vylepšenia spolu stoja 253 shardov a 5 795 peňazí, takže hráč stihne kúpiť všetko zhruba v 60 % hry a zvyšok si užije na plnom výkone.
+Maximum v celej hre: 499 shardov a približne 9 700 – 9 980 peňazí (podľa toho, koľko škár dokončí hra sama). Všetky vylepšenia spolu stoja 253 shardov a 5 885 peňazí, takže hráč stihne kúpiť všetko zhruba v 60 % hry a zvyšok si užije na plnom výkone.
 
 ## 7. Bežné vylepšenia
 
@@ -129,11 +129,11 @@ Batoh má 4 vizuálne veľkosti: S (5 – 10 l), M (15 – 40 l), L (60 – 100 
 | Úroveň | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | Výroba (l/min) | 15 | 20 | 25 | 35 | 50 | 80 | 100 | 125 | 180 | 300 | 500 | 750 | 1000 |
-| Cena (peniaze) | – | 15 | 25 | 40 | 60 | 90 | 130 | 180 | 240 | 310 | 390 | 480 | 580 |
+| Cena (peniaze) | – | 30 | 50 | 75 | 105 | 145 | 190 | 240 | 290 | 335 | 370 | 395 | 405 |
 
 Výrobni pribudne viditeľný prístavok na úrovni 5 a ďalší na úrovni 10.
 
-> Všetky ceny sú východiskové a po prvom hraní sa budú ladiť. V kóde žijú na jednom mieste (`AsphaltBalance`).
+> Ceny výrobne sú doladené simuláciou celého prechodu hry (test `DoItAsphalt.Core.BalanceSim.Playthrough`): hra trvá približne 50 minút a všetkých 35 vylepšení je kúpených pred dokončením 60 % buniek. Ostatné ceny sú východiskové a po prvom hraní sa budú ladiť. V kóde žijú na jednom mieste (`AsphaltBalance`).
 
 ## 8. Špeciálne vylepšenia
 

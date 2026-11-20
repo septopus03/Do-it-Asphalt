@@ -41,7 +41,7 @@ bool FBalancePricesTest::RunTest(const FString& Parameters)
 
 	TestEqual(TEXT("backpack shards"), SumOf(BackpackPriceShards), 253);
 	const double TotalMoney = SumOf(ToolPriceMoney) + SumOf(PlantPriceMoney) + SumOf(SpecialPriceMoney);
-	TestEqual(TEXT("money total"), TotalMoney, 5795.0, 1e-9);
+	TestEqual(TEXT("money total"), TotalMoney, 5885.0, 1e-9);
 	TestTrue(TEXT("money fits 60 % of all paint"), TotalMoney <= 0.6 * FHexMap::NumCells * LitresPerCell * MoneyPerLitre);
 	TestTrue(TEXT("shards fit the cells"), SumOf(BackpackPriceShards) <= FHexMap::NumCells * ShardsPerCell);
 	return true;

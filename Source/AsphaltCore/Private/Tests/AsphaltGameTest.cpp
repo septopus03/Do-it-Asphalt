@@ -270,8 +270,8 @@ bool FGameCellGivesShardTest::RunTest(const FString& Parameters)
 bool FGameBuyUpgradesTest::RunTest(const FString& Parameters)
 {
 	FAsphaltGame G;
-	G.DebugGive(15.0, 1);
-	TestTrue(TEXT("plant price"), G.GetNextPrice(EAsphaltUpgrade::Plant) == 15.0);
+	G.DebugGive(30.0, 1);
+	TestTrue(TEXT("plant price"), G.GetNextPrice(EAsphaltUpgrade::Plant) == 30.0);
 	TestTrue(TEXT("can buy plant"), G.CanBuy(EAsphaltUpgrade::Plant));
 	TestTrue(TEXT("buy plant"), G.Buy(EAsphaltUpgrade::Plant));
 	TestEqual(TEXT("money"), G.GetMoney(), 0.0, 1e-9);

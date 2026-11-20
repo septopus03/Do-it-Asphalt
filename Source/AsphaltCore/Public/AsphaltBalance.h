@@ -23,7 +23,7 @@ namespace AsphaltBalance
 
 	// Asphalt plant: 13 levels, 12 upgrades.
 	inline constexpr double PlantRateLPerMin[13] = {15, 20, 25, 35, 50, 80, 100, 125, 180, 300, 500, 750, 1000};
-	inline constexpr double PlantPriceMoney[12] = {15, 25, 40, 60, 90, 130, 180, 240, 310, 390, 480, 580};
+	inline constexpr double PlantPriceMoney[12] = {30, 50, 75, 105, 145, 190, 240, 290, 335, 370, 395, 405};
 
 	/** The TwoHands special multiplies the width of the pouring bar by this factor. */
 	inline constexpr double TwoHandsWidthMultiplier = 2.0;
