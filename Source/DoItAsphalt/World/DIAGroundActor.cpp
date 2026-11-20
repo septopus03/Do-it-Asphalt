@@ -28,7 +28,10 @@ namespace
 		}
 		Texture->SRGB = false;
 		Texture->CompressionSettings = TC_Masks;
+#if WITH_EDITORONLY_DATA
+		// Editor-only property; a transient texture made at runtime has just the one mip anyway.
 		Texture->MipGenSettings = TMGS_NoMipmaps;
+#endif
 		Texture->Filter = TF_Bilinear;
 		Texture->AddressX = TA_Clamp;
 		Texture->AddressY = TA_Clamp;
