@@ -7,10 +7,13 @@
 #include "GameFramework/Actor.h"
 #include "Kismet/GameplayStatics.h"
 #include "LotBalance.h"
+#include <limits>
 #include "Misc/CommandLine.h"
 #include "PlatformFeatures.h"
 #include "SaveGameSystem.h"
 #include "Player/DIACharacter.h"
+#include "World/DIAMovable.h"
+#include "World/DIAPaverCar.h"
 
 namespace
 {
@@ -172,6 +175,21 @@ void UDIAWorldSubsystem::WritePlayerPositions()
 	{
 		return;
 	}
+	// The car writes its pose every frame; asking it now makes the save independent of when the last frame was. While someone
+	// drives, the car's pose is the player's too (the character rides along, hidden), so the character is not asked then.
+	bool bDriven = false;
+	for (TActorIterator<ADIAPaverCar> Car(World); Car; ++Car)
+	{
+		if (!Car->IsActorBeingDestroyed())
+		{
+			Car->WritePoseToCore();
+			bDriven = bDriven || Car->HasDriver();
+		}
+	}
+	if (bDriven)
+	{
+		return;
+	}
 	FLotWorldState& State = Game.World();
 	TActorIterator<ADIACharacter> Character(World);
 	if (Character)
@@ -182,12 +200,42 @@ void UDIAWorldSubsystem::WritePlayerPositions()
 	}
 }
 
+TArray<uint8> UDIAWorldSubsystem::MakeSaveBlob() const
+{
+	const ELotMovable Held = Game.GetHeld();
+	if (Held == ELotMovable::Count)
+	{
+		return Game.SaveToBytes();
+	}
+	// A held movable is saved as put down where it is now: the pose of its actor. The running game keeps holding it, so the
+	// let-go is done on a copy.
+	const double NotAPlace = std::numeric_limits<double>::quiet_NaN();
+	FVector2D Where(NotAPlace, NotAPlace);
+	double YawDeg = NotAPlace;
+	if (const UWorld* World = GetWorld())
+	{
+		for (TActorIterator<ADIAMovable> It(World); It; ++It)
+		{
+			if (It->GetKind() == Held && !It->IsActorBeingDestroyed())
+			{
+				Where = FVector2D(It->GetActorLocation().X, It->GetActorLocation().Y);
+				YawDeg = FRotator::NormalizeAxis(It->GetActorRotation().Yaw);
+				break;
+			}
+		}
+	}
+	// Without an actor the core's own record of the movable stays (a non-finite place keeps it).
+	FLotGame Copy = Game;
+	Copy.Release(Where, YawDeg);
+	return Copy.SaveToBytes();
+}
+
 void UDIAWorldSubsystem::SaveGame()
 {
 	// Any save starts the countdown to the next autosave again.
 	AutosaveTimer = 0.0;
 	WritePlayerPositions();
-	const TArray<uint8> Blob = Game.SaveToBytes();
+	const TArray<uint8> Blob = MakeSaveBlob();
 	// The slot is written in place, so a write that is cut short (power loss) leaves it damaged. The backup is only written
 	// after the slot was, so one of the two always holds a complete save.
 	if (!WriteSlot(SlotName(), Blob) || !WriteSlot(BackupSlotName(), Blob))
@@ -209,10 +257,16 @@ void UDIAWorldSubsystem::NewGame()
 
 void UDIAWorldSubsystem::Autosave()
 {
-	if (bAutosaveEnabled)
+	if (!bAutosaveEnabled)
 	{
-		SaveGame();
+		return;
 	}
+	// A test that did not give itself a slot of its own never writes into the player's real one.
+	if (GIsAutomationTesting && SlotName() == DIASave::DefaultSlotName)
+	{
+		return;
+	}
+	SaveGame();
 }
 
 void UDIAWorldSubsystem::Dispatch(const FLotEvents& Events)

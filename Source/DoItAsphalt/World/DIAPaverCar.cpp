@@ -207,6 +207,14 @@ void ADIAPaverCar::WritePose(FLotWorldState& State)
 	}
 }
 
+void ADIAPaverCar::WritePoseToCore()
+{
+	if (UDIAWorldSubsystem* Subsystem = UDIAWorldSubsystem::Get(this))
+	{
+		WritePose(Subsystem->GetGame().World());
+	}
+}
+
 void ADIAPaverCar::SyncFromCore()
 {
 	UDIAWorldSubsystem* Subsystem = UDIAWorldSubsystem::Get(this);

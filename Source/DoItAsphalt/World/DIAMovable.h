@@ -130,6 +130,8 @@ private:
 	ADIACharacter* GetPlayer() const;
 	/** Makes the actor match the core: held (collision off) or standing at the core's pose. Runs on every state change, so it returns early when nothing differs. */
 	void SyncFromCore();
+	/** A game was loaded or started: the strokes start afresh (nothing is laid between the old and the new place), then the actor follows the core. */
+	void HandleGameReset();
 	void PlaceStanding(FVector2D Where, double YawDeg);
 	void FollowPlayer(const ADIACharacter* Player);
 	/** True when nothing blocks the footprint standing at Where (the movable itself and the character do not count). */

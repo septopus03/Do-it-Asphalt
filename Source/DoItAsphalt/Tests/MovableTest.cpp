@@ -841,7 +841,9 @@ bool FMovableSaveLoadWhileHoldingTest::RunTest(const FString& Parameters)
 	Cart->Interact(Character);
 	TickFor(Wrapper, 0.3);
 	TestTrue(TEXT("holding the cart"), Game.GetHeld() == ELotMovable::Cart);
+	const FVector2D HeldAt = Where(Cart);
 	Subsystem->SaveGame();
+	TestTrue(TEXT("saving does not take the cart out of the hands"), Game.GetHeld() == ELotMovable::Cart);
 
 	// The game moves on: the cart is put down and the player walks off.
 	Cart->Interact(Character);
@@ -854,23 +856,25 @@ bool FMovableSaveLoadWhileHoldingTest::RunTest(const FString& Parameters)
 		return false;
 	}
 	TickFor(Wrapper, 0.3);
-	TestTrue(TEXT("the core says the cart is held"), Game.GetHeld() == ELotMovable::Cart);
+	// A held movable is saved as put down where it was held: the loaded game has empty hands.
+	TestTrue(TEXT("the core says nothing is held"), Game.GetHeld() == ELotMovable::Count);
 	TestEqual(TEXT("exactly one actor"), FindMovables(World).Num(), 1);
 	ADIAMovable* Loaded = FindMovable(World, ELotMovable::Cart);
 	if (!TestNotNull(TEXT("the cart actor"), Loaded))
 	{
 		return false;
 	}
-	TestTrue(TEXT("the actor is held"), Loaded->IsHeld());
-	TestEqual(TEXT("without collision"), Loaded->GetCollision()->GetCollisionEnabled(), ECollisionEnabled::NoCollision);
+	TestFalse(TEXT("the actor is not held"), Loaded->IsHeld());
+	TestTrue(TEXT("it stands where it was held"), FVector2D::Distance(Where(Loaded), HeldAt) < 1.0);
+	TestEqual(TEXT("with its collision"), Loaded->GetCollision()->GetCollisionEnabled(), ECollisionEnabled::QueryAndPhysics);
 
-	// It follows the player, wherever the player is now.
+	// It stays where it is when the player walks off, and can be taken again.
 	Move(Character, FVector2D(300.0, 0.0));
 	TickFor(Wrapper, 0.3);
-	TestTrue(TEXT("it follows the player"), FVector2D::Distance(Where(Loaded), Where(Character)) < 150.0);
+	TestTrue(TEXT("it does not follow the player"), FVector2D::Distance(Where(Loaded), HeldAt) < 1.0);
+	Move(Character, HeldAt + FVector2D(-120.0, 0.0));
 	Loaded->Interact(Character);
-	TestTrue(TEXT("it can be let go"), Game.GetHeld() == ELotMovable::Count);
-	TestEqual(TEXT("and stands with its collision"), Loaded->GetCollision()->GetCollisionEnabled(), ECollisionEnabled::QueryAndPhysics);
+	TestTrue(TEXT("it can be grabbed again"), Game.GetHeld() == ELotMovable::Cart);
 	return true;
 }
 

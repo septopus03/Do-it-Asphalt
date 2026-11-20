@@ -470,6 +470,32 @@ namespace DIACheats
 		}
 	}
 
+	void Save(const TArray<FString>& Args, UWorld* World)
+	{
+		if (UDIAWorldSubsystem* S = GetSubsystem(World))
+		{
+			S->SaveGame();
+		}
+	}
+
+	void Load(const TArray<FString>& Args, UWorld* World)
+	{
+		// The same call as Continue in the main menu.
+		if (ADIAHUD* Hud = GetHud(World))
+		{
+			Hud->ContinueGame();
+		}
+	}
+
+	void NewGameCheat(const TArray<FString>& Args, UWorld* World)
+	{
+		// The same call as New Game in the menus.
+		if (ADIAHUD* Hud = GetHud(World))
+		{
+			Hud->NewGame();
+		}
+	}
+
 	void SkipMenu(const TArray<FString>& Args, UWorld* World)
 	{
 		if (ADIAHUD* Hud = GetHud(World))
@@ -725,6 +751,9 @@ namespace DIACheats
 	FAutoConsoleCommandWithWorldAndArgs PromptCommand(TEXT("dia.Prompt"), TEXT("dia.Prompt <text>: sets the contextual prompt (no text hides it)"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Prompt));
 	FAutoConsoleCommandWithWorldAndArgs ToastCommand(TEXT("dia.Toast"), TEXT("dia.Toast <text>: shows a toast"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Toast));
 	FAutoConsoleCommandWithWorldAndArgs SendPaverCommand(TEXT("dia.SendPaver"), TEXT("dia.SendPaver: sends the auto paver to the sector the player stands in (the G key)"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&SendPaver));
+	FAutoConsoleCommandWithWorldAndArgs SaveCommand(TEXT("dia.Save"), TEXT("dia.Save: saves the game to the slot (the slot of a screenshot run is DIA_Shot)"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Save));
+	FAutoConsoleCommandWithWorldAndArgs LoadCommand(TEXT("dia.Load"), TEXT("dia.Load: loads the saved game, like Continue in the main menu"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Load));
+	FAutoConsoleCommandWithWorldAndArgs NewGameConsoleCommand(TEXT("dia.NewGame"), TEXT("dia.NewGame: starts over, like New Game in the menus (the slot is deleted)"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&NewGameCheat));
 	FAutoConsoleCommandWithWorldAndArgs SkipMenuCommand(TEXT("dia.SkipMenu"), TEXT("dia.SkipMenu: closes the main menu without choosing anything (the game starts as it is; screenshots use it)"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&SkipMenu));
 	FAutoConsoleCommandWithWorldAndArgs CameraConsoleCommand(TEXT("dia.Camera"), TEXT("dia.Camera [distanceCm] [yawOffsetDeg] [pitchDeg]: no arguments toggle between the view from the eyes and the external view; otherwise the external view that far behind the player at that angle (0 = from the eyes)"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&CameraCommand));
 	FAutoConsoleCommandWithWorldAndArgs WorkViewConsoleCommand(TEXT("dia.WorkView"), TEXT("dia.WorkView <1|0>: holds the work view (zoomed, tilted down) or lets it go; screenshots use it"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&WorkView));

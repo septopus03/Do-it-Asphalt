@@ -42,6 +42,8 @@ public:
 	bool IsWinScreenShown() const { return bWinShown; }
 	/** New Game (menu, win screen): starts over in the same world (the subsystem's NewGame) and leaves the menu. */
 	void NewGame();
+	/** Continue of the main menu: loads the saved game and leaves the menu; if the save is unusable the menu stays and offers a new game only. */
+	void ContinueGame();
 	/** Quit (menu, win screen); the game saves itself when the world ends. */
 	void QuitGame();
 
@@ -95,8 +97,6 @@ private:
 	/** A game was loaded or started: the win screen goes if that game is not won, and appears if it is. */
 	void HandleGameReset();
 	void HideWinScreen();
-	/** Continue of the main menu. */
-	void ContinueGame();
 	/** Hides the menu and gives the input back, whichever menu it was; no autosave decision. */
 	void DismissMenu();
 

@@ -158,7 +158,7 @@ void ADIAMovable::BeginPlay()
 	{
 		Subsystem->RegisterInteractable(this, this);
 		// OnStateChanged fires every tick; SyncFromCore returns at once unless the core and the actor differ.
-		StateSub.Bind(Subsystem, this, &ADIAMovable::SyncFromCore, &ADIAMovable::SyncFromCore);
+		StateSub.Bind(Subsystem, this, &ADIAMovable::SyncFromCore, &ADIAMovable::HandleGameReset);
 	}
 	SyncFromCore();
 	UpdateLevel();
@@ -172,6 +172,12 @@ void ADIAMovable::EndPlay(const EEndPlayReason::Type Reason)
 		Subsystem->UnregisterInteractable(this);
 	}
 	Super::EndPlay(Reason);
+}
+
+void ADIAMovable::HandleGameReset()
+{
+	ToolPath.Reset();
+	SyncFromCore();
 }
 
 void ADIAMovable::SyncFromCore()

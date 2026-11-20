@@ -4,6 +4,7 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "AsphaltTest.h"
+#include "Components/BoxComponent.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "Game/DIAGameMode.h"
@@ -24,7 +25,10 @@
 #include "Tests/DIATestWorld.h"
 #include "UI/DIAHUD.h"
 #include "UI/DIAMenuModel.h"
+#include "World/DIAAutoPaver.h"
 #include "World/DIAGroundActor.h"
+#include "World/DIAMovable.h"
+#include "World/DIAPaverCar.h"
 #include "World/DIAPlantActor.h"
 
 namespace
@@ -231,6 +235,17 @@ bool FCorruptSlotStartsNewGameTest::RunTest(const FString& Parameters)
 	FFileHelper::SaveArrayToFile(Garbage, *SaveTestSlotFile());
 	TestFalse(TEXT("garbage with the magic: no save"), Subsystem->HasSave());
 	TestFalse(TEXT("garbage with the magic: LoadGame fails"), Subsystem->LoadGame());
+
+	// The slot and its backup both rubbish: no save, and the main menu offers a new game only.
+	TestTrue(TEXT("rubbish into the slot"), FFileHelper::SaveArrayToFile(Garbage, *SaveTestSlotFile()));
+	TestTrue(TEXT("rubbish into the backup"), FFileHelper::SaveArrayToFile(Garbage, *SaveTestFile(SaveTestBackupName())));
+	TestFalse(TEXT("both damaged: no save"), Subsystem->HasSave());
+	TestFalse(TEXT("both damaged: LoadGame fails"), Subsystem->LoadGame());
+	FDIAMenuModel Menu;
+	Menu.Open(EDIAMenuMode::Main, Subsystem->HasSave());
+	TestTrue(TEXT("the menu shows its buttons"), Menu.ShowsButtons());
+	TestFalse(TEXT("but no Continue"), Menu.ShowsContinue());
+	TestFalse(TEXT("and New Game asks nothing: there is nothing to throw away"), Menu.NeedsNewGameConfirmation());
 
 	// No file.
 	FSaveTestSlot::Delete();
@@ -899,6 +914,507 @@ bool FSaveCutShortNeverCrashesTest::RunTest(const FString& Parameters)
 	// The whole file once more is a save again.
 	SaveTestWriteFile(SaveTestSlotName, Whole);
 	TestTrue(TEXT("the whole file is a save"), Subsystem->LoadGame());
+	return true;
+}
+
+namespace SaveWorldTestSupport
+{
+	constexpr float TickSeconds = 0.1f;
+	constexpr double MovedCm = 0.5;
+	constexpr int32 PaverSector = 5;
+
+	/** What the world tests share: a started world, the subsystem, a player with a controller and a HUD. */
+	struct FSaveWorldScene
+	{
+		FTestWorldWrapper Wrapper;
+		UWorld* World = nullptr;
+		UDIAWorldSubsystem* Subsystem = nullptr;
+		ADIACharacter* Character = nullptr;
+		ADIAPlayerController* Controller = nullptr;
+
+		bool Start(FAutomationTestBase& Test, FVector2D PlayerAt)
+		{
+			if (!DIATest::StartGameWorld(Wrapper, Test))
+			{
+				return false;
+			}
+			World = Wrapper.GetTestWorld();
+			Subsystem = World->GetSubsystem<UDIAWorldSubsystem>();
+			Character = DIATest::SpawnCharacter(World, PlayerAt);
+			if (Character)
+			{
+				Controller = SaveTestPossess(World, Character);
+			}
+			ADIAHUD* Hud = Controller ? SaveTestHud(World, Controller) : nullptr;
+			return Test.TestNotNull(TEXT("subsystem"), Subsystem) && Test.TestNotNull(TEXT("character"), Character)
+				&& Test.TestNotNull(TEXT("controller"), Controller) && Test.TestNotNull(TEXT("HUD"), Hud);
+		}
+
+		FLotGame& Game() const { return Subsystem->GetGame(); }
+
+		void TickFor(double Seconds)
+		{
+			const int32 Steps = FMath::RoundToInt32(Seconds / TickSeconds);
+			for (int32 I = 0; I < Steps; ++I)
+			{
+				Wrapper.TickTestWorld(TickSeconds);
+			}
+		}
+
+		/** What the cheat dia.Item does: gives the item for free and announces it like a purchase (the actor appears). */
+		void Grant(ELotItem Item) const
+		{
+			Game().DebugGrantItem(Item);
+			Subsystem->OnItemBought.Broadcast(Item);
+			Subsystem->OnStateChanged.Broadcast();
+		}
+
+		template <typename T>
+		TArray<T*> Find() const
+		{
+			TArray<T*> Result;
+			for (TActorIterator<T> It(World); It; ++It)
+			{
+				if (!It->IsActorBeingDestroyed())
+				{
+					Result.Add(*It);
+				}
+			}
+			return Result;
+		}
+
+		/** The one actor of the type; null if there are none or several. */
+		template <typename T>
+		T* Only() const
+		{
+			const TArray<T*> All = Find<T>();
+			return All.Num() == 1 ? All[0] : nullptr;
+		}
+
+		ADIAMovable* Movable(ELotMovable Kind) const
+		{
+			for (ADIAMovable* Actor : Find<ADIAMovable>())
+			{
+				if (Actor->GetKind() == Kind)
+				{
+					return Actor;
+				}
+			}
+			return nullptr;
+		}
+
+		/** Where the core says the movable stands, announced to the actors. */
+		void SetMovable(ELotMovable Kind, FVector2D Where, double YawDeg) const
+		{
+			FLotMovable& State = Game().World().Movables[static_cast<int32>(Kind)];
+			State.Pos = Where;
+			State.YawDeg = YawDeg;
+			Subsystem->Dispatch(FLotEvents());
+		}
+
+		void StandAt(FVector2D Where) const
+		{
+			SaveTestPlace(Character, Where);
+		}
+	};
+
+	void PlaceCarAt(ADIAPaverCar* Car, FVector2D At, double YawDeg)
+	{
+		Car->SetActorLocationAndRotation(FVector(At.X, At.Y, DIAPaverCar::OriginHeightCm()), FRotator(0.0, YawDeg, 0.0));
+	}
+
+	/** A blob of the v1 game (the hex lot): the v1 header ("DIA1", version 1) and then zeros where its state would be. */
+	TArray<uint8> V1Blob()
+	{
+		constexpr uint32 V1Magic = 0x31414944;
+		constexpr int32 V1Version = 1;
+		constexpr int32 V1Cells = 61;
+		constexpr int32 V1GridSize = 256;
+		constexpr int32 V1BodyBytes = 300;
+		TArray<uint8> Blob;
+		Blob.Append(reinterpret_cast<const uint8*>(&V1Magic), sizeof(V1Magic));
+		Blob.Append(reinterpret_cast<const uint8*>(&V1Version), sizeof(V1Version));
+		Blob.Append(reinterpret_cast<const uint8*>(&V1Cells), sizeof(V1Cells));
+		Blob.Append(reinterpret_cast<const uint8*>(&V1GridSize), sizeof(V1GridSize));
+		Blob.AddZeroed(V1BodyBytes);
+		return Blob;
+	}
+}
+
+DIA_TEST(FSaveLoadMovesEverythingTest, "DoItAsphalt.Game.SaveSlot.LoadMovesEverything")
+
+bool FSaveLoadMovesEverythingTest::RunTest(const FString& Parameters)
+{
+	using namespace SaveWorldTestSupport;
+	FSaveTestSlot Slot;
+	FSaveWorldScene Scene;
+	const FVector2D PlayerSaved(100.0, -9000.0);
+	const FVector2D CartSaved(2000.0, -5000.0);
+	const FVector2D CarSaved(-3000.0, 0.0);
+	constexpr double CartYaw = 30.0;
+	constexpr double CarYaw = 90.0;
+	if (!Scene.Start(*this, PlayerSaved))
+	{
+		return false;
+	}
+	FLotGame& Game = Scene.Game();
+	SaveTestComplete(Scene.Subsystem, SaveTestCells);
+	Game.DebugGive(SaveTestCredits);
+	Scene.Grant(ELotItem::Cart);
+	Scene.Grant(ELotItem::AutoPaver);
+	Scene.Grant(ELotItem::Car);
+	ADIAPaverCar* Car = Scene.Only<ADIAPaverCar>();
+	ADIAAutoPaver* Paver = Scene.Only<ADIAAutoPaver>();
+	ADIAGroundActor* Ground = Scene.Only<ADIAGroundActor>();
+	if (!TestNotNull(TEXT("the cart"), Scene.Movable(ELotMovable::Cart)) || !TestNotNull(TEXT("the auto paver"), Paver)
+		|| !TestNotNull(TEXT("the car"), Car) || !TestNotNull(TEXT("the ground"), Ground))
+	{
+		return false;
+	}
+
+	// The game as it is saved: the cart, the car and the player in their places, the auto paver on its way to sector 5.
+	Scene.SetMovable(ELotMovable::Cart, CartSaved, CartYaw);
+	PlaceCarAt(Car, CarSaved, CarYaw);
+	Scene.StandAt(PlayerSaved);
+	TestTrue(TEXT("the paver is sent to sector 5"), Game.AssignAutoPaverSector(PaverSector));
+	Scene.TickFor(3.0);
+	const FVector2D PaverSaved = Game.GetAutoPaverPos();
+	TestTrue(TEXT("the paver has left its start"), FVector2D::Distance(PaverSaved, LotLayout::ItemSpawn(ELotItem::AutoPaver)) > 10.0);
+	const double Credits = Game.GetCredits();
+	const int32 Cells = Game.GetCompletedCells();
+	Scene.Subsystem->SaveGame();
+	const TArray<uint8> Blob = Game.SaveToBytes();
+
+	// Everything moves on.
+	Scene.SetMovable(ELotMovable::Cart, FVector2D(-500.0, -500.0), 0.0);
+	PlaceCarAt(Car, FVector2D(3000.0, -3000.0), 0.0);
+	Scene.StandAt(FVector2D(0.0, 0.0));
+	Game.DebugGive(777.0);
+	Scene.TickFor(3.0);
+	TestTrue(TEXT("the shown paver lags behind the core while it drives"), FVector2D(Paver->GetActorLocation()).Equals(Game.GetAutoPaverPos(), MovedCm) == false);
+
+	// Every actor stands where the core says, as the call returns and still a few ticks later.
+	auto CheckAll = [&](const TCHAR* When, bool bFrozen)
+	{
+		const FString Suffix = FString::Printf(TEXT(" (%s)"), When);
+		if (bFrozen)
+		{
+			// The auto paver keeps working once the clock runs, so credits and cells only match at the moment of the load.
+			TestEqual(*(TEXT("credits") + Suffix), Game.GetCredits(), Credits);
+			TestEqual(*(TEXT("cells") + Suffix), Game.GetCompletedCells(), Cells);
+		}
+		TestEqual(*(TEXT("the paver's sector") + Suffix), Game.GetAutoPaverSector(), PaverSector);
+		TestEqual(*(TEXT("one movable") + Suffix), Scene.Find<ADIAMovable>().Num(), 1);
+		TestEqual(*(TEXT("one auto paver") + Suffix), Scene.Find<ADIAAutoPaver>().Num(), 1);
+		TestEqual(*(TEXT("one car") + Suffix), Scene.Find<ADIAPaverCar>().Num(), 1);
+		const ADIAMovable* LoadedCart = Scene.Movable(ELotMovable::Cart);
+		const ADIAPaverCar* LoadedCar = Scene.Only<ADIAPaverCar>();
+		if (LoadedCart && LoadedCar)
+		{
+			TestTrue(*(TEXT("the cart is where it was saved") + Suffix), SaveTestWhere(LoadedCart).Equals(CartSaved, MovedCm));
+			TestTrue(*(TEXT("turned as it was saved") + Suffix), FMath::Abs(FMath::FindDeltaAngleDegrees(LoadedCart->GetActorRotation().Yaw, CartYaw)) < MovedCm);
+			TestTrue(*(TEXT("the car is where it was saved") + Suffix), SaveTestWhere(LoadedCar).Equals(CarSaved, MovedCm));
+		}
+		TestTrue(*(TEXT("the player is where it was saved") + Suffix), SaveTestWhere(Scene.Character).Equals(PlayerSaved, MovedCm));
+		TestTrue(*(TEXT("the core agrees about the player") + Suffix), Game.World().PlayerPos.Equals(PlayerSaved, MovedCm));
+		TestTrue(*(TEXT("nothing is held") + Suffix), Game.GetHeld() == ELotMovable::Count);
+		TestFalse(*(TEXT("the player is on foot") + Suffix), Game.World().bPlayerInCar);
+	};
+
+	const int32 UploadsBefore = Ground->GetNumFullUploads();
+	TestTrue(TEXT("LoadGame"), Scene.Subsystem->LoadGame());
+	CheckAll(TEXT("as the load returns"), true);
+	TestEqual(TEXT("the paver's position is the saved one"), Game.GetAutoPaverPos().X, PaverSaved.X, MovedCm);
+	const ADIAAutoPaver* LoadedPaver = Scene.Only<ADIAAutoPaver>();
+	if (TestNotNull(TEXT("the paver actor"), LoadedPaver))
+	{
+		TestTrue(TEXT("the paver stands on the saved position at once (no smoothing from the other game)"), SaveTestWhere(LoadedPaver).Equals(PaverSaved, MovedCm));
+	}
+	TestEqual(TEXT("the ground was uploaded in full once"), Ground->GetNumFullUploads(), UploadsBefore + 1);
+	Scene.TickFor(0.2);
+	CheckAll(TEXT("two ticks after the load"), false);
+	TestEqual(TEXT("and not again on the ticks"), Ground->GetNumFullUploads(), UploadsBefore + 1);
+
+	// A new game takes every machine away, and the saved game brings them back to the same places.
+	Scene.Subsystem->NewGame();
+	Scene.Wrapper.TickTestWorld(TickSeconds);
+	TestEqual(TEXT("a new game: no movable"), Scene.Find<ADIAMovable>().Num(), 0);
+	TestEqual(TEXT("the ground was uploaded in full once more"), Ground->GetNumFullUploads(), UploadsBefore + 2);
+	TestTrue(TEXT("the saved game is written back"), UDIAWorldSubsystem::WriteSlot(SaveTestSlotName, Blob));
+	TestTrue(TEXT("LoadGame after a new game"), Scene.Subsystem->LoadGame());
+	CheckAll(TEXT("loaded into a new game"), true);
+	TestEqual(TEXT("and once more for that load"), Ground->GetNumFullUploads(), UploadsBefore + 3);
+	Scene.TickFor(0.2);
+	CheckAll(TEXT("two ticks after loading into a new game"), false);
+	return true;
+}
+
+DIA_TEST(FSaveHeldItemIsSavedPutDownTest, "DoItAsphalt.Game.SaveSlot.HeldItemIsSavedPutDown")
+
+bool FSaveHeldItemIsSavedPutDownTest::RunTest(const FString& Parameters)
+{
+	using namespace SaveWorldTestSupport;
+	FSaveTestSlot Slot;
+	FSaveWorldScene Scene;
+	if (!Scene.Start(*this, FVector2D(500.0, -3000.0)))
+	{
+		return false;
+	}
+	FLotGame& Game = Scene.Game();
+	Scene.Grant(ELotItem::Cart);
+	ADIAMovable* Cart = Scene.Movable(ELotMovable::Cart);
+	if (!TestNotNull(TEXT("the cart"), Cart))
+	{
+		return false;
+	}
+	Cart->Interact(Scene.Character);
+	Scene.TickFor(0.3);
+	TestTrue(TEXT("the cart is held"), Game.GetHeld() == ELotMovable::Cart);
+	const FVector2D HeldAt = SaveTestWhere(Cart);
+	TestTrue(TEXT("held in front of the player"), FVector2D::Distance(HeldAt, SaveTestWhere(Scene.Character)) > 50.0);
+	Scene.Subsystem->SaveGame();
+
+	// The player walks off and lets the world move on, then loads.
+	Scene.StandAt(FVector2D(-2000.0, 4000.0));
+	Scene.TickFor(0.3);
+	TestTrue(TEXT("LoadGame"), Scene.Subsystem->LoadGame());
+	TestTrue(TEXT("nothing is held after the load"), Game.GetHeld() == ELotMovable::Count);
+	TestEqual(TEXT("one cart"), Scene.Find<ADIAMovable>().Num(), 1);
+	ADIAMovable* Loaded = Scene.Movable(ELotMovable::Cart);
+	if (!TestNotNull(TEXT("the cart actor"), Loaded))
+	{
+		return false;
+	}
+	TestFalse(TEXT("the actor is not held"), Loaded->IsHeld());
+	TestTrue(TEXT("it stands where it was held when the game was saved"), SaveTestWhere(Loaded).Equals(HeldAt, MovedCm));
+	TestEqual(TEXT("with its collision"), Loaded->GetCollision()->GetCollisionEnabled(), ECollisionEnabled::QueryAndPhysics);
+	TestTrue(TEXT("the core has it there"), Game.World().Movables[static_cast<int32>(ELotMovable::Cart)].Pos.Equals(HeldAt, MovedCm));
+	Scene.TickFor(0.3);
+	TestTrue(TEXT("a tick later it is still there"), SaveTestWhere(Loaded).Equals(HeldAt, MovedCm));
+	TestTrue(TEXT("and still not held"), Game.GetHeld() == ELotMovable::Count);
+
+	// It can be picked up again.
+	Scene.StandAt(HeldAt + FVector2D(-120.0, 0.0));
+	Loaded->Interact(Scene.Character);
+	TestTrue(TEXT("grabbed again"), Game.GetHeld() == ELotMovable::Cart);
+	return true;
+}
+
+DIA_TEST(FSaveWhileHoldingKeepsHoldingTest, "DoItAsphalt.Game.SaveSlot.SavingWhileHoldingKeepsHolding")
+
+bool FSaveWhileHoldingKeepsHoldingTest::RunTest(const FString& Parameters)
+{
+	using namespace SaveWorldTestSupport;
+	FSaveTestSlot Slot;
+	FSaveWorldScene Scene;
+	if (!Scene.Start(*this, FVector2D(500.0, -3000.0)))
+	{
+		return false;
+	}
+	FLotGame& Game = Scene.Game();
+	Scene.Grant(ELotItem::Cart);
+	ADIAMovable* Cart = Scene.Movable(ELotMovable::Cart);
+	if (!TestNotNull(TEXT("the cart"), Cart))
+	{
+		return false;
+	}
+	Cart->Interact(Scene.Character);
+	Scene.TickFor(0.3);
+	const FLotMovable Before = Game.World().Movables[static_cast<int32>(ELotMovable::Cart)];
+
+	Scene.Subsystem->SaveGame();
+	TestTrue(TEXT("the game wrote the save"), Scene.Subsystem->HasSave());
+	TestTrue(TEXT("the player still holds the cart"), Game.GetHeld() == ELotMovable::Cart);
+	TestTrue(TEXT("the actor is still held"), Cart->IsHeld());
+	TestEqual(TEXT("without collision"), Cart->GetCollision()->GetCollisionEnabled(), ECollisionEnabled::NoCollision);
+	TestTrue(TEXT("the core's own record of the cart is untouched"), Game.World().Movables[static_cast<int32>(ELotMovable::Cart)].bHeld && Game.World().Movables[static_cast<int32>(ELotMovable::Cart)].Pos.Equals(Before.Pos, MovedCm));
+
+	// It goes on following the player, and E lets it go.
+	Scene.StandAt(FVector2D(1500.0, -3000.0));
+	Scene.TickFor(0.3);
+	TestTrue(TEXT("it follows the player after the save"), FVector2D::Distance(SaveTestWhere(Cart), SaveTestWhere(Scene.Character)) < 200.0);
+	Cart->Interact(Scene.Character);
+	TestTrue(TEXT("and can be let go"), Game.GetHeld() == ELotMovable::Count);
+	return true;
+}
+
+DIA_TEST(FSaveNewGameRemovesMachinesTest, "DoItAsphalt.Game.SaveSlot.NewGameRemovesMachines")
+
+bool FSaveNewGameRemovesMachinesTest::RunTest(const FString& Parameters)
+{
+	using namespace SaveWorldTestSupport;
+	FSaveTestSlot Slot;
+	FSaveWorldScene Scene;
+	if (!Scene.Start(*this, FVector2D::ZeroVector))
+	{
+		return false;
+	}
+	for (const ELotItem Item : {ELotItem::Suitcase, ELotItem::Cart, ELotItem::Station, ELotItem::Finisher, ELotItem::AutoPaver, ELotItem::Car})
+	{
+		Scene.Grant(Item);
+	}
+	Scene.TickFor(0.2);
+	TestEqual(TEXT("four movables"), Scene.Find<ADIAMovable>().Num(), static_cast<int32>(ELotMovable::Count));
+	TestEqual(TEXT("an auto paver"), Scene.Find<ADIAAutoPaver>().Num(), 1);
+	TestEqual(TEXT("a car"), Scene.Find<ADIAPaverCar>().Num(), 1);
+
+	Scene.Subsystem->NewGame();
+	TestEqual(TEXT("a new game: no movable as the call returns"), Scene.Find<ADIAMovable>().Num(), 0);
+	TestEqual(TEXT("no auto paver"), Scene.Find<ADIAAutoPaver>().Num(), 0);
+	TestEqual(TEXT("no car"), Scene.Find<ADIAPaverCar>().Num(), 0);
+	Scene.TickFor(0.2);
+	TestEqual(TEXT("and none a tick later"), Scene.Find<ADIAMovable>().Num() + Scene.Find<ADIAAutoPaver>().Num() + Scene.Find<ADIAPaverCar>().Num(), 0);
+	TestFalse(TEXT("the game owns none of them"), Scene.Game().Owns(ELotItem::Car) || Scene.Game().Owns(ELotItem::AutoPaver) || Scene.Game().OwnsMovable(ELotMovable::Cart));
+	return true;
+}
+
+DIA_TEST(FSaveV1SlotIsRejectedTest, "DoItAsphalt.Game.SaveSlot.V1SlotIsRejected")
+
+bool FSaveV1SlotIsRejectedTest::RunTest(const FString& Parameters)
+{
+	using namespace SaveWorldTestSupport;
+	FSaveTestSlot Slot;
+	FTestWorldWrapper Wrapper;
+	if (!DIATest::StartGameWorld(Wrapper, *this))
+	{
+		return false;
+	}
+	UDIAWorldSubsystem* Subsystem = Wrapper.GetTestWorld()->GetSubsystem<UDIAWorldSubsystem>();
+	if (!TestNotNull(TEXT("world subsystem"), Subsystem))
+	{
+		return false;
+	}
+	const double Credits = Subsystem->GetGame().GetCredits();
+
+	// The slot (and its backup) hold a well-formed save file whose blob is a v1 game.
+	TestTrue(TEXT("the v1 blob was written to the slot"), UDIAWorldSubsystem::WriteSlot(SaveTestSlotName, V1Blob()));
+	TestTrue(TEXT("and to the backup"), UDIAWorldSubsystem::WriteSlot(SaveTestBackupName(), V1Blob()));
+	TestTrue(TEXT("both files exist"), FSaveTestSlot::Exists() && FSaveTestSlot::BackupExists());
+	TestFalse(TEXT("a v1 slot is no save"), Subsystem->HasSave());
+	TestFalse(TEXT("LoadGame refuses it"), Subsystem->LoadGame());
+	TestEqual(TEXT("the game is untouched"), Subsystem->GetGame().GetCredits(), Credits);
+
+	FDIAMenuModel Menu;
+	Menu.Open(EDIAMenuMode::Main, Subsystem->HasSave());
+	TestTrue(TEXT("the main menu has its buttons"), Menu.ShowsButtons());
+	TestFalse(TEXT("but no Continue"), Menu.ShowsContinue());
+	TestFalse(TEXT("and New Game asks nothing"), Menu.NeedsNewGameConfirmation());
+	return true;
+}
+
+DIA_TEST(FSaveAutosaveOnPurchaseTest, "DoItAsphalt.Game.SaveSlot.AutosaveOnPurchase")
+
+bool FSaveAutosaveOnPurchaseTest::RunTest(const FString& Parameters)
+{
+	using namespace SaveWorldTestSupport;
+	FSaveTestSlot Slot;
+	FTestWorldWrapper Wrapper;
+	if (!DIATest::StartGameWorld(Wrapper, *this))
+	{
+		return false;
+	}
+	UDIAWorldSubsystem* Subsystem = Wrapper.GetTestWorld()->GetSubsystem<UDIAWorldSubsystem>();
+	if (!TestNotNull(TEXT("world subsystem"), Subsystem))
+	{
+		return false;
+	}
+	TestEqual(TEXT("the test's own slot is in use"), UDIAWorldSubsystem::SlotName(), SaveTestSlotName);
+	FLotGame& Game = Subsystem->GetGame();
+	Game.DebugGive(SaveTestRichCredits);
+	Subsystem->SetAutosaveEnabled(true);
+
+	// An item: the slot holds it, and the credits it cost.
+	TestTrue(TEXT("buy the scoop"), Subsystem->BuyItem(ELotItem::Scoop));
+	const double CreditsAfterItem = Game.GetCredits();
+	Game.DebugGive(5.0);
+	TestTrue(TEXT("load what the purchase saved"), Subsystem->LoadGame());
+	TestTrue(TEXT("the slot has the item"), Game.Owns(ELotItem::Scoop));
+	TestEqual(TEXT("and the credits after the purchase"), Game.GetCredits(), CreditsAfterItem);
+
+	// A plant level.
+	TestTrue(TEXT("buy a plant level"), Subsystem->BuyPlant());
+	const double CreditsAfterPlant = Game.GetCredits();
+	Game.DebugGive(5.0);
+	TestTrue(TEXT("load what the purchase saved"), Subsystem->LoadGame());
+	TestEqual(TEXT("the slot has the plant level"), Game.GetPlantLevel(), 1);
+	TestEqual(TEXT("and the credits after the purchase"), Game.GetCredits(), CreditsAfterPlant);
+	TestTrue(TEXT("and still the item"), Game.Owns(ELotItem::Scoop));
+	return true;
+}
+
+DIA_TEST(FSaveSavedWhileDrivingTest, "DoItAsphalt.Game.SaveSlot.SavedWhileDriving")
+
+bool FSaveSavedWhileDrivingTest::RunTest(const FString& Parameters)
+{
+	using namespace SaveWorldTestSupport;
+	FSaveTestSlot Slot;
+	FSaveWorldScene Scene;
+	const FVector2D CarAt(-3000.0, 0.0);
+	if (!Scene.Start(*this, CarAt + FVector2D(0.0, -180.0)))
+	{
+		return false;
+	}
+	FLotGame& Game = Scene.Game();
+	Scene.Grant(ELotItem::Car);
+	ADIAPaverCar* Car = Scene.Only<ADIAPaverCar>();
+	if (!TestNotNull(TEXT("the car"), Car))
+	{
+		return false;
+	}
+	PlaceCarAt(Car, CarAt, 0.0);
+	Scene.TickFor(0.2);
+	Car->Interact(Scene.Character);
+	TestTrue(TEXT("the player sits in the car"), Game.World().bPlayerInCar && Car->HasDriver());
+
+	// A drive, then a save at the wheel.
+	Car->SetThrottle(1.f);
+	Scene.TickFor(1.0);
+	Car->SetThrottle(0.f);
+	Scene.TickFor(1.5);
+	const FVector2D DrivenTo = SaveTestWhere(Car);
+	TestTrue(TEXT("the car has moved"), FVector2D::Distance(DrivenTo, CarAt) > 50.0);
+	Scene.Subsystem->SaveGame();
+	TestTrue(TEXT("saving does not take the player out of the car"), Game.World().bPlayerInCar && Car->HasDriver());
+
+	// The core's save keeps the in-car flag: a game loaded from it has the player at the wheel.
+	TestTrue(TEXT("get out"), Car->ExitCar());
+	TestFalse(TEXT("on foot"), Game.World().bPlayerInCar);
+	TestTrue(TEXT("the car stands where it was driven to"), SaveTestWhere(Car).Equals(DrivenTo, MovedCm));
+	Scene.StandAt(FVector2D(0.0, 0.0));
+	TestTrue(TEXT("LoadGame"), Scene.Subsystem->LoadGame());
+	TestTrue(TEXT("the core says the player drives"), Game.World().bPlayerInCar);
+	TestTrue(TEXT("the car has the driver"), Car->HasDriver());
+	TestTrue(TEXT("the controller drives the car"), Scene.Controller->GetPawn() == Car);
+	TestTrue(TEXT("the character is out of sight"), Scene.Character->IsHidden());
+	TestFalse(TEXT("and out of collision"), Scene.Character->GetActorEnableCollision());
+	TestTrue(TEXT("the car is where it was saved"), SaveTestWhere(Car).Equals(DrivenTo, MovedCm));
+	TestTrue(TEXT("the core has the player where the car is"), Game.World().PlayerPos.Equals(DrivenTo, MovedCm));
+	TestTrue(TEXT("nothing is held"), Game.GetHeld() == ELotMovable::Count);
+	Scene.TickFor(0.3);
+	TestTrue(TEXT("a few ticks later the car has not moved"), SaveTestWhere(Car).Equals(DrivenTo, MovedCm));
+
+	// A game saved on foot, loaded while driving: the player is on foot beside the car.
+	TestTrue(TEXT("get out again"), Car->ExitCar());
+	const FVector2D OnFoot = SaveTestWhere(Scene.Character);
+	Scene.Subsystem->SaveGame();
+	Car->Interact(Scene.Character);
+	TestTrue(TEXT("in again"), Car->HasDriver());
+	TestTrue(TEXT("LoadGame while driving"), Scene.Subsystem->LoadGame());
+	TestFalse(TEXT("the core says on foot"), Game.World().bPlayerInCar);
+	TestFalse(TEXT("nobody drives"), Car->HasDriver());
+	TestTrue(TEXT("the controller has the character"), Scene.Controller->GetPawn() == Scene.Character);
+	TestFalse(TEXT("visible"), Scene.Character->IsHidden());
+	TestTrue(TEXT("standing where it was saved"), SaveTestWhere(Scene.Character).Equals(OnFoot, MovedCm));
+
+	// A new game while driving puts the player on foot and takes the car away.
+	Car->Interact(Scene.Character);
+	TestTrue(TEXT("driving again"), Car->HasDriver());
+	Scene.Subsystem->NewGame();
+	TestEqual(TEXT("no car"), Scene.Find<ADIAPaverCar>().Num(), 0);
+	TestTrue(TEXT("the controller has the character"), Scene.Controller->GetPawn() == Scene.Character);
+	TestFalse(TEXT("visible"), Scene.Character->IsHidden());
+	TestTrue(TEXT("collides"), Scene.Character->GetActorEnableCollision());
+	TestTrue(TEXT("at the start"), SaveTestWhere(Scene.Character).Equals(LotLayout::PlayerStart, MovedCm));
 	return true;
 }
 

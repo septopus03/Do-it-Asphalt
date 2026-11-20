@@ -90,6 +90,8 @@ public:
 
 	/** Where the spreader bar lays asphalt: actor XY - forward * LotBalance::CarBarBehindCm. */
 	FVector2D GetBarPoint() const;
+	/** Writes the pose the car has now into the core (and the player's with it while someone drives): a save asks for it so that it does not depend on the frame. */
+	void WritePoseToCore();
 	/** Current speed along the heading in cm/s; negative while reversing. */
 	double GetSpeed() const { return Speed; }
 

@@ -69,7 +69,10 @@ public:
 	 * untouched if there is no valid save.
 	 */
 	bool LoadGame();
-	/** Writes the game to the slot and its backup; the position of the player is taken from the world first. */
+	/**
+	 * Writes the game to the slot and its backup. The positions of the player (the car's while driving) and of the car are taken from the
+	 * world first, and a held movable is saved as put down where it is: the running game does not change, the player keeps holding it.
+	 */
 	void SaveGame();
 	/** Starts over: a fresh core, the slot and its backup are deleted, and OnGameReset and OnStateChanged are broadcast (the actors go to the layout's positions). */
 	void NewGame();
@@ -118,8 +121,10 @@ private:
 	};
 	TArray<FInteractableEntry> Interactables;
 
-	/** Writes the player's position from the actor into the core, where a save finds it. */
+	/** Writes the player's position (the car's while driving) and the car's pose from the actors into the core, where a save finds them. */
 	void WritePlayerPositions();
+	/** The blob of the game as it is saved: a held movable put down where its actor is, on a copy. */
+	TArray<uint8> MakeSaveBlob() const;
 
 	FLotGame Game;
 	bool bAutosaveEnabled = false;
