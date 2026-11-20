@@ -222,6 +222,7 @@ FLotEvents FLotGame::Tick(double Dt)
 		PlaytimeSeconds += Step;
 		PlantStock = FMath::Min(PlantStock + GetPlantRatePerMin() / 60.0 * Step, GetPlantStorage());
 		SwapRemaining = FMath::Max(0.0, SwapRemaining - Step);
+		TickAutoPaver(Step, Events);
 		Remaining -= Step;
 	}
 	return Events;
@@ -240,6 +241,116 @@ void FLotGame::SetWon()
 	}
 }
 
+int32 FLotGame::GetAutoPaverLevel() const
+{
+	if (!Owns(ELotItem::AutoPaver))
+	{
+		return -1;
+	}
+	return Owns(ELotItem::AutoPaverFaster) ? 2 : (Owns(ELotItem::AutoPaverFast) ? 1 : 0);
+}
+
+double FLotGame::GetAutoPaverRateCellsPerMin() const
+{
+	const int32 Level = GetAutoPaverLevel();
+	return Level >= 0 ? LotBalance::AutoPaverRateCellsPerMin[Level] : 0.0;
+}
+
+bool FLotGame::AssignAutoPaverSector(int32 Sector)
+{
+	if (!Owns(ELotItem::AutoPaver) || Sector < 0 || Sector >= AsphaltLot::NumSectors)
+	{
+		return false;
+	}
+	AutoPaverSector = Sector;
+	AutoPaverStep = 0;
+	AutoPaverBudget = 0.0;
+	bAutoPaverTravelling = true;
+	return true;
+}
+
+int32 FLotGame::GetCarLevel() const
+{
+	if (!Owns(ELotItem::Car))
+	{
+		return -1;
+	}
+	return Owns(ELotItem::CarWideBar) ? 1 : 0;
+}
+
+FLotEvents FLotGame::PourFromCar(FVector2D A, FVector2D B)
+{
+	const int32 Level = GetCarLevel();
+	if (Level < 0 || !IsFinitePoint(A) || !IsFinitePoint(B))
+	{
+		return FLotEvents();
+	}
+	const double Width = LotBalance::CarWidthCm[Level];
+	FLotEvents Events = ApplyPour(Grid.FinishRaw(A, B, Width));
+	const FLotPour Pour = Grid.Stamp(A, B, Width, PlantStock, ELotTexel::Done);
+	PlantStock = FMath::Max(0.0, PlantStock - Pour.LitresUsed);
+	Events.Append(ApplyPour(Pour));
+	return Events;
+}
+
+void FLotGame::TickAutoPaver(double Step, FLotEvents& Events)
+{
+	if (AutoPaverSector == INDEX_NONE)
+	{
+		return;
+	}
+	if (bAutoPaverTravelling)
+	{
+		const FVector2D Target = AsphaltLot::CellCentre(AsphaltLot::SectorCell(AutoPaverSector, 0));
+		const double Distance = FVector2D::Distance(AutoPaverPos, Target);
+		const double Reach = LotBalance::AutoPaverSpeedCmS * Step;
+		if (Reach >= Distance)
+		{
+			AutoPaverPos = Target;
+			bAutoPaverTravelling = false;
+		}
+		else
+		{
+			AutoPaverPos += (Target - AutoPaverPos) * (Reach / Distance);
+		}
+		return;
+	}
+
+	const double Earned = GetAutoPaverRateCellsPerMin() * LotBalance::LitresPerCell * LotBalance::CompletionThreshold / 60.0 * Step;
+	AutoPaverBudget = FMath::Min3(AutoPaverBudget + Earned, LotBalance::AutoPaverBudgetCapL, PlantStock);
+	while (AutoPaverStep < AsphaltLot::CellsPerSector)
+	{
+		const int32 Cell = AsphaltLot::SectorCell(AutoPaverSector, AutoPaverStep);
+		const FVector2D Centre = AsphaltLot::CellCentre(Cell);
+		// The walk starts where the machine stands and continues from the centre of the cell before.
+		const FVector2D From = AutoPaverStep > 0 ? AsphaltLot::CellCentre(AsphaltLot::SectorCell(AutoPaverSector, AutoPaverStep - 1)) : AutoPaverPos;
+		AutoPaverPos = Centre;
+		if (!Grid.IsCellComplete(Cell))
+		{
+			if (Grid.GetCellRaw(Cell) > 0)
+			{
+				const double Half = AsphaltLot::CellCm * 0.5 - LotBalance::StampPadCm;
+				Events.Append(ApplyPour(Grid.FinishRaw(Centre - FVector2D(Half, 0.0), Centre + FVector2D(Half, 0.0), AsphaltLot::CellCm)));
+			}
+			if (!Grid.IsCellComplete(Cell) && AutoPaverBudget > 0.0)
+			{
+				const FLotPour Pour = Grid.DepositIntoCell(Cell, AutoPaverBudget, From, ELotTexel::Done);
+				AutoPaverBudget = FMath::Max(0.0, AutoPaverBudget - Pour.LitresUsed);
+				PlantStock = FMath::Max(0.0, PlantStock - Pour.LitresUsed);
+				Events.Append(ApplyPour(Pour));
+			}
+			if (!Grid.IsCellComplete(Cell))
+			{
+				return;
+			}
+		}
+		++AutoPaverStep;
+	}
+	AutoPaverSector = INDEX_NONE;
+	AutoPaverStep = 0;
+	AutoPaverBudget = 0.0;
+}
+
 void FLotGame::DebugGive(double CreditsToAdd)
 {
 	Credits += CreditsToAdd;
@@ -249,8 +360,13 @@ void FLotGame::DebugGrantItem(ELotItem Item)
 {
 	if (IsValidItem(Item))
 	{
+		const bool bWasOwned = Owns(Item);
 		bOwned[static_cast<int32>(Item)] = true;
-		PlaceBoughtItem(Item);
+		// A machine that stands somewhere already is not carried back to its spawn.
+		if (!bWasOwned || (Item != ELotItem::AutoPaver && Item != ELotItem::Car))
+		{
+			PlaceBoughtItem(Item);
+		}
 	}
 }
 
@@ -577,6 +693,14 @@ void FLotGame::PlaceBoughtItem(ELotItem Item)
 			WorldState.Movables[I].YawDeg = 0.0;
 			WorldState.Movables[I].bHeld = false;
 		}
+	}
+	if (Item == ELotItem::AutoPaver)
+	{
+		AutoPaverPos = LotLayout::ItemSpawn(Item);
+	}
+	else if (Item == ELotItem::Car)
+	{
+		WorldState.CarPos = LotLayout::ItemSpawn(Item);
 	}
 }
 

@@ -128,6 +128,8 @@ namespace LotBalance
 	inline constexpr double CartLaySpeedCmS = 100.0; // tunable
 	/** Speed with which the auto paver moves into its sector. */
 	inline constexpr double AutoPaverSpeedCmS = 600.0; // tunable
+	/** Most litres the auto paver may hold as work budget; stops a long wait from storing a burst. */
+	inline constexpr double AutoPaverBudgetCapL = LitresPerCell; // tunable
 	/** Speed of the car when not laying asphalt. */
 	inline constexpr double CarSpeedCmS = 600.0; // tunable
 	/** The plant storage holds this many minutes of output. */

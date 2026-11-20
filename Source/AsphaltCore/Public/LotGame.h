@@ -167,6 +167,32 @@ public:
 	/** The held finisher turns the raw asphalt of the strip A->B (FinisherWidthCm wide) into finished asphalt. */
 	FLotEvents FinisherPass(FVector2D A, FVector2D B);
 
+	/** Auto paver level by upgrades bought: 0..2; -1 without the auto paver. */
+	int32 GetAutoPaverLevel() const;
+	/** Cells per minute the auto paver paves at its level; 0 without it. */
+	double GetAutoPaverRateCellsPerMin() const;
+	/**
+	 * Sends the owned auto paver to a sector (0..74): it travels to the centre of the sector's first cell, then works
+	 * through the sector's 400 cells inside Tick. Re-assigning leaves the current sector as it is. False without the
+	 * auto paver or for an invalid sector.
+	 */
+	bool AssignAutoPaverSector(int32 Sector);
+	/** Sector the auto paver is assigned to; INDEX_NONE while it waits. */
+	int32 GetAutoPaverSector() const { return AutoPaverSector; }
+	/** Cell of the sector being worked on (0..399). */
+	int32 GetAutoPaverStep() const { return AutoPaverStep; }
+	FVector2D GetAutoPaverPos() const { return AutoPaverPos; }
+	/** True while the auto paver drives to the first cell of its sector. */
+	bool IsAutoPaverTravelling() const { return bAutoPaverTravelling; }
+
+	/** Car level: 0 plain bar, 1 wide bar; -1 without the car. */
+	int32 GetCarLevel() const;
+	/**
+	 * The car lays asphalt under its bar along A->B (CarWidthCm of the level wide): raw asphalt is finished for free,
+	 * the rest is paved as finished asphalt straight from the plant stock. Nothing without the car.
+	 */
+	FLotEvents PourFromCar(FVector2D A, FVector2D B);
+
 	void DebugGive(double CreditsToAdd);
 	void DebugGrantItem(ELotItem Item);
 	/** Sets the plant level; a level outside 0..5 is ignored. The stock is clipped to the new storage. */
@@ -187,6 +213,8 @@ private:
 	 * and drops a rest the grid could still pay for. Shared by the hand pour and the suitcase dose.
 	 */
 	FLotPour SpendStream(double& Budget, double& Content, double Earned, TFunctionRef<FLotPour(double)> Spend);
+	/** Advances the auto paver by one sub-step: travel, or work through the sector; appends what it pours to Events. */
+	void TickAutoPaver(double Step, FLotEvents& Events);
 	/** Books a pour: pays credits, adds litres, compares the unlock state before and after. */
 	FLotEvents ApplyPour(const FLotPour& Pour);
 
@@ -212,4 +240,12 @@ private:
 	double MovableLitres[static_cast<int32>(ELotMovable::Count)] = {};
 	/** Litres of the suitcase dose earned but not yet spent (below one texel's price between calls). */
 	double DoseBudget = 0.0;
+	/** Sector the auto paver works in; INDEX_NONE while it waits. */
+	int32 AutoPaverSector = INDEX_NONE;
+	/** Cell of the sector being worked on. */
+	int32 AutoPaverStep = 0;
+	FVector2D AutoPaverPos = FVector2D::ZeroVector;
+	bool bAutoPaverTravelling = false;
+	/** Litres the auto paver has earned but not yet spent. */
+	double AutoPaverBudget = 0.0;
 };
