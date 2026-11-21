@@ -31,6 +31,14 @@ namespace DIAPaverCar
 	inline constexpr double CabinEyeAheadCm = 120.0;
 	/** The camera looks this far down at rest, so that the bonnet shows at the bottom of the frame. */
 	inline constexpr double CabinPitchDeg = -8.0;
+	/**
+	 * The cabin view is the inside of the model, whose windscreen and side windows are opaque slabs of the glass colour: seen from the
+	 * cabin they cover the sky. So the body is hidden from the car's own view and this flat yellow bonnet stands in for it: its far edge
+	 * is a little below the frame's bottom edge at rest. Centre of the slab ahead of the car's centre, and the height of its top.
+	 */
+	inline constexpr double BonnetAheadCm = 190.0;
+	inline constexpr double BonnetTopCm = 105.0;
+	inline const FVector BonnetSizeCm = FVector(120.0, 200.0, 8.0);
 	/** The mouse turns the head by this much at most to each side, up and down (the car does not turn with it). */
 	inline constexpr double LookYawLimitDeg = 100.0;
 	inline constexpr double LookPitchMinDeg = -60.0;
@@ -98,6 +106,8 @@ public:
 	UStaticMeshComponent* GetBodyMesh() const { return BodyMesh; }
 	/** The wide bar (SM_PaverCar_WideBar), shown once the car owns it. */
 	UStaticMeshComponent* GetWideBarMesh() const { return WideBarMesh; }
+	/** What the cabin shows at the bottom of the frame instead of the body (only the owner's own view sees it). */
+	UStaticMeshComponent* GetCabinBonnet() const { return CabinBonnet; }
 	UBoxComponent* GetCollision() const { return Collision; }
 	UCameraComponent* GetCabinCamera() const { return CabinCamera; }
 
@@ -135,6 +145,8 @@ private:
 	TObjectPtr<UStaticMeshComponent> BodyMesh;
 	UPROPERTY()
 	TObjectPtr<UStaticMeshComponent> WideBarMesh;
+	UPROPERTY()
+	TObjectPtr<UStaticMeshComponent> CabinBonnet;
 	UPROPERTY()
 	TObjectPtr<UCameraComponent> CabinCamera;
 

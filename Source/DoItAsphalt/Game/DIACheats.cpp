@@ -377,9 +377,10 @@ namespace DIACheats
 		{
 			return;
 		}
-		if (PC->GetPawn() && PC->GetPawn()->IsA<ADIAPaverCar>())
+		// Driving: the same E gets the player out again.
+		if (ADIAPaverCar* Driven = Cast<ADIAPaverCar>(PC->GetPawn()))
 		{
-			UE_LOG(LogDoItAsphalt, Warning, TEXT("dia.EnterCar: the player drives the car already"));
+			Driven->Interact(nullptr);
 			return;
 		}
 		ADIACharacter* Character = Cast<ADIACharacter>(PC->GetPawn());
@@ -746,7 +747,7 @@ namespace DIACheats
 	FAutoConsoleCommandWithWorldAndArgs FinishStripCommand(TEXT("dia.FinishStrip"), TEXT("dia.FinishStrip <x> <y> [lengthM=4]: finishes the raw asphalt of a strip of the finisher's width from the point towards +X through the core (gives the finisher)"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&FinishStrip));
 	FAutoConsoleCommandWithWorldAndArgs PlaceCommand(TEXT("dia.Place"), TEXT("dia.Place <Suitcase|Cart|Station|Finisher> <x> <y> [yaw]: gives the movable if needed and sets it down at the point"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Place));
 	FAutoConsoleCommandWithWorldAndArgs PlantCommand(TEXT("dia.Plant"), TEXT("dia.Plant <0..5>: sets the plant level"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Plant));
-	FAutoConsoleCommandWithWorldAndArgs EnterCarCommand(TEXT("dia.EnterCar"), TEXT("dia.EnterCar: gets the player into the paver car (dia.Item Car first), like the E key beside it"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&EnterCar));
+	FAutoConsoleCommandWithWorldAndArgs EnterCarCommand(TEXT("dia.EnterCar"), TEXT("dia.EnterCar: gets the player into the paver car (dia.Item Car first), like the E key beside it; while driving, gets out"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&EnterCar));
 	FAutoConsoleCommandWithWorldAndArgs TeleportCommand(TEXT("dia.Teleport"), TEXT("dia.Teleport <x> <y> [yaw] [pitch]"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Teleport));
 	FAutoConsoleCommandWithWorldAndArgs PromptCommand(TEXT("dia.Prompt"), TEXT("dia.Prompt <text>: sets the contextual prompt (no text hides it)"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Prompt));
 	FAutoConsoleCommandWithWorldAndArgs ToastCommand(TEXT("dia.Toast"), TEXT("dia.Toast <text>: shows a toast"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Toast));

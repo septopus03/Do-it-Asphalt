@@ -50,6 +50,14 @@ ADIAPaverCar::ADIAPaverCar()
 	WideBarMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	WideBarMesh->SetVisibility(false);
 
+	CabinBonnet = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("CabinBonnet"));
+	CabinBonnet->SetupAttachment(Collision);
+	CabinBonnet->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	// The view's owner is the view target: the car while it is driven, the character otherwise. So the body (and its glass, an opaque
+	// slab seen from inside) is left out of the cabin view, the bonnet is in it alone, and from outside nothing differs from before.
+	BodyMesh->SetOwnerNoSee(true);
+	CabinBonnet->SetOnlyOwnerSee(true);
+
 	// First person: the eyes in the cabin. The head turns against the car, the camera does not follow the control rotation.
 	CabinCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("CabinCamera"));
 	CabinCamera->SetupAttachment(Collision);
@@ -70,6 +78,9 @@ void ADIAPaverCar::BeginPlay()
 		FVector(-LotBalance::CarBarBehindCm, 0.0, PlaceholderBarHeightCm), TEXT("DIA_Steel"));
 	WideBarMesh->SetVisibility(false);
 	bShowsWideBar = false;
+	// The bonnet is a flat slab at the bottom of the cabin view (the offset is from the collision box's centre).
+	DIAAssets::SetModelOrFallback(CabinBonnet, TEXT("SM_PaverCar_Bonnet"), DIAAssets::EFallback::Cube, DIAPaverCar::BonnetSizeCm,
+		FVector(DIAPaverCar::BonnetAheadCm, 0.0, DIAPaverCar::BonnetTopCm - DIAPaverCar::BonnetSizeCm.Z * 0.5 - DIAPaverCar::OriginHeightCm()), TEXT("DIA_Yellow"));
 
 	if (UDIAWorldSubsystem* Subsystem = UDIAWorldSubsystem::Get(this))
 	{

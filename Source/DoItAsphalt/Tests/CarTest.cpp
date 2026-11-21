@@ -145,6 +145,28 @@ namespace CarTestSupport
 		return Actor;
 	}
 
+	/**
+	 * The cabin view: the body (with its glass, which seen from inside is an opaque blue plane) is hidden from the owner's own view, a
+	 * bonnet is seen by it alone, and the wide bar stays. The flags are the same in every state, because the view's owner is the view target:
+	 * the car while driven, the character otherwise, so that from outside the car looks as it always did.
+	 */
+	void CheckCabinView(FAutomationTestBase& Test, ADIAPaverCar* Car, const ADIAPlayerController* Controller, const AActor* ExpectedViewTarget, const TCHAR* When)
+	{
+		const FString Tag(When);
+		Test.TestTrue(Tag + TEXT(": the view target is the one expected"), Controller->GetViewTarget() == ExpectedViewTarget);
+		UStaticMeshComponent* Body = Car->GetBodyMesh();
+		UStaticMeshComponent* Bonnet = Car->GetCabinBonnet();
+		Test.TestTrue(Tag + TEXT(": the body is not hidden from the owner's view"), Body->bOwnerNoSee);
+		Test.TestFalse(Tag + TEXT(": the body is for everyone else"), Body->bOnlyOwnerSee);
+		Test.TestTrue(Tag + TEXT(": the body is visible"), Body->IsVisible() && !Car->IsHidden());
+		Test.TestTrue(Tag + TEXT(": the bonnet is for the owner's view alone"), Bonnet->bOnlyOwnerSee);
+		Test.TestFalse(Tag + TEXT(": the bonnet is not hidden from it"), Bonnet->bOwnerNoSee);
+		Test.TestTrue(Tag + TEXT(": the bonnet has a model"), Bonnet->GetStaticMesh() != nullptr);
+		Test.TestFalse(Tag + TEXT(": the wide bar is not hidden from the owner's view"), Car->GetWideBarMesh()->bOwnerNoSee);
+		Test.TestEqual(Tag + TEXT(": the collision is still a blocking box"), Car->GetCollision()->GetCollisionEnabled(), ECollisionEnabled::QueryAndPhysics);
+		Test.TestEqual(Tag + TEXT(": the body has no collision of its own"), Body->GetCollisionEnabled(), ECollisionEnabled::NoCollision);
+	}
+
 	int32 CountRawOrDone(const FLotGame& Game)
 	{
 		int32 Count = 0;
@@ -506,6 +528,75 @@ bool FCarWideBarMeshTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("attached to the car"), Bar->GetAttachParent() != nullptr && Bar->GetOwner() == Car);
 	TestTrue(TEXT("with no offset of its own"), Bar->GetRelativeLocation().IsNearlyZero(0.01) && Bar->GetRelativeRotation().IsNearlyZero(0.01));
 	TestEqual(TEXT("it stands where the body stands"), Bar->GetComponentLocation().Z, Car->GetBodyMesh()->GetComponentLocation().Z, 0.01);
+	return true;
+}
+
+DIA_TEST(FCarCabinViewTest, "DoItAsphalt.Game.Car.CabinView")
+
+bool FCarCabinViewTest::RunTest(const FString& Parameters)
+{
+	DIA_CAR_FIXTURE()
+	TestTrue(TEXT("grant the car"), Grant(Subsystem, ELotItem::Car));
+	ADIAPaverCar* Car = TheCar(World);
+	if (!TestNotNull(TEXT("the car"), Car))
+	{
+		return false;
+	}
+	const FVector2D Spot = MiddleOfLot();
+	PlaceCar(Car, Spot, 0.0);
+	ADIACharacter* Character = DIATest::SpawnCharacter(World, Spot + FVector2D(0.0, -NextToCm));
+	ADIAPlayerController* Controller = Character ? Possess(World, Character) : nullptr;
+	if (!TestNotNull(TEXT("character"), Character) || !TestNotNull(TEXT("controller"), Controller))
+	{
+		return false;
+	}
+	Wrapper.TickTestWorld(TickSeconds);
+
+	// On foot the car is seen from outside, with its glass.
+	CheckCabinView(*this, Car, Controller, Character, TEXT("on foot"));
+
+	Controller->OnInteract();
+	if (!TestTrue(TEXT("the player drives"), Car->HasDriver()))
+	{
+		return false;
+	}
+	CheckCabinView(*this, Car, Controller, Car, TEXT("driving"));
+
+	// Out again: the exterior is what it was.
+	Controller->OnInteract();
+	TestFalse(TEXT("nobody drives"), Car->HasDriver());
+	CheckCabinView(*this, Car, Controller, Character, TEXT("after getting out"));
+
+	// A new game while driving: the car is taken away and the player is on foot with a plain view.
+	Controller->OnInteract();
+	TestTrue(TEXT("the player drives again"), Car->HasDriver());
+	Subsystem->NewGame();
+	Wrapper.TickTestWorld(TickSeconds);
+	TestTrue(TEXT("a new game takes the car away"), FindCars(World).Num() == 0);
+	TestTrue(TEXT("the view is the character's again"), Controller->GetViewTarget() == Character);
+
+	// A load with the in-car flag: the car is driven again, with the cabin view.
+	TestTrue(TEXT("grant the car again"), Grant(Subsystem, ELotItem::Car));
+	Car = TheCar(World);
+	if (!TestNotNull(TEXT("the car again"), Car))
+	{
+		return false;
+	}
+	PlaceCar(Car, Spot, 0.0);
+	Character->SetActorLocation(FVector(Spot.X, Spot.Y - NextToCm, DIACharacter::CapsuleHalfHeightCm));
+	Wrapper.TickTestWorld(TickSeconds);
+	Controller->OnInteract();
+	TestTrue(TEXT("driving before the save"), Car->HasDriver());
+	Subsystem->SaveGame();
+	TestTrue(TEXT("the game loads"), Subsystem->LoadGame());
+	Wrapper.TickTestWorld(TickSeconds);
+	Car = TheCar(World);
+	if (!TestNotNull(TEXT("the car after the load"), Car))
+	{
+		return false;
+	}
+	TestTrue(TEXT("the load keeps the player at the wheel"), Car->HasDriver());
+	CheckCabinView(*this, Car, Controller, Car, TEXT("after a load while driving"));
 	return true;
 }
 

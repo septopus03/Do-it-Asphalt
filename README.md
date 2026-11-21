@@ -94,7 +94,7 @@ Overené 2026-11-21 v tejto úlohe (nie viac):
 
 Zabalenie `.app` (`Scripts/package.sh`) sa nespúšťalo. Pri kompilácii Shipping cieľa `codesign` balíka zlyhal s `resource fork, Finder information, or similar detritus not allowed`, lebo projekt leží na `~/Desktop` v iCloud Drive a ten pridáva priečinkom rozšírené atribúty. Projekt sa nemá presúvať; `.app` preto neexistuje a kontrola reťazcov je urobená nad samostatnou Shipping binárkou.
 
-Pozorovaná chyba (pozri aj nižšie): v kabíne auta pri sklone hlavy −8° zakrýva väčšinu horného obrazu veľká nepriehľadná modrá plocha (snímka `car_plate`); pri sklone −40° je mimo záberu.
+Oprava kabíny auta (2026-11-21): zvnútra zakrývali výhľad nepriehľadné sklá modelu (farba `DIA_Glass`), a to pri základnom sklone hlavy −8° až po horizont. Karoséria je teraz z pohľadu z kabíny skrytá a dole v obraze je plochá žltá kapota. Snímky `car` (bez argumentu sklonu, `dia.SkipMenu; dia.Complete 6100; dia.CompleteEntry 4; dia.Item Car; dia.EnterCar`), `car_cabin_fix_yaw` (hlava otočená o 90°) a `car_exterior_fix` (auto zvonku po vystúpení, so sklami) boli otvorené a prezreté: v kabíne je vidieť oblohu, horizont a parkovisko, zvonku je auto také ako predtým. Nezmenila sa žiadna 3D šablóna.
 
 ## Neoverené – čaká na ručnú kontrolu
 

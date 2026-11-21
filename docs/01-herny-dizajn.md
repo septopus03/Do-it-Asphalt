@@ -114,7 +114,7 @@ Oba slúžia aj ako zásoba pre vedro (kohútik, 5 l/s).
 - Chôdza je 450 cm/s, šprint 1,6-krát rýchlejší. Kufor sa ťahá rýchlosťou 350 cm/s, vozík sa tlačí 400 cm/s, finišer 400 cm/s a výdajňa sa nesie 400 cm/s.
 - Počas jazdy fungujú chôdza (plyn, zatáčanie), myš, ľavé tlačidlo, `E`, `Tab` a `Esc`. Klávesy rúk, `G`, `F`, pracovný pohľad a `V` nerobia nič.
 - Ak hráč niečo drží, `E` patrí držanému predmetu (pustí ho). Do auta sa nastupuje len s voľnými rukami.
-- Kamera je v kabíne auta vo výške 190 cm, 120 cm pred stredom auta, v pokoji sklonená o 8° nadol.
+- Kamera je v kabíne auta vo výške 190 cm, 120 cm pred stredom auta, v pokoji sklonená o 8° nadol. Karoséria modelu je z pohľadu z kabíny skrytá (jej sklá by zvnútra zakryli výhľad), preto je dole v obraze plochá žltá kapota; zvonku je auto celé.
 - Kontrolný pohľad (`V`) zobrazí šípku k najbližšiemu nedokončenému políčku.
 
 ## 6. Obrazovka (HUD)
@@ -215,7 +215,7 @@ Cheaty sú konzolové príkazy `dia.*`. Existujú len mimo Shipping buildu (v Sh
 | `dia.FinishStrip` | uhladí surové |
 | `dia.Place <druh> <x> <y> [yaw]` | dá a postaví kufor, vozík, výdajňu alebo finišer |
 | `dia.Plant <0..5>` | nastaví úroveň výrobne |
-| `dia.EnterCar` | nastúpi do auta |
+| `dia.EnterCar` | nastúpi do auta, v aute z neho vystúpi |
 | `dia.Teleport <x> <y> [yaw] [pitch]` | presunie hráča (v aute auto) |
 | `dia.Prompt`, `dia.Toast` | vypíše výzvu / oznam |
 | `dia.SendPaver` | pošle robota do sektora hráča |
