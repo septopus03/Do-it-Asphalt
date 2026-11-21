@@ -88,7 +88,7 @@ Uloženie má dve vrstvy.
 **Engine vrstva** (`UDIASaveGame`) uloží bajty jadra ako pole `Blob` do slotu `DoItAsphalt_Slot0` a zároveň do zálohy `DoItAsphalt_Slot0_bak`. Na konci bajtov je pätka s magickým číslom „DIAE“ a kontrolným súčtom CRC32; kontrolný súčet sa overí pred čítaním enginom. Poškodený slot sa nahradí zálohou, ak sú poškodené obe, hra začne odznova. Parameter `-DIASlot=<názov>` zmení slot (skript `shot.sh` používa `DIA_Shot`).
 
 - Automatické uloženie: každých 30 s hry (`AutosaveIntervalSeconds`), po každom nákupe (`BuyItem`, `BuyPlant`), po výhre a pri `GameMode::EndPlay`. Zapína sa až po odchode z hlavného menu a pod automatickými testami sa pre skutočný slot preskakuje.
-- `MakeSaveBlob` ukladá držaný predmet položený (na kópii hry). Poloha auta sa zapisuje vždy a poloha hráča aj počas jazdy, takže hra uložená v aute sa načíta v aute.
+- `MakeSaveBlob` ukladá držaný predmet položený na kópii hry: na pozícii jeho aktéra len ak `CanBePutDownHere` prejde, inak na poslednom platnom mieste, ktoré jadro pozná. Poloha auta sa zapisuje vždy a poloha hráča aj počas jazdy, takže hra uložená v aute sa načíta v aute.
 
 ## 7. Vstup, ruky a stroje
 
@@ -100,15 +100,15 @@ Uloženie má dve vrstvy.
 
 ## 8. Testovanie
 
-Testy sa deklarujú makrom `DIA_TEST` a bežia cez `Scripts/test.sh`. Posledný plný beh na tomto stroji: **216 testov, všetky prešli** (211 čistých a 5 s očakávaným varovaním: záloha slotu, poškodené oba sloty, poškodený slot, useknutý súbor, uloženie z v1).
+Testy sa deklarujú makrom `DIA_TEST` a bežia cez `Scripts/test.sh`. Posledný plný beh na tomto stroji: **219 testov, všetky prešli** (214 čistých a 5 s očakávaným varovaním: záloha slotu, poškodené oba sloty, poškodený slot, useknutý súbor, uloženie z v1).
 
 | Skupina | Počet |
 |---|---|
 | `DoItAsphalt.Lot.*` (jadro) | 87 |
-| `DoItAsphalt.Game.*` (engine) | 128 |
+| `DoItAsphalt.Game.*` (engine) | 131 |
 | `DoItAsphalt.Core.Smoke` | 1 |
 
-Najväčšie podskupiny `Lot`: Hand 10, AutoPaver 10, Save 10, Movable 11, Stamp 7, Car 5. Najväčšie podskupiny `Game`: Movable 30, SaveSlot 16, Character 15, Car 9, Shop 9, AutoPaver 7, Exit 6, Hud 6.
+Najväčšie podskupiny `Lot`: Hand 10, AutoPaver 10, Save 10, Movable 11, Stamp 7, Car 5. Najväčšie podskupiny `Game`: Movable 30, SaveSlot 17, Character 15, Car 10, Shop 9, AutoPaver 7, Exit 6, Hud 7.
 
 `DoItAsphalt.Lot.BalanceSim` je simulácia celej hry vopred daným správaním (bez človeka). Kontroluje, že prvé políčko padne za 40 – 80 s, 10 políčok do 6 minút, 100 do 18, 800 do 42, 6 000 do 78 minút a že celá hra trvá 105 – 165 minút. V jednom behu vyšlo 41:17 pre 800 políčok a 2:21:27 pre celú hru (kapitola 9 herného dizajnu).
 

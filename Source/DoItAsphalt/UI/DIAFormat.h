@@ -38,7 +38,7 @@ namespace DIAFormat
 	 * for any other held movable and while driving.
 	 */
 	DOITASPHALT_API FText HandGauge(const FLotGame& Game);
-	/** True if the player, or the suitcase or cart held by the player, stands where asphalt can be drawn by hand. */
+	/** True if the player stands where asphalt can be drawn by hand. A held suitcase or cart does not count: only a standing one fills. */
 	DOITASPHALT_API bool IsInRefillZone(const FLotGame& Game);
 	/** The plant stock while in the refill zone: "42 / 600 l"; empty elsewhere. */
 	DOITASPHALT_API FText RefillLine(const FLotGame& Game);

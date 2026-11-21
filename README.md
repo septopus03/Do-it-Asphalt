@@ -83,11 +83,11 @@ Skript spustený cez `Scripts/uepy.sh Tools/UE/create_materials.py` **nedobehne*
 
 ## Overené
 
-Overené 2026-11-21 v tejto úlohe (nie viac):
+Overené 2026-11-21 (nie viac):
 
 - `Scripts/build.sh` skončil úspechom.
-- `Scripts/test.sh`: `PASSED 216 / FAILED 0` (211 čistých testov a 5 s očakávaným varovaním). Skupiny: `DoItAsphalt.Lot.*` 87, `DoItAsphalt.Game.*` 128, `DoItAsphalt.Core.Smoke` 1.
-- Shipping cieľ sa skompiloval a zlinkoval príkazom `Build.sh DoItAsphalt Mac Shipping -project=<cesta>/DoItAsphalt.uproject` (`Binaries/Mac/DoItAsphalt-Mac-Shipping`, 281 774 456 bajtov). Dokončenie balíka `.app` zlyhalo na `codesign` (nižšie).
+- `Scripts/test.sh`: `PASSED 219 / FAILED 0` (214 čistých testov a 5 s očakávaným varovaním). Skupiny: `DoItAsphalt.Lot.*` 87, `DoItAsphalt.Game.*` 131, `DoItAsphalt.Core.Smoke` 1.
+- Shipping cieľ sa (pred posledným kolom opráv kabíny a ukladania, neopakované) skompiloval a zlinkoval príkazom `Build.sh DoItAsphalt Mac Shipping -project=<cesta>/DoItAsphalt.uproject` (`Binaries/Mac/DoItAsphalt-Mac-Shipping`, 281 774 456 bajtov). Dokončenie balíka `.app` zlyhalo na `codesign` (nižšie).
 - V Shipping binárke nie sú cheaty: žiadny z 27 reťazcov `dia.*` v nej nie je ani v UTF-16, ani v ASCII. Reťazce `TEXT()` sú na Macu UTF-16, preto obyčajné `strings` ich nenájde ani tam, kde sú; kontrola sa overila na editorovej knižnici `libUnrealEditor-DoItAsphalt.dylib`, kde je v UTF-16 všetkých 27.
 - Snímky `start`, `hand`, `shop`, `cart`, `finisher`, `paver`, `car`, `exit`, `site`, `win` a `load` (`Saved/Screenshots/`, v gite nie sú) boli otvorené a prezreté: štartová scéna s výrobňou a korytom, plná miska, obchod, vozík s kufrom, finišer, robot s oranžovým obrysom a riadkom „Paver: sector 23 · 0 / 400“, kabína auta pri pohľade na otvorené parkovisko, otvorená brána východu, nákupné centrum, obrazovka výhry s riadkami Time, Cells paved, Asphalt poured, Credits earned, Items bought a obnovený stav po `dia.Load`.
 - Simulácia balansu prešla: východ sa otvorí o 2:21:27 simulovaného času (v jednom behu).
@@ -119,6 +119,5 @@ Nič z tohto nikto ručne nevyskúšal:
 - Pri liatí z auta hráča nič neupozorní, že zásoba výrobne sa minula.
 - Obrys sektora robota (10 cm) je zďaleka zhora tenký.
 - Kým sú zobrazené tri iné oznamy, oznamy o kreditoch čakajú.
-- Predmet uložený v čase, keď ho hráč drží, sa uloží na polohe v ruke bez kontroly voľného miesta.
 - Valček, dusadlo a lata s vodováhou zo špecifikácie v hre nie sú (otvorená otázka O1).
 - Míľnik 800 políčok v simulácii má rezervu pod minútu (41:17 oproti limitu 42:00).

@@ -7,7 +7,7 @@
 /** Things the player can buy. Order is binding: the tables in LotBalance are indexed by it. */
 enum class ELotItem : uint8 { Scoop, Bucket, Suitcase, Cart, Station, Finisher, AutoPaver, AutoPaverFast, AutoPaverFaster, Car, CarWideBar, Count };
 
-/** Unlock steps; step i belongs to sector i of the progression and opens after LotBalance::UnlockCells[i] cells. */
+/** Unlock steps; step i belongs to entry segment i of the progression and opens after LotBalance::UnlockCells[i] cells. */
 enum class ELotUnlock : uint8 { QuickSwap, Sprint, StripWork, AutoPaver, Car, Exit, Count };
 
 /** What the player holds in the hand. */

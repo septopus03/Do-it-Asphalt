@@ -239,7 +239,7 @@ bool FHudRefillLineTest::RunTest(const FString& Parameters)
 	Game.Tick(1.0);
 	TestTrue(TEXT("the stock grows in the zone"), Model.Update(Game));
 
-	// The suitcase held by the player counts: the player may stand beside the suitcase that is held in the zone.
+	// A held suitcase does not fill and does not count, wherever the core last saw it.
 	Game.World().PlayerPos = LotLayout::PlayerStart;
 	Model.Update(Game);
 	TestTrue(TEXT("out of the zone again"), Model.GetView().Refill.IsEmpty());
@@ -247,7 +247,26 @@ bool FHudRefillLineTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("the suitcase is taken"), Game.Grab(ELotMovable::Suitcase));
 	Game.World().Movables[static_cast<int32>(ELotMovable::Suitcase)].Pos = LotLayout::TroughPos + FVector2D(0.0, 100.0);
 	Model.Update(Game);
-	TestFalse(TEXT("the held suitcase in the zone shows the line"), Model.GetView().Refill.IsEmpty());
+	TestTrue(TEXT("the held suitcase does not show the line"), Model.GetView().Refill.IsEmpty());
+	return true;
+}
+
+DIA_TEST(FHudRefillLineHeldVesselTest, "DoItAsphalt.Game.Hud.RefillLineHeldVessel")
+
+bool FHudRefillLineHeldVesselTest::RunTest(const FString& Parameters)
+{
+	// The core writes the position of a movable only when it is put down. A cart set down in the zone, grabbed again and walked
+	// away keeps that stale position, and it must not keep the plant-stock line on the screen: only a standing vessel fills.
+	FLotGame Game;
+	FDIAHudModel Model;
+	Game.DebugGrantItem(ELotItem::Cart);
+	TestTrue(TEXT("the cart is taken"), Game.Grab(ELotMovable::Cart));
+	Game.Release(LotLayout::TroughPos + FVector2D(0.0, 100.0), 0.0);
+	TestTrue(TEXT("the cart is grabbed again"), Game.Grab(ELotMovable::Cart));
+	Game.World().PlayerPos = LotLayout::PlayerStart + FVector2D(0.0, 10000.0);
+	Model.Update(Game);
+	TestFalse(TEXT("the player far from the plant is not in the zone"), DIAFormat::IsInRefillZone(Game));
+	TestTrue(TEXT("no refill line for a held vessel that was last put down in the zone"), Model.GetView().Refill.IsEmpty());
 	return true;
 }
 

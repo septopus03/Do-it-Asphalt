@@ -281,13 +281,9 @@ FText DIAFormat::HandGauge(const FLotGame& Game)
 
 bool DIAFormat::IsInRefillZone(const FLotGame& Game)
 {
-	if (DIARefill::IsInZone(Game, Game.World().PlayerPos))
-	{
-		return true;
-	}
-	// The suitcase and the cart fill where they stand, also while the player pulls them.
-	const ELotMovable Held = Game.GetHeld();
-	return (Held == ELotMovable::Suitcase || Held == ELotMovable::Cart) && DIARefill::IsInZone(Game, Game.World().Movables[static_cast<int32>(Held)].Pos);
+	// Only the player's own position counts. A suitcase or cart fills where it stands (DIAMovable), never while it is held,
+	// and the core knows its position only from the last time it was put down.
+	return DIARefill::IsInZone(Game, Game.World().PlayerPos);
 }
 
 FText DIAFormat::RefillLine(const FLotGame& Game)

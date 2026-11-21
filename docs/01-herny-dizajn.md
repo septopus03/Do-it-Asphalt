@@ -83,14 +83,14 @@ Oba slúžia aj ako zásoba pre vedro (kohútik, 5 l/s).
 
 - Výrobňa vyrába asfalt do zásobníka. Zásobník má kapacitu **4 minúty výroby** a na štarte je v ňom 80 l.
 - Úrovne výrobne (litre za minútu): **150 / 300 / 750 / 2 000 / 4 200 / 5 200**. Ceny vylepšení: 100 / 400 / 1 400 / 8 000 / 24 000 kreditov.
-- Na úrovniach 2 a 4 pribudne k výrobni viditeľná prístavba.
+- Na úrovniach 2 (750 l/min) a 4 (4 200 l/min) pribudne k výrobni viditeľná prístavba. Kód a oznam „Plant level N" po nákupe číslujú úrovne od 0 (štart, 150 l/min, je úroveň 0); špecifikácia ich číslovala od 1.
 - Naberanie z koryta a plnenie vedra ťahá zo zásobníka. Keď je prázdny, nič sa nenabere.
 
 ### 4.6 Stroje
 
 - **Presuvná výdajňa** (Station, 900 kreditov, od 350 políčok): hráč ju ťahá za sebou (105 cm) a vedro, kufor aj vozík sa pri nej plnia ako pri výrobni.
 - **Finišer** (1 400, od 350 políčok): kapitola 4.4.
-- **Robot** (AutoPaver, 3 000, od 800 políčok): sám asfaltuje pridelený sektor. Hráč sa postaví do sektora a stlačí `G`. Robot ide k prvému nedokončenému políčku a kladie hotový asfalt rýchlosťou 120 políčok za minútu, pričom čerpá zo zásobníka výrobne (v kuse najviac 10 l). Vylepšenia: **AutoPaverFast** (9 000, 170 políčok/min) a **AutoPaverFaster** (22 000, 220 políčok/min). Pridelený sektor má na zemi oranžový obrys (10 cm). Ak hráč stlačí `G` v sektore, kde robot už je, zobrazí sa „Paver is already here".
+- **Robot** (AutoPaver, 3 000, od 800 políčok): sám asfaltuje pridelený sektor. Hráč sa postaví do sektora a stlačí `G`. Robot najprv dôjde do políčka 0 sektora a potom ide po políčkach sektora od začiatku, hotové preskakuje a ďalej kladie na nehotové. Kladie hotový asfalt rýchlosťou 120 políčok za minútu, pričom čerpá zo zásobníka výrobne (v kuse najviac 10 l). Vylepšenia: **AutoPaverFast** (9 000, 170 políčok/min) a **AutoPaverFaster** (22 000, 220 políčok/min). Pridelený sektor má na zemi oranžový obrys (10 cm). Ak hráč stlačí `G` v sektore, kde robot už je, zobrazí sa „Paver is already here".
 - **Auto** (Car, 12 000, od 6 000 políčok): hráč doň nastúpi (`E`) a jazdí. Auto nemá nádrž; leje hotový asfalt zo zásobníka výrobne, kým hráč drží ľavé tlačidlo, pásom širokým 300 cm (260 políčok/min). **CarWideBar** (24 000) rozšíri pás na 350 cm (300 políčok/min). Pri liatí sa rýchlosť auta obmedzí tak, aby sa nelialo viac, než sa stíha.
 
 ## 5. Ovládanie
@@ -164,7 +164,7 @@ Spolu je v obchode 16 vecí: 5 úrovní výrobne a 11 predmetov.
 
 - Hra ukladá do jedného slotu s kópiou. Ukladá sa každých 30 s hry, po každom nákupe, po výhre a pri ukončení hry.
 - Uložia sa kredity, čas, výrobňa, nádoby, kúpené veci, polohy predmetov, auto, robot a celá zem. Ak hráč v aute uloží, po načítaní sedí v aute.
-- Predmet držaný v ruke sa uloží položený na miesto, kde je.
+- Predmet držaný v ruke sa uloží položený na mieste, kde je, ale len ak by sa tam dal položiť (rovnaká kontrola ako pri pustení). Inak sa uloží na poslednom platnom mieste: kde bol naposledy položený, alebo kde sa objavil po kúpe.
 - Poškodený slot hra odmietne a použije zálohu; ak sú poškodené obe, začne novú hru.
 - Uloženie z predchádzajúcej verzie hry (v1) sa odmietne.
 
@@ -194,11 +194,10 @@ Kde sa hotová hra líši od `04-plan-zmien-asphalt-self.md`:
 | Záber lyžice | 0,6 s | **0,5 s** | doladené pri skúšaní hry |
 | Tlačenie vozíka | 250 cm/s | **400 cm/s** | doladené pri skúšaní hry |
 | Kladenie pásu vozíkom | 100 cm/s | **200 cm/s** | doladené pri skúšaní hry |
-| Prístavby výrobne | úrovne 3 a 5 | **úrovne 2 a 4** | tak je to nastavené v kóde |
 | Obrys sektora robota | v návrhu nebol | **oranžový, 10 cm** | hráč vidí, v ktorom sektore robot pracuje |
 | Tabuľa pri vstupe | názov kroku a účinok | **názov kroku, vstup, počet políčok**; účinok je v oznamoch | tabuľa sa musí zmestiť |
 
-Rýchlosti hladidla, finišera a výdajne majú v kóde vlastné pomenované hodnoty (`TrowelSpeedCmS`, `FinisherPushCmS`, `StationCarryCmS`).
+Rýchlosti hladidla, finišera a výdajne majú v kóde vlastné pomenované hodnoty (`TrowelSpeedCmS`, `FinisherPushSpeedCmS`, `StationCarrySpeedCmS`).
 
 ## 11. Cheaty
 
@@ -238,6 +237,5 @@ Cheaty sú konzolové príkazy `dia.*`. Existujú len mimo Shipping buildu (v Sh
 - Pri liatí z auta hráča nič neupozorní, že zásoba výrobne sa minula.
 - Obrys sektora (10 cm) je zďaleka zhora tenký.
 - Kým sú zobrazené tri iné oznamy, oznamy o kreditoch čakajú.
-- Predmet uložený v čase, keď ho hráč drží, sa uloží na polohe v ruke bez kontroly voľného miesta.
 - Valček, dusadlo a lata s vodováhou zo špecifikácie v hre nie sú (otvorená otázka O1 v `04-plan-zmien-asphalt-self.md`).
 - Míľnik 800 políčok v simulácii má rezervu pod minútu (41:17 oproti limitu 42:00).
