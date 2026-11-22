@@ -99,21 +99,38 @@ DIA_TEST(FMenuPrimaryButtonTest, "DoItAsphalt.Game.Menu.PrimaryButton")
 bool FMenuPrimaryButtonTest::RunTest(const FString& Parameters)
 {
 	FDIAMenuModel Model;
+	// IsPrimary is false for None, and true only for the button PrimaryButton names.
+	auto CheckIsPrimary = [this, &Model](const TCHAR* State)
+	{
+		const EDIAMenuButton All[] = {EDIAMenuButton::None, EDIAMenuButton::Continue, EDIAMenuButton::Resume, EDIAMenuButton::NewGame, EDIAMenuButton::Yes};
+		for (const EDIAMenuButton Which : All)
+		{
+			const bool bExpected = Which != EDIAMenuButton::None && Which == Model.PrimaryButton();
+			TestEqual(FString::Printf(TEXT("%s: IsPrimary %d"), State, static_cast<int32>(Which)), Model.IsPrimary(Which), bExpected);
+		}
+	};
 	TestTrue(TEXT("closed"), Model.PrimaryButton() == EDIAMenuButton::None);
+	CheckIsPrimary(TEXT("closed"));
 	Model.Open(EDIAMenuMode::Main, true);
 	TestTrue(TEXT("main with a save"), Model.PrimaryButton() == EDIAMenuButton::Continue);
+	CheckIsPrimary(TEXT("main with a save"));
 	Model.Open(EDIAMenuMode::Main, false);
 	TestTrue(TEXT("main without a save"), Model.PrimaryButton() == EDIAMenuButton::NewGame);
+	CheckIsPrimary(TEXT("main without a save"));
 	Model.Open(EDIAMenuMode::Pause, false);
 	TestTrue(TEXT("pause"), Model.PrimaryButton() == EDIAMenuButton::Resume);
+	CheckIsPrimary(TEXT("pause"));
 	Model.Open(EDIAMenuMode::Pause, true);
 	Model.bConfirming = true;
 	TestTrue(TEXT("question"), Model.PrimaryButton() == EDIAMenuButton::Yes);
+	CheckIsPrimary(TEXT("question"));
 	Model.Open(EDIAMenuMode::Pause, true);
 	Model.OpenSettings();
 	TestTrue(TEXT("settings"), Model.PrimaryButton() == EDIAMenuButton::None);
+	CheckIsPrimary(TEXT("settings"));
 	Model.CloseSettings();
 	TestTrue(TEXT("back from settings"), Model.PrimaryButton() == EDIAMenuButton::Resume);
+	CheckIsPrimary(TEXT("back from settings"));
 	return true;
 }
 

@@ -252,7 +252,7 @@ FReply SDIAMenu::HandleQuit()
 TSharedRef<SWidget> SDIAMenu::BuildButton(const FText& Label, float Width, EDIAMenuButton Which, FOnClicked OnClicked, TFunction<bool()> Visible)
 {
 	const TSharedRef<SBox> Button = AsphaltHud::MakeMenuButton(Label, Width, OnClicked, &ButtonStyle,
-		TAttribute<bool>::CreateLambda([this, Which]() { return Model.PrimaryButton() == Which; }));
+		TAttribute<bool>::CreateLambda([this, Which]() { return Model.IsPrimary(Which); }));
 	Button->SetVisibility(TAttribute<EVisibility>::CreateLambda([Visible = MoveTemp(Visible)]() { return Visible() ? EVisibility::Visible : EVisibility::Collapsed; }));
 	return Button;
 }

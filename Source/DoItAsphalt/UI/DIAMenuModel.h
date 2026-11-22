@@ -98,6 +98,9 @@ struct FDIAMenuModel
 		return bHasSave ? EDIAMenuButton::Continue : EDIAMenuButton::NewGame;
 	}
 
+	/** Whether the button Which gets the yellow label: never None, otherwise the button PrimaryButton names. */
+	bool IsPrimary(EDIAMenuButton Which) const { return Which != EDIAMenuButton::None && PrimaryButton() == Which; }
+
 	FText GetTitle() const
 	{
 		if (bSettings)
