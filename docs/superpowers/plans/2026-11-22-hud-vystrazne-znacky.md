@@ -66,7 +66,7 @@
   - `FSlateFontInfo AsphaltHud::FontFromDir(const FString& Dir, EDIAFontWeight Weight, int32 Size)`: súbor z `Dir`; ak neexistuje, `FCoreStyle::GetDefaultFontStyle("BoldCondensed", Size)`
   - `FSlateFontInfo AsphaltHud::Font(EDIAFontWeight Weight, int32 Size)`: `FontFromDir(FPaths::ProjectContentDir() / TEXT("Slate/Fonts"), …)`
   - v `AsphaltHud` (`DIAHudStyle.h`): `SignYellow #FFC61A`, `SignBlack #111214`, `SignWhite #FFFFFF`, `SignOrange #FF7A1A`, `SignOrangeText #FF9A4D`, `SignLackPrice #FF9A80`, `SignCardLack #2C2D31`, `SignCardLocked #1D1E21`, `SignStripeDark #4A3F14`, `SignButtonHover #2C2D31`, `SignButtonPressed #000000`, `SignDimText` = biela s alfa 0,70
-  - `FLinearColor AsphaltHud::Over(const FLinearColor& Top, const FLinearColor& Bottom)`: `Top` položená cez nepriehľadnú `Bottom` podľa `Top.A`
+  - `FLinearColor AsphaltHud::Over(const FLinearColor& Top, const FLinearColor& Bottom)`: `Top` položená cez nepriehľadnú `Bottom` podľa `Top.A`, miešané v sRGB priestore (obe farby cez `ToFColor(true)`, zmiešať zložky, späť cez `FLinearColor(FColor)`), lebo Slate aj predloha miešajú až gama-kódované hodnoty; výsledok má `A = 1`
   - `float AsphaltHud::ContrastRatio(const FLinearColor& A, const FLinearColor& B)`: pomer kontrastu WCAG z lineárnych zložiek (jas `0.2126 R + 0.7152 G + 0.0722 B`, pomer `(L1 + 0.05) / (L2 + 0.05)`)
 
 - [ ] **Step 1: Stiahni písmo** (používateľ stiahnutie schválil 2026-11-22). Pre každý zo štyroch súborov:
