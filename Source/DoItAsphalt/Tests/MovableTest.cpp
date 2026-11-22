@@ -572,12 +572,12 @@ bool FMovableBucketFromCartTest::RunTest(const FString& Parameters)
 	Place(Character, Stand - FVector2D(100.0, 0.0), Pitch, 0.0);
 	TestTrue(TEXT("the aim is on the cart"), Cart->ContainsPoint(Character->GetAimPoint()));
 	const double CartBefore = Game.GetMovableLitres(ELotMovable::Cart);
-	Character->SetUsing(true);
+	Character->SetFilling(true);
 	TickFor(Wrapper, 1.0);
 	TestNearlyEqual(TEXT("one second of tapping fills 5 l"), Game.GetHandLitres(ELotHand::Bucket), LotBalance::TapRateLPerS, 1e-6);
 	TestNearlyEqual(TEXT("from the cart's content"), CartBefore - Game.GetMovableLitres(ELotMovable::Cart), LotBalance::TapRateLPerS, 1e-6);
 	TestEqual(TEXT("nothing was dumped on the ground"), Game.GetTotalLitres(), 0.0);
-	Character->SetUsing(false);
+	Character->SetFilling(false);
 
 	// Aiming beside the cart, the same press empties the bucket as before.
 	Place(Character, Stand + FVector2D(0.0, 300.0), -90.0, 0.0);
@@ -1034,9 +1034,9 @@ bool FMovableStationMakesRefillZoneTest::RunTest(const FString& Parameters)
 	Place(Character, StationAt - FVector2D(100.0, 0.0), Pitch, 0.0);
 	TestTrue(TEXT("the aim is on the station"), Station->ContainsPoint(Character->GetAimPoint()));
 	TestEqual(TEXT("the bucket is empty"), Game.GetHandLitres(ELotHand::Bucket), 0.0);
-	Character->SetUsing(true);
+	Character->SetFilling(true);
 	TickFor(Wrapper, 1.0);
-	Character->SetUsing(false);
+	Character->SetFilling(false);
 	TestTrue(TEXT("one second at the station fills the bucket"), Game.GetHandLitres(ELotHand::Bucket) > 1.0);
 
 	// A cart set down within the refill radius fills itself.

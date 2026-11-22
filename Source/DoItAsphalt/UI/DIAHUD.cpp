@@ -57,8 +57,7 @@ void ADIAHUD::SetShopOpen(bool bOpen)
 	{
 		if (bShopOpen)
 		{
-			// The rows are sorted as the shop opens and keep their places until it closes.
-			ShopPanel->Resort();
+			ShopPanel->Refresh();
 		}
 		ShopPanel->SetVisibility(bShopOpen ? EVisibility::SelfHitTestInvisible : EVisibility::Collapsed);
 	}
@@ -206,6 +205,11 @@ void ADIAHUD::CloseMenu()
 
 void ADIAHUD::TogglePause()
 {
+	// In the settings Esc goes back to the buttons first (in either menu).
+	if (Menu.IsValid() && Menu->BackFromSettings())
+	{
+		return;
+	}
 	if (MenuMode == EDIAMenuMode::Pause)
 	{
 		CloseMenu();

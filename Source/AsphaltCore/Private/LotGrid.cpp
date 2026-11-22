@@ -147,6 +147,48 @@ void FLotGrid::FinishCell(int32 Cell, FLotPour& Result)
 	Result.CompletedCells.Add(Cell);
 }
 
+void FLotGrid::SetFluidEnabled(bool bEnabled)
+{
+	if (!bEnabled)
+	{
+		Fluid.Clear();
+	}
+	bFluidEnabled = bEnabled;
+}
+
+FLotPour FLotGrid::StepFluid()
+{
+	FLotPour Result;
+	if (!IsFluidActive())
+	{
+		return Result;
+	}
+	Fluid.Step(Texels, [this, &Result](int32 X, int32 Y, uint8 Kind)
+	{
+		const int32 Cell = CellOfTexel(X, Y);
+		if (Cell == INDEX_NONE || Texels[TexelIndexOf(X, Y)] != static_cast<uint8>(ELotTexel::Free))
+		{
+			return;
+		}
+		ChangeTexel(X, Y, Cell, Kind == static_cast<uint8>(ELotTexel::Done) ? ELotTexel::Done : ELotTexel::Raw, Result);
+		++Result.TexelsChanged;
+	});
+	return Result;
+}
+
+FLotPour FLotGrid::SettleFluid(double MaxSeconds)
+{
+	FLotPour Total;
+	const int32 MaxSteps = FMath::CeilToInt(MaxSeconds / LotBalance::FluidStepSeconds);
+	for (int32 Step = 0; Step < MaxSteps && IsFluidActive(); ++Step)
+	{
+		const FLotPour Pour = StepFluid();
+		Total.TexelsChanged += Pour.TexelsChanged;
+		Total.CompletedCells.Append(Pour.CompletedCells);
+	}
+	return Total;
+}
+
 void FLotGrid::SortCandidates()
 {
 	Algo::Sort(Candidates, [](const FCandidate& L, const FCandidate& R)
@@ -158,6 +200,34 @@ void FLotGrid::SortCandidates()
 FLotPour FLotGrid::ApplyCandidates(int32 Budget, ELotTexel State)
 {
 	FLotPour Result;
+	if (bFluidEnabled && !bInstantPour)
+	{
+		// Pay for the texels, but lay their asphalt as a few hot heaps on the first of them (the nearest to the source): the heaps run.
+		TArray<int32, TInlineAllocator<64>> Taken;
+		for (const FCandidate& Candidate : Candidates)
+		{
+			if (Taken.Num() >= Budget)
+			{
+				break;
+			}
+			if (Texels[Candidate.Index] == static_cast<uint8>(ELotTexel::Free))
+			{
+				Taken.Add(Candidate.Index);
+			}
+		}
+		if (Taken.Num() > 0)
+		{
+			const int32 Heaps = FMath::Max(1, FMath::FloorToInt(Taken.Num() / LotBalance::FluidPileUnits));
+			const float Units = FMath::Min(static_cast<float>(Taken.Num()) / Heaps, static_cast<float>(LotBalance::FluidMaxPileUnits));
+			for (int32 Heap = 0; Heap < Heaps; ++Heap)
+			{
+				Fluid.Add(Taken[Heap] % Size, Taken[Heap] / Size, Units, static_cast<uint8>(State));
+			}
+		}
+		Result.TexelsChanged = Taken.Num();
+		Result.LitresUsed = Taken.Num() * LitresPerTexel;
+		return Result;
+	}
 	for (const FCandidate& Candidate : Candidates)
 	{
 		if (Texels[Candidate.Index] != static_cast<uint8>(ELotTexel::Free))
@@ -304,7 +374,9 @@ FLotPour FLotGrid::PourDisc(FVector2D Centre, double RadiusCm, double MaxLitres,
 			{
 				continue;
 			}
-			Candidates.Add({FMath::Square(Wx - From.X) + FMath::Square(Wy - From.Y), Index});
+			// A fluid pour lands where it is aimed (the heaps lie on the first texels), a pour that sets at once fills from the source.
+			const FVector2D Origin = (bFluidEnabled && !bInstantPour) ? Centre : From;
+			Candidates.Add({FMath::Square(Wx - Origin.X) + FMath::Square(Wy - Origin.Y), Index});
 		}
 	}
 	SortCandidates();
@@ -550,6 +622,7 @@ bool FLotGrid::Read(TConstArrayView<uint8> In, int32& OutBytesRead)
 	CellDone = MoveTemp(NewDone);
 	CellRaw = MoveTemp(NewRaw);
 	CompleteCount = NewComplete;
+	Fluid.Clear();
 	MakeAllSectorsDirty(Dirty);
 	OutBytesRead = Reader.GetPosition();
 	return true;

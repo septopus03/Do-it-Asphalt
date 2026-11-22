@@ -71,6 +71,9 @@ public:
 	/** Flap (F, held): the standing suitcase beside the player opens its flap; it does nothing while a menu, the shop or the win screen is up. */
 	void OnFlapStarted();
 	void OnFlapCompleted();
+	/** Fill (R, held): scoops from the trough (bowl, scoop) or fills the bucket at a tap or the outlet. Pouring is the left button. */
+	void OnFillStarted();
+	void OnFillCompleted();
 	void OnWorkViewStarted();
 	void OnWorkViewCompleted();
 	/**

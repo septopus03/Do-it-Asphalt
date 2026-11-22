@@ -48,6 +48,7 @@ struct DOITASPHALT_API FDIAInput
 	/** F, held: the suitcase flap (not bound to behaviour yet). */
 	UPROPERTY()
 	TObjectPtr<UInputAction> Flap = nullptr;
+	TObjectPtr<UInputAction> Fill = nullptr;
 	/** G: sends the auto paver (not bound to behaviour yet). */
 	UPROPERTY()
 	TObjectPtr<UInputAction> SendPaver = nullptr;

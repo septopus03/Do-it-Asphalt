@@ -413,15 +413,15 @@ bool FCharacterScoopAtTroughTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("aiming at the trough"), FVector2D::Distance(Character->GetAimPoint(), LotLayout::TroughPos) < LotBalance::ReachCm);
 	TestEqual(TEXT("the bowl is empty"), Game.GetHandLitres(ELotHand::Bowl), 0.0);
 
-	Character->SetUsing(true);
+	Character->SetFilling(true);
 	TickFor(Wrapper, LotBalance::ScoopCycleSeconds * 1.2);
 	TestNearlyEqual(TEXT("one stroke of the spoon in the bowl"), Game.GetHandLitres(ELotHand::Bowl), LotBalance::SpoonLitres, 1e-6);
 	TickFor(Wrapper, LotBalance::ScoopCycleSeconds);
 	TestNearlyEqual(TEXT("the next stroke"), Game.GetHandLitres(ELotHand::Bowl), 2.0 * LotBalance::SpoonLitres, 1e-6);
 
-	Character->SetUsing(false);
+	Character->SetFilling(false);
 	TickFor(Wrapper, 1.0);
-	TestNearlyEqual(TEXT("nothing scooped while Use is up"), Game.GetHandLitres(ELotHand::Bowl), 2.0 * LotBalance::SpoonLitres, 1e-6);
+	TestNearlyEqual(TEXT("nothing scooped while Fill is up"), Game.GetHandLitres(ELotHand::Bowl), 2.0 * LotBalance::SpoonLitres, 1e-6);
 	TestEqual(TEXT("scooping pours nothing on the lot"), Game.GetTotalLitres(), 0.0);
 	return true;
 }
@@ -458,37 +458,39 @@ bool FCharacterPourOnLotTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-DIA_TEST(FCharacterDumpOncePerPressTest, "DoItAsphalt.Game.Character.DumpOncePerPress")
+DIA_TEST(FCharacterBucketPoursAtAimTest, "DoItAsphalt.Game.Character.BucketPoursAtAim")
 
-bool FCharacterDumpOncePerPressTest::RunTest(const FString& Parameters)
+bool FCharacterBucketPoursAtAimTest::RunTest(const FString& Parameters)
 {
 	DIA_CHARACTER_FIXTURE()
 	Game.DebugGrantItem(ELotItem::Bucket);
 	TestTrue(TEXT("take the bucket"), Character->SelectHand(ELotHand::Bucket));
 	TickFor(Wrapper, LotBalance::SwapSeconds + 0.5);
 	Game.DebugFillHand();
-	const double Credits = Game.GetCredits();
-	TestEqual(TEXT("a full bucket"), Game.GetHandLitres(ELotHand::Bucket), LotBalance::HandCapacityL[static_cast<int32>(ELotHand::Bucket)]);
+	const double Full = Game.GetHandLitres(ELotHand::Bucket);
+	TestEqual(TEXT("a full bucket"), Full, LotBalance::HandCapacityL[static_cast<int32>(ELotHand::Bucket)]);
 
-	// Held for a second while the player walks over fresh cells: still one cell only.
+	// Looking down at the feet: nothing happens before the button is down.
 	Place(Character, MiddleOfLot(), -90.0, 0.0);
-	Character->SetUsing(true);
-	for (int32 I = 0; I < 10; ++I)
-	{
-		Wrapper.TickTestWorld(TickSeconds);
-		Move(Character, FVector2D(100.0, 0.0));
-	}
-	TestEqual(TEXT("one finished cell"), Game.GetCompletedCells(), 1);
-	TestNearlyEqual(TEXT("it paid its credits"), Game.GetCredits() - Credits, static_cast<double>(LotBalance::CreditsPerCell), 1e-6);
-	const double Rest = Game.GetHandLitres(ELotHand::Bucket);
-	TestNearlyEqual(TEXT("only the cell's litres left the bucket"), Game.GetTotalLitres(), LotBalance::HandCapacityL[static_cast<int32>(ELotHand::Bucket)] - Rest, 1e-6);
-	TestTrue(TEXT("the rest stayed in the bucket"), Rest > 0.0);
+	TickFor(Wrapper, 0.2);
+	TestEqual(TEXT("the bucket does not pour by itself"), Game.GetHandLitres(ELotHand::Bucket), Full);
 
-	// A new press empties the rest.
-	Character->SetUsing(false);
+	// Held, it pours as a stream, not all at once, and the asphalt lies where the player aims.
+	const FVector2D Aim = Character->GetAimPoint();
 	Character->SetUsing(true);
-	Wrapper.TickTestWorld(TickSeconds);
-	TestTrue(TEXT("the next press dumps again"), Game.GetHandLitres(ELotHand::Bucket) < Rest);
+	TickFor(Wrapper, 0.1);
+	const double After = Game.GetHandLitres(ELotHand::Bucket);
+	TestTrue(TEXT("a little left the bucket"), After < Full);
+	TestTrue(TEXT("but not all of it"), After > Full - 0.5 * LotBalance::BucketPourRateLPerS);
+	TestTrue(TEXT("the asphalt lies at the aim point"), TexelAt(Game, Aim) == ELotTexel::Done);
+	TestTrue(TEXT("a point beyond the stream's footprint is still free"), TexelAt(Game, Aim + FVector2D(LotBalance::BucketPourRadiusCm * 2.0, 0.0)) == ELotTexel::Free);
+
+	// The ground under the stream is covered quickly; what the bucket could not lay stays in it.
+	TickFor(Wrapper, 2.0);
+	Character->SetUsing(false);
+	const double Rest = Game.GetHandLitres(ELotHand::Bucket);
+	TestTrue(TEXT("the stream stops paying once its footprint is covered"), Rest > 0.0 && Rest < After);
+	TestNearlyEqual(TEXT("only what lay on the ground left the bucket"), Game.GetTotalLitres(), Full - Rest, 1e-6);
 	return true;
 }
 
@@ -505,20 +507,21 @@ bool FCharacterBucketAtOutletTest::RunTest(const FString& Parameters)
 	Place(Character, LotLayout::TroughPos + FVector2D(0.0, 200.0), 0.0, -90.0);
 	TestTrue(TEXT("aiming at the outlet"), DIARefill::IsAtOutlet(Game, Character->GetAimPoint()));
 	TestEqual(TEXT("the bucket is empty"), Game.GetHandLitres(ELotHand::Bucket), 0.0);
-	Character->SetUsing(true);
+	Character->SetFilling(true);
 	TickFor(Wrapper, 1.0);
 	TestNearlyEqual(TEXT("one second of filling"), Game.GetHandLitres(ELotHand::Bucket), LotBalance::DispenseRateLPerS(Game.GetPlantLevel()), 1e-6);
 	TestEqual(TEXT("nothing dumped at the outlet"), Game.GetTotalLitres(), 0.0);
 	TestEqual(TEXT("no cell finished"), Game.GetCompletedCells(), 0);
 	TickFor(Wrapper, 5.0);
 	TestNearlyEqual(TEXT("filled to the brim"), Game.GetHandLitres(ELotHand::Bucket), LotBalance::HandCapacityL[static_cast<int32>(ELotHand::Bucket)], 1e-6);
-	Character->SetUsing(false);
+	Character->SetFilling(false);
 
-	// Away from the outlet one press empties it into the cell under the aim.
+	// Away from the outlet the button pours it as a stream under the aim.
 	Place(Character, MiddleOfLot(), -90.0, 0.0);
 	Character->SetUsing(true);
 	TickFor(Wrapper, 1.0);
-	TestEqual(TEXT("one dump, one cell"), Game.GetCompletedCells(), 1);
+	TestTrue(TEXT("it poured on the ground"), Game.GetTotalLitres() > 1.0);
+	TestTrue(TEXT("but not the whole cell at once"), Game.GetCompletedCells() == 0);
 	return true;
 }
 
@@ -622,12 +625,12 @@ namespace
 			ADIACharacter* Character = DIATest::SpawnCharacter(World, MiddleOfLot());
 			// Scoop: 1.2 cycles of the trough, whatever the tick.
 			Place(Character, LotLayout::TroughPos + FVector2D(0.0, 200.0), 0.0, -90.0);
-			Character->SetUsing(true);
+			Character->SetFilling(true);
 			TickFor(Wrapper, 1.2, Step);
 			Out.Scooped = Game.GetHandLitres(ELotHand::Bowl);
 
 			// Pour: walking at 150 cm/s over free ground, looking down.
-			Character->SetUsing(false);
+			Character->SetFilling(false);
 			Game.DebugFillHand();
 			const double Before = Game.GetHandLitres(ELotHand::Bowl);
 			Place(Character, MiddleOfLot(), -90.0, 0.0);
@@ -706,9 +709,8 @@ bool FCharacterTickRateIndependentTest::RunTest(const FString& Parameters)
 	TestNearlyEqual(TEXT("poured litres (within two texels)"), Fine.Poured, Coarse.Poured, 2.0 * FLotGrid::LitresPerTexel);
 	TestEqual(TEXT("poured about a litre"), Fine.Poured, LotBalance::HandPourRateLPerS, 0.1);
 	TestNearlyEqual(TEXT("finished trowel length"), Fine.TrowelCm, Coarse.TrowelCm, 10.0);
-	TestEqual(TEXT("one dumped cell in both"), Fine.DumpedCells, Coarse.DumpedCells);
-	TestEqual(TEXT("exactly one dump"), Fine.DumpedCells, 1);
-	TestNearlyEqual(TEXT("dumped litres"), Fine.DumpedLitres, Coarse.DumpedLitres, FLotGrid::LitresPerTexel);
+	TestNearlyEqual(TEXT("the bucket's stream pours the same in both"), Fine.DumpedLitres, Coarse.DumpedLitres, 2.0 * FLotGrid::LitresPerTexel);
+	TestEqual(TEXT("a second of the bucket's stream"), Fine.DumpedLitres, LotBalance::BucketPourRateLPerS, 0.1);
 	return true;
 }
 

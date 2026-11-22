@@ -585,37 +585,12 @@ bool FDIAShopModel::Update(const FLotGame& Game)
 		}
 	}
 
-	// The shown rows keep their places; only the first pass sorts.
-	if (RebuildCount == 1)
+	// The rows never move: what is bought stays where it was and only turns to Owned.
+	for (int32 I = 0; I < NumRows; ++I)
 	{
-		Resort();
-	}
-	else
-	{
-		for (int32 I = 0; I < NumRows; ++I)
-		{
-			Rows[I] = Natural[Order[I]];
-		}
+		Rows[I] = Natural[I];
 	}
 	return true;
-}
-
-void FDIAShopModel::Resort()
-{
-	// What can be bought stays on top; the owned rows follow in their own order.
-	int32 Next = 0;
-	for (const bool bOwnedPass : {false, true})
-	{
-		for (int32 I = 0; I < NumRows; ++I)
-		{
-			if ((Natural[I].State == EDIAShopState::Owned) == bOwnedPass)
-			{
-				Order[Next] = I;
-				Rows[Next] = Natural[I];
-				++Next;
-			}
-		}
-	}
 }
 
 FDIAShopTarget FDIAShopModel::TargetOf(int32 Index, const FLotGame& Game) const

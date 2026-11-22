@@ -13,7 +13,7 @@ struct ASPHALTCORE_API FLotEvents
 {
 	/** Litres taken from the ground budget by the operation. */
 	double LitresPoured = 0.0;
-	/** Credits paid out (CreditsPerCell for each completed cell). */
+	/** Credits paid out (CreditsPerCell for each completed cell, CreditsPerLitre for each litre poured). */
 	double CreditsEarned = 0.0;
 	/** Cells that became complete, each reported exactly once per game. */
 	TArray<int32> CompletedCells;
@@ -58,6 +58,16 @@ class ASPHALTCORE_API FLotGame
 {
 public:
 	FLotGame();
+
+	/**
+	 * Lets the asphalt that is poured run before it sets (FLotGrid::SetFluidEnabled); the setting survives LoadFromBytes. Tick
+	 * advances the fluid, and what it covers books like any pour (the litres were paid when poured).
+	 */
+	void SetFluidEnabled(bool bEnabled) { Grid.SetFluidEnabled(bEnabled); }
+	bool IsFluidEnabled() const { return Grid.IsFluidEnabled(); }
+	bool IsFluidActive() const { return Grid.IsFluidActive(); }
+	/** Lets all the asphalt that runs set at once (a save holds only the ground); returns what that completed. */
+	FLotEvents SettleFluid();
 
 	FLotGrid& GetGrid() { return Grid; }
 	const FLotGrid& GetGrid() const { return Grid; }
@@ -139,6 +149,12 @@ public:
 	FLotEvents PourHand(FVector2D Aim, FVector2D From, double Dt);
 	/** Empties the bucket in hand into the cell under Aim; what does not fit stays in the bucket. */
 	FLotEvents DumpBucket(FVector2D Aim, FVector2D From);
+	/**
+	 * Pours the bucket in hand as a stream for Dt seconds, where Aim is: the stream budget grows by BucketPourRateLPerS * Dt (at most the
+	 * content) and is spent on a disc of BucketPourRadiusCm around Aim. With the fluid on the asphalt is laid at the aim point and runs
+	 * from there. Texels that are already covered cost nothing, so the bucket keeps what it could not lay.
+	 */
+	FLotEvents PourBucket(FVector2D Aim, FVector2D From, double Dt);
 	/** Turns the raw asphalt under the strip A->B (TrowelWidthCm wide) into finished asphalt; trowel in hand only. */
 	FLotEvents Trowel(FVector2D A, FVector2D B);
 
@@ -236,6 +252,8 @@ private:
 	FLotEvents ApplyPour(const FLotPour& Pour);
 
 	FLotGrid Grid;
+	/** Seconds of game time the fluid has not stepped through yet (below one step). */
+	double FluidClock = 0.0;
 	double Credits = 0.0;
 	double PlaytimeSeconds = 0.0;
 	double TotalLitres = 0.0;

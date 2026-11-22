@@ -84,8 +84,8 @@ bool FLotGameCreditsOnlyOnCompletionTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("new game playtime"), G.GetPlaytimeSeconds(), 0.0);
 	TestEqual(TEXT("new game litres"), G.GetTotalLitres(), 0.0);
 	const FLotEvents E = G.DebugCompleteCell(0);
-	TestNearlyEqual(TEXT("credits earned"), E.CreditsEarned, 10.0, Tolerance);
-	TestNearlyEqual(TEXT("credits"), G.GetCredits(), 10.0, Tolerance);
+	TestNearlyEqual(TEXT("credits earned: ten for the cell, one a litre"), E.CreditsEarned, 10.0 + 10.0, Tolerance);
+	TestNearlyEqual(TEXT("credits"), G.GetCredits(), 10.0 + 10.0, Tolerance);
 	TestEqual(TEXT("completed cells"), G.GetCompletedCells(), 1);
 	TestTrue(TEXT("event cells"), E.CompletedCells == TArray<int32>({0}));
 	TestNearlyEqual(TEXT("litres poured"), E.LitresPoured, 10.0, Tolerance);
@@ -100,7 +100,7 @@ bool FLotGameCellPaysOnceTest::RunTest(const FString& Parameters)
 	const FLotEvents E = G.DebugCompleteCell(0);
 	TestEqual(TEXT("second credits"), E.CreditsEarned, 0.0);
 	TestTrue(TEXT("second cells"), E.CompletedCells.IsEmpty());
-	TestNearlyEqual(TEXT("credits"), G.GetCredits(), 10.0, Tolerance);
+	TestNearlyEqual(TEXT("credits"), G.GetCredits(), 10.0 + 10.0, Tolerance);
 	TestEqual(TEXT("cells"), G.GetCompletedCells(), 1);
 	const FLotEvents Invalid = G.DebugCompleteCell(INDEX_NONE);
 	TestTrue(TEXT("invalid cell"), Invalid.CompletedCells.IsEmpty());
@@ -378,7 +378,7 @@ bool FLotExitOpensAtAllTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("opened by the last cell"), Last.bExitOpened);
 	TestTrue(TEXT("exit open"), G.IsExitOpen());
 	TestEqual(TEXT("exit equals unlock"), G.IsExitOpen(), G.IsUnlocked(ELotUnlock::Exit));
-	TestNearlyEqual(TEXT("credits"), G.GetCredits(), 300000.0, Tolerance);
+	TestNearlyEqual(TEXT("credits: ten a cell and ten litres of each"), G.GetCredits(), 600000.0, Tolerance);
 	TestEqual(TEXT("all complete"), G.GetCompletedCells(), AsphaltLot::NumCells);
 	TestFalse(TEXT("never again"), G.DebugCompleteCells(10).bExitOpened);
 	G.SetWon();

@@ -109,6 +109,7 @@ public:
 	FSimpleMulticastDelegate OnGameReset;
 
 	// UTickableWorldSubsystem
+	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Tick(float DeltaTime) override;
 	virtual TStatId GetStatId() const override;
 	virtual bool DoesSupportWorldType(const EWorldType::Type WorldType) const override;

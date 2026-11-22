@@ -10,6 +10,7 @@
 #include "EngineUtils.h"
 #include "Game/DIAGameMode.h"
 #include "Game/DIASaveGame.h"
+#include "Game/DIASettings.h"
 #include "Game/DIAWorldSubsystem.h"
 #include "HAL/FileManager.h"
 #include "LotBalance.h"
@@ -556,6 +557,26 @@ bool FMenuModelTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("the question"), FDIAMenuModel::GetQuestion().ToString(), FString(TEXT("Start over? Progress will be lost.")));
 	Model.Open(EDIAMenuMode::Pause, false);
 	TestFalse(TEXT("opening again drops the question"), Model.ShowsQuestion());
+
+	// The settings replace the buttons, and the question blocks them.
+	Model.bConfirming = true;
+	Model.OpenSettings();
+	TestFalse(TEXT("no settings over the question"), Model.ShowsSettings());
+	Model.bConfirming = false;
+	Model.OpenSettings();
+	TestTrue(TEXT("the settings are up"), Model.ShowsSettings());
+	TestFalse(TEXT("the buttons are gone"), Model.ShowsButtons());
+	TestFalse(TEXT("so is Resume"), Model.ShowsResume());
+	TestEqual(TEXT("settings title"), Model.GetTitle().ToString(), FString(TEXT("Settings")));
+	Model.CloseSettings();
+	TestTrue(TEXT("back to the buttons"), Model.ShowsButtons());
+	TestFalse(TEXT("settings gone"), Model.ShowsSettings());
+	Model.OpenSettings();
+	Model.Open(EDIAMenuMode::Pause, false);
+	TestFalse(TEXT("opening again leaves the settings"), Model.ShowsSettings());
+	Model.OpenSettings();
+	Model.Close();
+	TestFalse(TEXT("closing drops the settings"), Model.ShowsSettings());
 	Model.Close();
 	TestFalse(TEXT("closed again"), Model.IsOpen());
 	TestFalse(TEXT("closed: no question"), Model.ShowsQuestion());
@@ -1529,6 +1550,26 @@ bool FSaveHeldNeedsRoomTest::RunTest(const FString& Parameters)
 	CheckHeldKind(*this, ELotMovable::Suitcase, ELotItem::Suitcase, TEXT("suitcase"));
 	CheckHeldKind(*this, ELotMovable::Finisher, ELotItem::Finisher, TEXT("finisher"));
 	CheckHeldKind(*this, ELotMovable::Station, ELotItem::Station, TEXT("station"));
+	return true;
+}
+
+DIA_TEST(FMouseSensitivityTest, "DoItAsphalt.Game.MouseSensitivity")
+
+bool FMouseSensitivityTest::RunTest(const FString& Parameters)
+{
+	using namespace DIASettings;
+	TestNearlyEqual(TEXT("below the range"), ClampMouseSensitivity(-5.f), MinMouseSensitivity, 1e-6f);
+	TestNearlyEqual(TEXT("above the range"), ClampMouseSensitivity(99.f), MaxMouseSensitivity, 1e-6f);
+	TestNearlyEqual(TEXT("inside the range"), ClampMouseSensitivity(1.5f), 1.5f, 1e-6f);
+	TestNearlyEqual(TEXT("not a number gives the default"), ClampMouseSensitivity(std::numeric_limits<float>::quiet_NaN()), DefaultMouseSensitivity, 1e-6f);
+
+	const float Before = GetMouseSensitivity();
+	SetMouseSensitivity(2.f);
+	TestNearlyEqual(TEXT("set at once"), GetMouseSensitivity(), 2.f, 1e-6f);
+	SetMouseSensitivity(100.f);
+	TestNearlyEqual(TEXT("set is clamped"), GetMouseSensitivity(), MaxMouseSensitivity, 1e-6f);
+	SetMouseSensitivity(Before);
+	TestNearlyEqual(TEXT("restored"), GetMouseSensitivity(), Before, 1e-6f);
 	return true;
 }
 

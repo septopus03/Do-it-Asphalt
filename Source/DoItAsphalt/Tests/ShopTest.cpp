@@ -157,8 +157,8 @@ bool FShopPlantMaxTest::RunTest(const FString& Parameters)
 	FDIAShopModel Model;
 	Model.Update(Game);
 
-	// The highest level is owned: no price, the rate that is reached, and the row goes to the end with the owned ones.
-	const FDIAShopRow& Plant = Model.GetRow(FDIAShopModel::NumRows - 1);
+	// The highest level is owned: no price, and the rate that is reached; the row stays first.
+	const FDIAShopRow& Plant = Model.GetRow(0);
 	TestTrue(TEXT("the plant row"), Plant.bPlant);
 	TestTrue(TEXT("owned"), Plant.State == EDIAShopState::Owned);
 	TestTrue(TEXT("no price"), Plant.Price.IsEmpty());
@@ -206,13 +206,12 @@ bool FShopBuyThroughModelTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("a row cannot be bought twice"), Model.Buy(Model.TargetOf(Scoop, Game), *Subsystem));
 	TestEqual(TEXT("the bucket did not move up"), Model.GetRow(Scoop + 1).Item, ELotItem::Bucket);
 
-	// Sorting (the shop opening again) puts the owned rows last, in their own order.
+	// Owned rows stay where they are, however many there are.
 	Game.DebugGrantItem(ELotItem::Bucket);
 	Model.Update(Game);
+	TestEqual(TEXT("the scoop stays"), RowOfItem(Model, ELotItem::Scoop), Scoop);
 	TestEqual(TEXT("the bucket also stays"), RowOfItem(Model, ELotItem::Bucket), Scoop + 1);
-	Model.Resort();
-	TestEqual(TEXT("the scoop before the bucket"), RowOfItem(Model, ELotItem::Scoop), FDIAShopModel::NumRows - 2);
-	TestEqual(TEXT("the bucket last"), RowOfItem(Model, ELotItem::Bucket), FDIAShopModel::NumRows - 1);
+	TestTrue(TEXT("both are owned"), Model.GetRow(Scoop).State == EDIAShopState::Owned && Model.GetRow(Scoop + 1).State == EDIAShopState::Owned);
 
 	// The plant goes through the subsystem as well.
 	Game.DebugGive(1000.0);
@@ -240,7 +239,6 @@ bool FShopRowsStayPutTest::RunTest(const FString& Parameters)
 	Game.DebugGive(500.0 - Game.GetCredits());
 	FDIAShopModel Model;
 	Model.Update(Game);
-	Model.Resort(); // the shop opens
 
 	ELotItem Before[FDIAShopModel::NumRows];
 	for (int32 I = 0; I < FDIAShopModel::NumRows; ++I)
@@ -294,10 +292,9 @@ bool FShopRowsStayPutTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("the same request again buys nothing"), Model.Buy(Plant, *Subsystem));
 	TestEqual(TEXT("still level 1"), Game.GetPlantLevel(), 1);
 
-	// Closing and opening again sorts.
+	// Whatever was bought, nothing has moved.
 	Model.Update(Game);
-	Model.Resort();
-	TestEqual(TEXT("the scoop is at the end after opening again"), RowOfItem(Model, ELotItem::Bucket), FDIAShopModel::NumRows - 1);
+	TestEqual(TEXT("the bucket is still where it was"), RowOfItem(Model, ELotItem::Bucket), 2);
 	return true;
 }
 

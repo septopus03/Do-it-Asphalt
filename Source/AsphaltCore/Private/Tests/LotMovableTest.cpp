@@ -197,7 +197,7 @@ bool FLotMovableCartLays20CellsTest::RunTest(const FString& Parameters)
 	TestNearlyEqual(TEXT("litres poured"), Events.LitresPoured, 200.0, TexelTolerance);
 	TestNearlyEqual(TEXT("the cart lost what was laid"), G.GetMovableLitres(ELotMovable::Cart), 200.0 - Events.LitresPoured, Tolerance);
 	TestTrue(TEXT("empty cart"), G.GetMovableLitres(ELotMovable::Cart) < TexelTolerance);
-	TestEqual(TEXT("raw earns nothing"), G.GetCredits(), 0.0);
+	TestNearlyEqual(TEXT("raw earns only its litres"), G.GetCredits(), Events.LitresPoured * LotBalance::CreditsPerLitre, Tolerance);
 	TestEqual(TEXT("no complete cells"), G.GetCompletedCells(), 0);
 	TestEqual(TEXT("no cells reported"), Events.CompletedCells.Num(), 0);
 	TestNearlyEqual(TEXT("total litres booked"), G.GetTotalLitres(), Events.LitresPoured, Tolerance);
@@ -226,16 +226,16 @@ bool FLotMovableFinisherCompletesStripTest::RunTest(const FString& Parameters)
 	const FLotEvents Events = G.FinisherPass(A, B);
 	TestEqual(TEXT("cells reported"), Events.CompletedCells.Num(), 20);
 	TestEqual(TEXT("complete cells"), G.GetCompletedCells(), 20);
-	TestEqual(TEXT("credits"), G.GetCredits(), 200.0);
+	TestNearlyEqual(TEXT("credits: the cart's litres and ten a cell"), G.GetCredits(), 200.0 + 200.0, Tolerance);
 	TestEqual(TEXT("credits in the event"), Events.CreditsEarned, 200.0);
 	TestEqual(TEXT("finishing costs nothing"), Events.LitresPoured, 0.0);
 	TestEqual(TEXT("second pass finds nothing"), G.FinisherPass(A, B).CompletedCells.Num(), 0);
-	TestEqual(TEXT("credits paid once"), G.GetCredits(), 200.0);
+	TestNearlyEqual(TEXT("credits paid once"), G.GetCredits(), 400.0, Tolerance);
 
 	FVector2D C, D;
 	RowStrip(10, 60, 20, C, D);
 	TestEqual(TEXT("empty ground: nothing"), G.FinisherPass(C, D).CompletedCells.Num(), 0);
-	TestEqual(TEXT("credits unchanged"), G.GetCredits(), 200.0);
+	TestNearlyEqual(TEXT("credits unchanged"), G.GetCredits(), 400.0, Tolerance);
 	return true;
 }
 
@@ -259,7 +259,7 @@ bool FLotMovableSuitcaseDoseTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("400 raw texels"), G.GetGrid().GetCellRaw(MiddleCell()), 400);
 	TestEqual(TEXT("no done texels"), G.GetGrid().GetCellDone(MiddleCell()), 0);
 	TestNearlyEqual(TEXT("suitcase has 50 l"), G.GetMovableLitres(ELotMovable::Suitcase), 50.0, TexelTolerance);
-	TestEqual(TEXT("raw earns nothing"), G.GetCredits(), 0.0);
+	TestNearlyEqual(TEXT("raw earns only its litres"), G.GetCredits(), Events.LitresPoured * LotBalance::CreditsPerLitre, Tolerance);
 
 	const double Before = G.GetMovableLitres(ELotMovable::Suitcase);
 	const FLotEvents Again = G.DoseSuitcase(Mouth, From, 5.0);
@@ -304,7 +304,7 @@ bool FLotMovableTrowelFinishesDoseTest::RunTest(const FString& Parameters)
 	}
 	TestTrue(TEXT("the cell is complete"), G.GetGrid().IsCellComplete(Cell));
 	TestEqual(TEXT("one cell reported"), Events.CompletedCells.Num(), 1);
-	TestEqual(TEXT("ten credits"), G.GetCredits(), 10.0);
+	TestNearlyEqual(TEXT("ten for the cell and one a litre"), G.GetCredits(), 10.0 + G.GetTotalLitres(), Tolerance);
 	return true;
 }
 

@@ -35,9 +35,6 @@ namespace AsphaltHud
 	inline const FLinearColor PromptColor{1.f, 0.93f, 0.55f, 1.f};
 	inline const FLinearColor ShopPanelColor{0.04f, 0.05f, 0.07f, 0.94f};
 	inline const FLinearColor ShopRowColor{1.f, 1.f, 1.f, 0.07f};
-	/** Price colours of a row that is owned, or locked (dim), and of one that is on offer but too expensive. */
-	inline const FLinearColor ShopDimColor{0.78f, 0.80f, 0.84f, 0.55f};
-	inline const FLinearColor ShopLackColor{1.f, 0.45f, 0.40f, 1.f};
 	inline const FLinearColor ButtonColor{1.f, 0.62f, 0.15f, 1.f};
 	inline const FLinearColor ButtonHoverColor{1.f, 0.74f, 0.36f, 1.f};
 	inline const FLinearColor ButtonPressedColor{0.82f, 0.46f, 0.08f, 1.f};
@@ -82,19 +79,53 @@ namespace AsphaltHud
 	inline constexpr float MenuButtonSpacing = 14.f;
 	inline constexpr float MenuButtonWidth = 300.f;
 	inline constexpr float MenuQuestionButtonWidth = 140.f;
+	inline constexpr float MenuSliderHeight = 28.f;
+	/** The crosshair in the middle of the screen: a white dot (inner) in a dark ring (outer), in pixels. */
+	inline constexpr float CrosshairOuterSize = 10.f;
+	inline constexpr float CrosshairInnerSize = 5.f;
+	inline const FLinearColor CrosshairColor{1.f, 1.f, 1.f, 0.95f};
+	inline const FLinearColor CrosshairRingColor{0.f, 0.f, 0.f, 0.6f};
 	/** The check view's arrow and text, and their distance from the top edge. */
 	inline const FLinearColor CheckColor{1.f, 0.62f, 0.15f, 1.f};
 	inline constexpr int32 CheckArrowFontSize = 48;
 	inline constexpr float CheckTop = 250.f;
-	/** The shop: the font of a row, the columns (name with its reason, value, price, button), the gaps, the padding and the tallest the list grows. */
+	/** The shop: a grid of cards. Columns, the size of a card, the gaps, the padding of the panel, and the fonts. */
 	inline constexpr int32 ShopFontSize = 22;
-	inline constexpr float ShopNameWidth = 260.f;
-	inline constexpr float ShopValueWidth = 300.f;
-	inline constexpr float ShopPriceWidth = 100.f;
-	inline constexpr float ShopButtonWidth = 120.f;
-	inline constexpr float ShopRowSpacing = 6.f;
-	inline constexpr float ShopPadding = 26.f;
-	inline constexpr float ShopMaxListHeight = 760.f;
+	inline constexpr int32 ShopValueFontSize = 17;
+	inline constexpr int32 ShopColumns = 4;
+	inline constexpr float ShopCardWidth = 252.f;
+	inline constexpr float ShopCardHeight = 152.f;
+	inline constexpr float ShopCardGap = 6.f;
+	inline constexpr float ShopCardPadding = 12.f;
+	inline constexpr float ShopCardBorder = 2.f;
+	inline constexpr float ShopIconSize = 46.f;
+	inline constexpr float ShopButtonWidth = 96.f;
+	inline constexpr float ShopPadding = 28.f;
+	/** The shop's surfaces: the card, and the outline of a card in each of its states. */
+	inline const FLinearColor ShopCardColor{0.10f, 0.12f, 0.16f, 1.f};
+	inline const FLinearColor ShopCardOwnedColor{0.09f, 0.17f, 0.12f, 1.f};
+	inline const FLinearColor ShopOutlineBuyColor{1.f, 0.62f, 0.15f, 0.85f};
+	inline const FLinearColor ShopOutlineLackColor{1.f, 0.45f, 0.40f, 0.45f};
+	inline const FLinearColor ShopOutlineLockedColor{1.f, 1.f, 1.f, 0.06f};
+	inline const FLinearColor ShopOutlineOwnedColor{0.40f, 0.82f, 0.46f, 0.70f};
+	/** Price colours of a card that is owned, or locked (dim), and of one that is on offer but too expensive. */
+	inline const FLinearColor ShopDimColor{0.78f, 0.80f, 0.84f, 0.55f};
+	inline const FLinearColor ShopLackColor{1.f, 0.45f, 0.40f, 1.f};
+	/** The tile in front of a card's name, by what the thing is: the plant, tools, carriers, machines, the car. */
+	inline const FLinearColor ShopIconPlantColor{0.35f, 0.78f, 0.55f, 1.f};
+	inline const FLinearColor ShopIconToolColor{1.f, 0.62f, 0.15f, 1.f};
+	inline const FLinearColor ShopIconCarrierColor{0.30f, 0.72f, 0.82f, 1.f};
+	inline const FLinearColor ShopIconMachineColor{0.52f, 0.52f, 0.95f, 1.f};
+	inline const FLinearColor ShopIconCarColor{0.95f, 0.42f, 0.45f, 1.f};
+	/** The inventory bar at the bottom of the screen: the size of a slot, the gap between slots, the height of a slot's fill gauge. */
+	inline constexpr float HotbarSlotWidth = 112.f;
+	inline constexpr float HotbarSlotHeight = 78.f;
+	inline constexpr float HotbarGap = 8.f;
+	inline constexpr float HotbarGaugeHeight = 6.f;
+	inline constexpr int32 HotbarNameFontSize = 19;
+	inline const FLinearColor HotbarSlotColor{0.06f, 0.07f, 0.10f, 0.78f};
+	inline const FLinearColor HotbarSelectedColor{0.20f, 0.14f, 0.06f, 0.92f};
+	inline const FLinearColor HotbarOutlineColor{1.f, 1.f, 1.f, 0.10f};
 	/** Distance of the toasts from the top edge. */
 	inline constexpr float ToastTop = 110.f;
 }

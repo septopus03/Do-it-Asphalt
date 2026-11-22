@@ -231,9 +231,9 @@ struct FDIAShopTarget
 };
 
 /**
- * The rows of the shop: the plant's next level first, then the items in ELotItem order, with the owned rows at the end
- * (keeping their order). That order is fixed by Resort(), which the panel calls when it opens: while the shop is open a
- * purchase turns its row to Owned in place and no row moves, so a second click on the same spot can only meet the same row.
+ * The rows of the shop: the plant's next level first, then the items in ELotItem order. A purchase turns its row to Owned in
+ * place and no row ever moves, so what was bought stays where the player saw it and a second click on the same spot can only meet
+ * the same row.
  * Like FDIAHudModel the model rebuilds the texts only when something shown changed: the state of each row, the reason a row
  * is locked and the plant level (the credits themselves are not shown); the subsystem reports a state change on every tick.
  */
@@ -245,8 +245,6 @@ public:
 
 	/** Re-reads the game; true (and new texts, in the same rows) only if something shown changed. The first call also sorts. */
 	bool Update(const FLotGame& Game);
-	/** Puts the owned rows at the end, in their own order; call it when the shop opens (and on a new game), never while it is open. */
-	void Resort();
 
 	const FDIAShopRow& GetRow(int32 Index) const { return Rows[FMath::Clamp(Index, 0, NumRows - 1)]; }
 	/** What a row offers, as a purchase request that names what is bought (and the plant level it expects); invalid for a row that cannot be bought. */
@@ -273,9 +271,8 @@ private:
 	};
 
 	FKey Key;
-	/** The rows in their natural order (the plant, then ELotItem order), and the shown rows: Rows[I] is Natural[Order[I]]. */
+	/** The rows in their order (the plant, then ELotItem order); the rows never move. */
 	FDIAShopRow Natural[NumRows];
-	int32 Order[NumRows] = {};
 	FDIAShopRow Rows[NumRows];
 	int32 RebuildCount = 0;
 };

@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "LotBalance.h"
+#include "LotFluid.h"
 #include "LotMap.h"
 
 /** State of one texel of the lot. The numeric values are what GetTexels() returns. */
@@ -65,6 +66,24 @@ public:
 	/** Makes the whole cell Done; LitresUsed is the price of its free part, TexelsChanged the size of that part. */
 	FLotPour CompleteCell(int32 Cell);
 
+	/**
+	 * With the fluid on, a pour does not turn its texels into ground: it pays for them (the litres it returns) and lays the asphalt
+	 * on the ground as hot heaps that run (FLotFluid). Ground appears where the asphalt reaches, as StepFluid reports. Off by
+	 * default: a pour then changes its texels at once. Switching it off drops the asphalt that is running.
+	 */
+	void SetFluidEnabled(bool bEnabled);
+	bool IsFluidEnabled() const { return bFluidEnabled; }
+	/** While set, a pour changes its texels at once even with the fluid on (the machines lay an even strip; only what is poured by hand runs). */
+	void SetInstantPour(bool bInstant) { bInstantPour = bInstant; }
+	bool IsInstantPour() const { return bInstantPour; }
+	/** True while asphalt is still running. */
+	bool IsFluidActive() const { return bFluidEnabled && Fluid.IsActive(); }
+	const FLotFluid& GetFluid() const { return Fluid; }
+	/** Advances the fluid by one step (LotBalance::FluidStepSeconds); the pour holds the cells that became complete (no litres: they were paid for when poured). */
+	FLotPour StepFluid();
+	/** Steps until nothing runs any more (at most MaxSeconds of fluid time); the total of the steps. */
+	FLotPour SettleFluid(double MaxSeconds);
+
 	/** Finished texels of the cell, O(1); 0 for an invalid cell. */
 	int32 GetCellDone(int32 Cell) const;
 	/** Raw texels of the cell, O(1); 0 for an invalid cell. */
@@ -119,6 +138,9 @@ private:
 	TArray<uint16> CellRaw;
 	int32 CompleteCount = 0;
 	TArray<FIntRect> Dirty;
+	FLotFluid Fluid;
+	bool bFluidEnabled = false;
+	bool bInstantPour = false;
 	/** Scratch buffer reused between calls so a call does not allocate. */
 	TArray<FCandidate> Candidates;
 };

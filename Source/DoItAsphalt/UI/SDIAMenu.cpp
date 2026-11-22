@@ -1,11 +1,13 @@
 // Copyright Do it Asphalt. All Rights Reserved.
 
 #include "UI/SDIAMenu.h"
+#include "Game/DIASettings.h"
 #include "Styling/CoreStyle.h"
 #include "UI/DIAButtonStyle.h"
 #include "UI/DIAHudStyle.h"
 #include "UI/DIAHudWidgets.h"
 #include "Widgets/Input/SButton.h"
+#include "Widgets/Input/SSlider.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/SBoxPanel.h"
@@ -55,6 +57,11 @@ void SDIAMenu::Construct(const FArguments& InArgs)
 			BuildButton(NSLOCTEXT("DIAHud", "MenuNewGame", "New Game"), AsphaltHud::MenuButtonWidth,
 				FOnClicked::CreateSP(this, &SDIAMenu::HandleNewGame), [this]() { return Model.ShowsButtons(); })
 		]
+		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0.f, 0.f, 0.f, AsphaltHud::MenuButtonSpacing)
+		[
+			BuildButton(NSLOCTEXT("DIAHud", "MenuSettings", "Settings"), AsphaltHud::MenuButtonWidth,
+				FOnClicked::CreateSP(this, &SDIAMenu::HandleSettings), [this]() { return Model.ShowsButtons(); })
+		]
 		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center)
 		[
 			BuildButton(NSLOCTEXT("DIAHud", "MenuQuit", "Quit"), AsphaltHud::MenuButtonWidth,
@@ -74,6 +81,43 @@ void SDIAMenu::Construct(const FArguments& InArgs)
 				BuildButton(NSLOCTEXT("DIAHud", "MenuNo", "No"), AsphaltHud::MenuQuestionButtonWidth,
 					FOnClicked::CreateSP(this, &SDIAMenu::HandleNo), [this]() { return Model.ShowsQuestion(); })
 			]
+		]
+		// The settings take the place of the buttons: the label with the value, the slider, Back.
+		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0.f, 0.f, 0.f, AsphaltHud::MenuButtonSpacing)
+		[
+			SNew(SBox)
+			.Visibility_Lambda([this]() { return Model.ShowsSettings() ? EVisibility::Visible : EVisibility::Collapsed; })
+			[
+				SNew(SVerticalBox)
+				+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0.f, 0.f, 0.f, AsphaltHud::MenuButtonSpacing)
+				[
+					AsphaltHud::MakeShadowedText(
+						TAttribute<FText>::CreateLambda([]()
+						{
+							return FText::Format(NSLOCTEXT("DIAHud", "MenuSensitivity", "Mouse sensitivity: {0}"),
+								FText::FromString(FString::Printf(TEXT("%.2f"), DIASettings::GetMouseSensitivity())));
+						}),
+						AsphaltHud::MediumFontSize, AsphaltHud::TextColor)
+				]
+				+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center)
+				[
+					SNew(SBox).WidthOverride(AsphaltHud::MenuButtonWidth).HeightOverride(AsphaltHud::MenuSliderHeight)
+					[
+						SNew(SSlider)
+						.MinValue(DIASettings::MinMouseSensitivity)
+						.MaxValue(DIASettings::MaxMouseSensitivity)
+						.StepSize(0.05f)
+						.Value_Lambda([]() { return DIASettings::GetMouseSensitivity(); })
+						.OnValueChanged_Lambda([](float Value) { DIASettings::SetMouseSensitivity(Value); })
+						.OnMouseCaptureEnd_Lambda([]() { DIASettings::Save(); })
+					]
+				]
+			]
+		]
+		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center)
+		[
+			BuildButton(NSLOCTEXT("DIAHud", "MenuBack", "Back"), AsphaltHud::MenuButtonWidth,
+				FOnClicked::CreateSP(this, &SDIAMenu::HandleBack), [this]() { return Model.ShowsSettings(); })
 		];
 	ChildSlot
 	[
@@ -129,6 +173,29 @@ FReply SDIAMenu::HandleNo()
 {
 	Model.bConfirming = false;
 	return FReply::Handled();
+}
+
+FReply SDIAMenu::HandleSettings()
+{
+	Model.OpenSettings();
+	return FReply::Handled();
+}
+
+FReply SDIAMenu::HandleBack()
+{
+	BackFromSettings();
+	return FReply::Handled();
+}
+
+bool SDIAMenu::BackFromSettings()
+{
+	if (!Model.ShowsSettings())
+	{
+		return false;
+	}
+	Model.CloseSettings();
+	DIASettings::Save();
+	return true;
 }
 
 FReply SDIAMenu::HandleQuit()

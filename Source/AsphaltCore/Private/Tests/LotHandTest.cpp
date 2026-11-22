@@ -191,7 +191,7 @@ bool FLotHandFirstSquareTest::RunTest(const FString& Parameters)
 	}
 	TestTrue(TEXT("first cell complete"), G.GetGrid().IsCellComplete(Cell));
 	TestEqual(TEXT("only that cell"), G.GetCompletedCells(), 1);
-	TestNearlyEqual(TEXT("credits"), G.GetCredits(), 10.0, Tolerance);
+	TestNearlyEqual(TEXT("credits: ten for the cell, one a litre"), G.GetCredits(), 10.0 + 9.5, Tolerance);
 	TestNearlyEqual(TEXT("half a litre left in the fourth bowl"), G.GetHandLitres(ELotHand::Bowl), 0.5, TexelTolerance);
 	TestNearlyEqual(TEXT("litres used"), G.GetTotalLitres(), 9.5, TexelTolerance);
 	return true;
@@ -217,7 +217,7 @@ bool FLotHandBucketDumpTest::RunTest(const FString& Parameters)
 
 	const FLotEvents E = G.DumpBucket(Aim, From);
 	TestTrue(TEXT("cell complete"), G.GetGrid().IsCellComplete(AsphaltLot::CellAt(Aim)));
-	TestNearlyEqual(TEXT("credits"), E.CreditsEarned, 10.0, Tolerance);
+	TestNearlyEqual(TEXT("credits: ten for the cell, one a litre"), E.CreditsEarned, 10.0 + E.LitresPoured, Tolerance);
 	TestNearlyEqual(TEXT("half a litre stays"), G.GetHandLitres(ELotHand::Bucket), 0.5, TexelTolerance);
 	const FLotEvents Again = G.DumpBucket(Aim, From);
 	TestEqual(TEXT("complete cell takes nothing"), Again.LitresPoured, 0.0);

@@ -5,6 +5,15 @@
 
 namespace
 {
+	/** For the length of its life the grid lays what is poured at once, not as running asphalt (the machines lay an even strip). */
+	struct FInstantPour
+	{
+		explicit FInstantPour(FLotGrid& InGrid) : Grid(InGrid), bBefore(InGrid.IsInstantPour()) { Grid.SetInstantPour(true); }
+		~FInstantPour() { Grid.SetInstantPour(bBefore); }
+		FLotGrid& Grid;
+		bool bBefore;
+	};
+
 	/**
 	 * Longest span a single Tick call simulates (one day). Only a guard against absurd Dt values such as 1e15,
 	 * which would otherwise keep the loop running for ever; real callers pass a frame time.
@@ -238,7 +247,31 @@ FLotEvents FLotGame::Tick(double Dt)
 		TickAutoPaver(Step, Events);
 		Remaining -= Step;
 	}
+
+	if (Grid.IsFluidActive())
+	{
+		// Fixed steps, so that the asphalt runs the same on every machine; a long frame does not make it catch up.
+		FluidClock += FMath::Min(Dt, MaxTickSeconds);
+		int32 Steps = 0;
+		while (FluidClock >= LotBalance::FluidStepSeconds && Steps < LotBalance::FluidMaxStepsPerTick && Grid.IsFluidActive())
+		{
+			FluidClock -= LotBalance::FluidStepSeconds;
+			++Steps;
+			Events.Append(ApplyPour(Grid.StepFluid()));
+		}
+		FluidClock = FMath::Min(FluidClock, LotBalance::FluidStepSeconds);
+	}
+	else
+	{
+		FluidClock = 0.0;
+	}
 	return Events;
+}
+
+FLotEvents FLotGame::SettleFluid()
+{
+	FluidClock = 0.0;
+	return ApplyPour(Grid.SettleFluid(LotBalance::FluidSettleSeconds));
 }
 
 bool FLotGame::IsExitOpen() const
@@ -300,6 +333,7 @@ FLotEvents FLotGame::PourFromCar(FVector2D A, FVector2D B)
 	}
 	const double Width = LotBalance::CarWidthCm[Level];
 	FLotEvents Events = ApplyPour(Grid.FinishRaw(A, B, Width));
+	const FInstantPour Instant(Grid);
 	const FLotPour Pour = Grid.Stamp(A, B, Width, PlantStock, ELotTexel::Done);
 	PlantStock = FMath::Max(0.0, PlantStock - Pour.LitresUsed);
 	Events.Append(ApplyPour(Pour));
@@ -347,6 +381,7 @@ void FLotGame::TickAutoPaver(double Step, FLotEvents& Events)
 			}
 			if (!Grid.IsCellComplete(Cell) && AutoPaverBudget > 0.0)
 			{
+				const FInstantPour Instant(Grid);
 				const FLotPour Pour = Grid.DepositIntoCell(Cell, AutoPaverBudget, From, ELotTexel::Done);
 				AutoPaverBudget = FMath::Max(0.0, AutoPaverBudget - Pour.LitresUsed);
 				PlantStock = FMath::Max(0.0, PlantStock - Pour.LitresUsed);
@@ -566,6 +601,20 @@ FLotEvents FLotGame::PourHand(FVector2D Aim, FVector2D From, double Dt)
 	return ApplyPour(Pour);
 }
 
+FLotEvents FLotGame::PourBucket(FVector2D Aim, FVector2D From, double Dt)
+{
+	if (Hand != ELotHand::Bucket || !HandsFree() || !(Dt > 0.0) || !FMath::IsFinite(Dt) || !IsFinitePoint(Aim) || !IsFinitePoint(From))
+	{
+		return FLotEvents();
+	}
+	double& Content = HandLitres[static_cast<int32>(ELotHand::Bucket)];
+	const FLotPour Pour = SpendStream(StreamBudget, Content, LotBalance::BucketPourRateLPerS * FMath::Min(Dt, MaxTickSeconds), [&](double Budget)
+	{
+		return Grid.PourDisc(Aim, LotBalance::BucketPourRadiusCm, Budget, From);
+	});
+	return ApplyPour(Pour);
+}
+
 FLotEvents FLotGame::DumpBucket(FVector2D Aim, FVector2D From)
 {
 	double& Content = HandLitres[static_cast<int32>(ELotHand::Bucket)];
@@ -687,6 +736,7 @@ FLotEvents FLotGame::LayCartStrip(FVector2D A, FVector2D B)
 		return FLotEvents();
 	}
 	double& Content = MovableLitres[static_cast<int32>(ELotMovable::Cart)];
+	const FInstantPour Instant(Grid);
 	const FLotPour Pour = Grid.Stamp(A, B, LotBalance::CartStripWidthCm, Content, ELotTexel::Raw);
 	Content = FMath::Max(0.0, Content - Pour.LitresUsed);
 	return ApplyPour(Pour);
@@ -741,7 +791,8 @@ FLotEvents FLotGame::ApplyPour(const FLotPour& Pour)
 	FLotEvents Events;
 	Events.LitresPoured = Pour.LitresUsed;
 	Events.CompletedCells = Pour.CompletedCells;
-	Events.CreditsEarned = static_cast<double>(Pour.CompletedCells.Num()) * LotBalance::CreditsPerCell;
+	Events.CreditsEarned = static_cast<double>(Pour.CompletedCells.Num()) * LotBalance::CreditsPerCell
+		+ Pour.LitresUsed * LotBalance::CreditsPerLitre;
 	TotalLitres += Pour.LitresUsed;
 	Credits += Events.CreditsEarned;
 
@@ -980,6 +1031,9 @@ bool FLotGame::LoadFromBytes(TConstArrayView<uint8> Bytes)
 		return false;
 	}
 
+	// What is saved is only the ground; whether the asphalt runs is the setting of the running game, not of the save.
+	const bool bFluid = Grid.IsFluidEnabled();
 	*this = MoveTemp(Loaded);
+	Grid.SetFluidEnabled(bFluid);
 	return true;
 }

@@ -2,6 +2,8 @@
 
 #include "UI/SDIAHudOverlay.h"
 #include "Game/DIAWorldSubsystem.h"
+#include "LotBalance.h"
+#include "LotGame.h"
 #include "Styling/CoreStyle.h"
 #include "GameFramework/PlayerController.h"
 #include "Player/DIACharacter.h"
@@ -69,6 +71,10 @@ void SDIAHudOverlay::Construct(const FArguments& InArgs)
 		[
 			BuildTopRight()
 		]
+		+ SOverlay::Slot().HAlign(HAlign_Center).VAlign(VAlign_Center)
+		[
+			BuildCrosshair()
+		]
 		+ SOverlay::Slot().HAlign(HAlign_Center).VAlign(VAlign_Top).Padding(0.f, AsphaltHud::ToastTop, 0.f, 0.f)
 		[
 			BuildToasts()
@@ -80,10 +86,6 @@ void SDIAHudOverlay::Construct(const FArguments& InArgs)
 		+ SOverlay::Slot().HAlign(HAlign_Center).VAlign(VAlign_Bottom).Padding(0.f, 0.f, 0.f, AsphaltHud::BottomMargin)
 		[
 			BuildBottom()
-		]
-		+ SOverlay::Slot().HAlign(HAlign_Right).VAlign(VAlign_Bottom).Padding(AsphaltHud::ScreenMargin)
-		[
-			BuildHand()
 		]
 	];
 }
@@ -166,25 +168,112 @@ TSharedRef<SWidget> SDIAHudOverlay::BuildTopRight()
 		];
 }
 
-TSharedRef<SWidget> SDIAHudOverlay::BuildHand()
+TSharedRef<SWidget> SDIAHudOverlay::BuildHotbar()
 {
-	// The item in the hand with how much it holds; the trowel has no gauge, so only its name shows.
-	return SNew(SBorder)
-		.BorderImage(&PanelBrush)
-		.BorderBackgroundColor(AsphaltHud::PanelColor)
-		.Padding(AsphaltHud::PanelPaddingH, AsphaltHud::PanelPaddingV)
+	TSharedRef<SHorizontalBox> Slots = SNew(SHorizontalBox);
+	for (int32 Index = 0; Index < static_cast<int32>(ELotHand::Count); ++Index)
+	{
+		Slots->AddSlot().AutoWidth().Padding(AsphaltHud::HotbarGap * 0.5f, 0.f)
 		[
-			SNew(SVerticalBox)
-			+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Right)
+			BuildHotbarSlot(static_cast<ELotHand>(Index))
+		];
+	}
+	return SNew(SVerticalBox)
+		// What is in the hands with how much it holds; a movable that is held or the car replaces the tool's name here.
+		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0.f, 0.f, 0.f, 8.f)
+		[
+			SNew(SBorder)
+			.BorderImage(&PanelBrush)
+			.BorderBackgroundColor(AsphaltHud::PanelColor)
+			.Padding(AsphaltHud::PanelPaddingH, 4.f)
 			[
-				AsphaltHud::MakeShadowedText(TAttribute<FText>::CreateLambda([this]() { return Model.GetView().HandLabel; }), AsphaltHud::CaptionFontSize, AsphaltHud::CaptionColor)
+				AsphaltHud::MakeShadowedText(TAttribute<FText>::CreateLambda([this]()
+				{
+					const FDIAHudView& View = Model.GetView();
+					return View.HandGauge.IsEmpty() ? View.HandLabel : FText::Format(NSLOCTEXT("DIAHud", "HandLine", "{0}   {1}"), View.HandLabel, View.HandGauge);
+				}), AsphaltHud::CaptionFontSize + 2, AsphaltHud::TextColor)
 			]
-			+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Right)
+		]
+		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center)
+		[
+			Slots
+		];
+}
+
+TSharedRef<SWidget> SDIAHudOverlay::BuildHotbarSlot(ELotHand Hand)
+{
+	TWeakObjectPtr<UDIAWorldSubsystem> WeakSubsystem = Subsystem;
+	// The tool in the hands is lit; while a movable is held or the player is in the car no tool is.
+	auto IsSelected = [WeakSubsystem, Hand]()
+	{
+		const UDIAWorldSubsystem* S = WeakSubsystem.Get();
+		return S && S->GetGame().GetHand() == Hand && S->GetGame().GetHeld() == ELotMovable::Count && !S->GetGame().World().bPlayerInCar;
+	};
+	auto IsAvailable = [WeakSubsystem, Hand]()
+	{
+		const UDIAWorldSubsystem* S = WeakSubsystem.Get();
+		return S && S->GetGame().CanSelectHand(Hand);
+	};
+	auto Fill = [WeakSubsystem, Hand]()
+	{
+		const UDIAWorldSubsystem* S = WeakSubsystem.Get();
+		const double Capacity = S ? S->GetGame().GetHandCapacity(Hand) : 0.0;
+		return Capacity > 0.0 ? static_cast<float>(S->GetGame().GetHandLitres(Hand) / Capacity) : 0.f;
+	};
+	const bool bHasGauge = LotBalance::HandCapacityL[static_cast<int32>(Hand)] > 0.0;
+	const FText Key = FText::AsNumber(static_cast<int32>(Hand) + 1);
+
+	return SNew(SBorder)
+		.BorderImage(&SlotBrush)
+		.BorderBackgroundColor_Lambda([IsSelected]() { return FSlateColor(IsSelected() ? AsphaltHud::ButtonColor : AsphaltHud::HotbarOutlineColor); })
+		.Padding(2.f)
+		[
+			SNew(SBorder)
+			.BorderImage(&SlotBrush)
+			.BorderBackgroundColor_Lambda([IsSelected]() { return FSlateColor(IsSelected() ? AsphaltHud::HotbarSelectedColor : AsphaltHud::HotbarSlotColor); })
+			.Padding(8.f, 4.f, 8.f, 6.f)
 			[
-				SNew(SBox)
-				.Visibility_Lambda([this]() { return Model.GetView().HandGauge.IsEmpty() ? EVisibility::Collapsed : EVisibility::HitTestInvisible; })
+				SNew(SBox).WidthOverride(AsphaltHud::HotbarSlotWidth - 20.f).HeightOverride(AsphaltHud::HotbarSlotHeight - 14.f)
 				[
-					AsphaltHud::MakeShadowedText(TAttribute<FText>::CreateLambda([this]() { return Model.GetView().HandGauge; }), AsphaltHud::BigFontSize, AsphaltHud::TextColor)
+					SNew(SVerticalBox)
+					+ SVerticalBox::Slot().AutoHeight()
+					[
+						SNew(STextBlock)
+						.Text(Key)
+						.Font(FCoreStyle::GetDefaultFontStyle("Bold", AsphaltHud::CaptionFontSize - 3))
+						.ColorAndOpacity_Lambda([IsSelected]() { return FSlateColor(IsSelected() ? AsphaltHud::ButtonColor : AsphaltHud::CaptionColor); })
+					]
+					+ SVerticalBox::Slot().FillHeight(1.f).VAlign(VAlign_Center)
+					[
+						SNew(STextBlock)
+						.Text(DIAFormat::HandName(Hand))
+						.Font(FCoreStyle::GetDefaultFontStyle("Bold", AsphaltHud::HotbarNameFontSize))
+						.ColorAndOpacity_Lambda([IsAvailable]() { return FSlateColor(IsAvailable() ? AsphaltHud::TextColor : AsphaltHud::ShopDimColor); })
+						.ShadowOffset(AsphaltHud::ShadowOffset)
+						.ShadowColorAndOpacity(AsphaltHud::ShadowColor)
+					]
+					// The fill of a vessel; a tool without content has an empty track, a slot that cannot be taken shows no gauge.
+					+ SVerticalBox::Slot().AutoHeight()
+					[
+						SNew(SBox)
+						.HeightOverride(AsphaltHud::HotbarGaugeHeight)
+						.Visibility_Lambda([bHasGauge, IsAvailable]() { return bHasGauge && IsAvailable() ? EVisibility::HitTestInvisible : EVisibility::Hidden; })
+						[
+							SNew(SOverlay)
+							+ SOverlay::Slot()
+							[
+								SNew(SImage).Image(WhiteBrush()).ColorAndOpacity(AsphaltHud::BarTrackColor)
+							]
+							+ SOverlay::Slot().HAlign(HAlign_Left)
+							[
+								SNew(SBox)
+								.WidthOverride_Lambda([Fill]() { return FMath::Clamp(Fill(), 0.f, 1.f) * (AsphaltHud::HotbarSlotWidth - 20.f); })
+								[
+									SNew(SImage).Image(WhiteBrush()).ColorAndOpacity(AsphaltHud::CreditsColor)
+								]
+							]
+						]
+					]
 				]
 			]
 		];
@@ -265,7 +354,39 @@ TSharedRef<SWidget> SDIAHudOverlay::BuildBottom()
 				AsphaltHud::MakeShadowedText(TAttribute<FText>::CreateLambda([WeakHud]() { return WeakHud.IsValid() ? WeakHud->GetPrompt() : FText::GetEmpty(); }), AsphaltHud::MediumFontSize, AsphaltHud::PromptColor)
 			]
 		]
-		;
+		// The inventory bar, at the very bottom of the screen.
+		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center)
+		[
+			BuildHotbar()
+		];
+}
+
+TSharedRef<SWidget> SDIAHudOverlay::BuildCrosshair()
+{
+	return SNew(SBox)
+		.WidthOverride(AsphaltHud::CrosshairOuterSize)
+		.HeightOverride(AsphaltHud::CrosshairOuterSize)
+		.Visibility_Lambda([this]()
+		{
+			const ADIAHUD* H = Hud.Get();
+			return (H && !H->IsMenuOpen() && !H->IsShopOpen() && !H->IsWinScreenShown()) ? EVisibility::HitTestInvisible : EVisibility::Collapsed;
+		})
+		[
+			SNew(SOverlay)
+			+ SOverlay::Slot()
+			[
+				SNew(SBorder).BorderImage(&DotBrush).BorderBackgroundColor(AsphaltHud::CrosshairRingColor)
+			]
+			+ SOverlay::Slot().HAlign(HAlign_Center).VAlign(VAlign_Center)
+			[
+				SNew(SBox)
+				.WidthOverride(AsphaltHud::CrosshairInnerSize)
+				.HeightOverride(AsphaltHud::CrosshairInnerSize)
+				[
+					SNew(SBorder).BorderImage(&DotBrush).BorderBackgroundColor(AsphaltHud::CrosshairColor)
+				]
+			]
+		];
 }
 
 TSharedRef<SWidget> SDIAHudOverlay::BuildToasts()

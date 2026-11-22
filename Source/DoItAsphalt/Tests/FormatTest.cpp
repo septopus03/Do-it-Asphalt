@@ -131,7 +131,7 @@ bool FHudModelTest::RunTest(const FString& Parameters)
 
 	FDIAHudModel Model;
 	TestTrue(TEXT("the first update builds the view"), Model.Update(Game));
-	TestEqual(TEXT("credits text"), Model.GetView().Credits.ToString(), FString(TEXT("1,370")));
+	TestEqual(TEXT("credits text"), Model.GetView().Credits.ToString(), FString(TEXT("2,740")));
 	TestTrue(TEXT("progress text"), Model.GetView().Progress.ToString().StartsWith(TEXT("137 / 30,000")));
 	TestEqual(TEXT("progress text in full"), Model.GetView().Progress.ToString(), FString(TEXT("137 / 30,000 · 0%")));
 	TestEqual(TEXT("progress bar"), Model.GetView().ProgressFraction, 137.f / 30000.f, 1e-6f);
@@ -148,7 +148,7 @@ bool FHudModelTest::RunTest(const FString& Parameters)
 	// What is shown changes the view.
 	Game.DebugGive(5.0);
 	TestTrue(TEXT("more credits rebuild the view"), Model.Update(Game));
-	TestEqual(TEXT("credits follow"), Model.GetView().Credits.ToString(), FString(TEXT("1,375")));
+	TestEqual(TEXT("credits follow"), Model.GetView().Credits.ToString(), FString(TEXT("2,745")));
 	Game.DebugCompleteCell(AsphaltLot::CellIndex(150, 50));
 	TestTrue(TEXT("a completed cell rebuilds the view"), Model.Update(Game));
 	TestEqual(TEXT("progress follows"), Model.GetView().Progress.ToString(), FString(TEXT("138 / 30,000 · 0%")));

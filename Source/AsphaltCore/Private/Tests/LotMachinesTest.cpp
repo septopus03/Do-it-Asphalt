@@ -192,7 +192,8 @@ bool FLotAutoPaverRatePerMinuteTest::RunTest(const FString& Parameters)
 		G.Tick(60.0);
 		const int32 Cells = G.GetCompletedCells();
 		TestTrue(*FString::Printf(TEXT("level %d lays %d cells"), Level, Cells), FMath::Abs(Cells - Expected[Level]) <= 2.0);
-		TestNearlyEqual(*FString::Printf(TEXT("level %d credits"), Level), G.GetCredits() - CreditsBefore, Cells * 10.0, Tolerance);
+		TestNearlyEqual(*FString::Printf(TEXT("level %d credits"), Level), G.GetCredits() - CreditsBefore,
+			Cells * static_cast<double>(LotBalance::CreditsPerCell) + G.GetTotalLitres() * LotBalance::CreditsPerLitre, Tolerance);
 	}
 	return true;
 }
@@ -331,7 +332,7 @@ bool FLotCarWidthTest::RunTest(const FString& Parameters)
 	const FLotEvents Events = G.PourFromCar(A, B);
 	TestEqual(TEXT("three rows of ten"), G.GetCompletedCells(), 30);
 	TestEqual(TEXT("reported"), Events.CompletedCells.Num(), 30);
-	TestNearlyEqual(TEXT("credits"), Events.CreditsEarned, 300.0, Tolerance);
+	TestNearlyEqual(TEXT("credits: ten a cell and one a litre"), Events.CreditsEarned, 300.0 + Events.LitresPoured * LotBalance::CreditsPerLitre, Tolerance);
 	TestTrue(TEXT("row above"), G.GetGrid().IsCellComplete(MiddleCell(45, 39)));
 	TestTrue(TEXT("row below"), G.GetGrid().IsCellComplete(MiddleCell(45, 41)));
 	TestEqual(TEXT("no fourth row"), G.GetGrid().GetCellDone(MiddleCell(45, 42)), 0);

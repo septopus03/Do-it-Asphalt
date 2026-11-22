@@ -1,6 +1,6 @@
 # Do it Asphalt
 
-Pokojná inkrementálna simulácia asfaltovania v prvej osobe. Hráč vyleje asfalt na parkovisko v tvare písmena L (30 000 štvorcov 1 × 1 m) pred nákupným centrom. Začína lyžicou a miskou, neskôr používa vedro, kufor, vozík, hladidlo, finišer, robota a auto. Za každý hotový štvorec dostane 10 kreditov a za kredity kupuje lepšie vybavenie a rýchlejšiu výrobňu. Keď je vyasfaltované všetko, otvorí sa východ a prechodom bránou hra končí výhrou. Hra má podľa simulácie trvať asi 2 h 20 min.
+Pokojná inkrementálna simulácia asfaltovania v prvej osobe. Hráč vyleje asfalt na parkovisko v tvare písmena L (30 000 štvorcov 1 × 1 m) pred nákupným centrom. Začína lyžicou a miskou, neskôr používa vedro, kufor, vozík, hladidlo, finišer, robota a auto. Za každý hotový štvorec dostane 10 kreditov a za každý vyliaty liter 1 kredit, a za kredity kupuje lepšie vybavenie a rýchlejšiu výrobňu. Keď je vyasfaltované všetko, otvorí sa východ a prechodom bránou hra končí výhrou. Hra má podľa simulácie trvať asi 2 h 20 min.
 
 Projekt je v Unreal Engine 5.8 (C++ a Slate UI), cieľová platforma je macOS (vývoj) a Windows.
 
@@ -33,16 +33,17 @@ Typický postup: `Scripts/build.sh && Scripts/test.sh`, potom `Scripts/run.sh`.
 |---|---|
 | Chôdza | `W` `A` `S` `D` |
 | Pohľad | myš |
-| Použiť ruku (nabrať, liať, hladiť; s vozíkom klásť pás, s finišerom hladiť, v aute liať) | ľavé tlačidlo myši (držať) |
+| Použiť ruku (liať, vedro leje prúd na zameraný bod, hladiť; s vozíkom klásť pás, s finišerom hladiť, v aute liať) | ľavé tlačidlo myši (držať) |
 | Pracovný pohľad | pravé tlačidlo myši (držať) |
 | Ďalšia ruka / miska, lopatka, vedro, hladidlo | `Q` / `1` `2` `3` `4` |
 | Chytiť, pustiť, nastúpiť a vystúpiť z auta | `E` |
+| Naberať (koryto → miska/lopatka, naplniť vedro) | `R` (držať) |
 | Klapka kufra | `F` (držať) |
 | Poslať robota do sektora, v ktorom stojíš | `G` |
 | Šprint (po odomknutí) | ľavý `Shift` |
 | Obchod | `Tab` |
 | Kontrolný pohľad | `V` (držať) |
-| Pauza / zavrieť obchod | `Esc` |
+| Pauza / zavrieť obchod / zavrieť nastavenia | `Esc` |
 
 V aute: `W`/`S` plyn a spiatočka, `A`/`D` zatáčanie, myš otáča hlavou, ľavé tlačidlo leje, `E` vystúpiť. Gamepad nie je podporovaný. Úplný opis je v [`docs/01-herny-dizajn.md`](docs/01-herny-dizajn.md).
 
@@ -120,4 +121,5 @@ Nič z tohto nikto ručne nevyskúšal:
 - Obrys sektora robota (10 cm) je zďaleka zhora tenký.
 - Kým sú zobrazené tri iné oznamy, oznamy o kreditoch čakajú.
 - Valček, dusadlo a lata s vodováhou zo špecifikácie v hre nie sú (otvorená otázka O1).
-- Míľnik 800 políčok v simulácii má rezervu pod minútu (41:17 oproti limitu 42:00).
+- Míľnik 800 políčok v simulácii má rezervu pod minútu (41:55 oproti limitu 42:00).
+- Tekutý asfalt je vidieť len ako postupujúce pokrytie zeme (bez vlastnej hrúbky či lesku); simulácia vyváženia počíta s okamžitým liatím, takže tekutinu nemeria.

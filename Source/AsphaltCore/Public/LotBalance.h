@@ -28,6 +28,8 @@ namespace LotBalance
 	inline constexpr double LitresPerCell = 10.0;
 	/** Credits earned for each completed cell. */
 	inline constexpr int32 CreditsPerCell = 10;
+	/** Credits earned for each litre of asphalt poured (paid when the litre leaves the vessel, on top of CreditsPerCell). */
+	inline constexpr int32 CreditsPerLitre = 1;
 	/** A cell counts as complete once this fraction of its area is covered. */
 	inline constexpr double CompletionThreshold = 0.95;
 
@@ -103,6 +105,9 @@ namespace LotBalance
 	/** Footprint radius of the pour, indexed by ELotHand. */
 	inline constexpr double PourRadiusCm[4] = {15, 10, 0, 0}; // tunable
 	static_assert(UE_ARRAY_COUNT(PourRadiusCm) == (int32)ELotHand::Count, "PourRadiusCm must have one entry per ELotHand");
+	/** The bucket pours as a stream where the player aims: litres per second, and the radius of the stream's footprint. */
+	inline constexpr double BucketPourRateLPerS = 4.0; // tunable
+	inline constexpr double BucketPourRadiusCm = 30.0; // tunable
 	/** Seconds a tool swap takes before the quick swap is unlocked (afterwards 0). */
 	inline constexpr double SwapSeconds = 1.5; // tunable
 	/** Width of the trowel. */
@@ -162,6 +167,32 @@ namespace LotBalance
 	inline constexpr double CarReverseSpeedFactor = 0.5;
 	/** Car acceleration in cm/s^2. */
 	inline constexpr double CarAccelerationCmS2 = 1500.0;
+
+	// ---- Fluid (the asphalt flows before it sets) ----
+	// Thickness is counted in "texel volumes": 1 is the film one texel holds when the asphalt has settled (0.025 l, 1 cm on a 5 cm texel).
+
+	/** The fluid is simulated in fixed steps of this length. */
+	inline constexpr double FluidStepSeconds = 1.0 / 30.0;
+	/** Steps one Tick may run at most; a longer frame does not make the simulation catch up. */
+	inline constexpr int32 FluidMaxStepsPerTick = 6;
+	/** Thickness a pour piles on the texels it lands on; the pile is what makes the asphalt run. */
+	inline constexpr double FluidPileUnits = 4.0;
+	/** Most a texel may be given by one pour, so that the last free texels of a footprint do not swallow a whole stroke. */
+	inline constexpr double FluidMaxPileUnits = 8.0;
+	/** Asphalt thinner than this does not run: it is the thickness it settles at. */
+	inline constexpr double FluidFilmUnits = 1.0;
+	/** A free texel that holds this much sets as ground (raw or finished, as the asphalt that reached it was). */
+	inline constexpr double FluidCoverUnits = 0.5;
+	/** Share of the height difference to a neighbour that flows across per step at full heat. */
+	inline constexpr double FluidStiffness = 0.2;
+	/** Share of a flow that is still there in the next step: the inertia that makes the asphalt overshoot and ripple. */
+	inline constexpr double FluidMomentum = 0.85;
+	/** Seconds in which the heat of the asphalt falls to a third; the colder it is, the slower it runs. */
+	inline constexpr double FluidCoolSeconds = 8.0;
+	/** Below this heat (1 = just poured) the asphalt has set where it lies. */
+	inline constexpr double FluidFreezeHeat = 0.12;
+	/** Longest the asphalt is let to run when the game has to settle it at once (saving). */
+	inline constexpr double FluidSettleSeconds = 60.0;
 
 	// ---- Derived ----
 

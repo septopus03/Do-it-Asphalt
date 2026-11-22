@@ -43,9 +43,20 @@ Tento dokument hovorí, ako sa hra hrá: pravidlá, ovládanie, obrazovka, cheat
 ### 4.1 Políčko
 
 - Políčko má 1 × 1 m a potrebuje **10 l** asfaltu. Je hotové, keď je pokrytých **95 %** (9,5 l) jeho plochy; zvyšok sa dokončí samo.
-- Za každé hotové políčko je odmena **10 kreditov**, raz.
+- Za každé hotové políčko je odmena **10 kreditov**, raz. Navyše je **1 kredit za každý vyliaty liter** (pripisuje sa hneď pri liatí, nenahrádza odmenu za políčko).
 - Každé políčko má tri stavy zeme: voľné, **surové** (asfalt je rozložený, ale nie uhladený) a **hotové**. Surový asfalt sa samotný nikdy nepočíta ako hotový: dokončí ho až hladidlo alebo finišer.
 - Liať sa dá len na voľnú zem. Na surový ani hotový asfalt sa neleje.
+
+### 4.1a Tekutý asfalt
+
+Čo sa leje **rukou** (miska, lyžica, vedro, kufor), nelegne na zem hneď. Zaplatené litre sa položia ako niekoľko horúcich kôp na prvé texely výlevu a kopy **tečú**:
+
+- Tečie len asfalt nad hrúbkou filmu (1 texel = 0,025 l). Hrúbka sa riadi výškovým rozdielom medzi susednými texelmi, tok má zotrvačnosť, takže kopa sa rozlieva, preleje cez okraj a vlní sa (živšie než skutočná kvapalina).
+- Asfalt chladne: teplota klesne na tretinu za 8 s. Čím je chladnejší, tým pomalšie tečie. Pod 12 % teploty zatuhne tam, kde leží (ostatná tenká vrstva sa stratí).
+- Voľný texel, ktorý zasiahne dosť asfaltu, sa stane zemou (surovou alebo hotovou podľa toho, čo sa lialo). Pokrytie teda závisí od toho, kam asfalt steká: pri liatí na hranu políčka vyjde asfalt aj na susedné políčka a políčko sa nemusí hneď dokončiť.
+- Litre sa platia pri liatí, nie pri pokrytí. Pokrytie vyjde zhruba na zaplatenú plochu (pri skúške 466 texelov za 400 zaplatených).
+- Stroje (vozík, auto, robot) kladú pás **hneď** a rovnomerne; tekutina sa ich netýka. Finišer a hladidlo menia surový asfalt na hotový hneď.
+- Uložená hra drží len zem: asfalt, ktorý ešte tečie, sa pri ukladaní nechá zatuhnúť na kópii hry.
 
 ### 4.2 Nádoby v ruke
 
@@ -55,11 +66,13 @@ Hráč drží vždy jednu „ruku" a prepína ich klávesmi (kapitola 5).
 |---|---|---|
 | Miska (Bowl) | 2,5 l | štart; berie sa lyžicou po 0,25 l |
 | Lopatka (Scoop) | 1 l | kúpi sa za 10; záber 1 l |
-| Vedro (Bucket) | 10 l | kúpi sa za 35; vylieva sa naraz do políčka pod zámerným bodom |
+| Vedro (Bucket) | 10 l | kúpi sa za 35; leje sa ako prúd 4 l/s presne tam, kam hráč mieri (kruh 30 cm) |
 | Hladidlo (Trowel) | – | štart; nenesie asfalt, hladí surový asfalt na hotový |
 
-- Naberanie: ľavé tlačidlo pri koryte opakuje záber každých 0,5 s.
+- Naberanie: **`R` (držať)** pri koryte opakuje záber každých 0,5 s. Ľavé tlačidlo nenabera, len leje.
 - Liatie z misky a lopatky: ľavé tlačidlo, 1 l za sekundu, kruh s polomerom 15 cm (miska) alebo 10 cm (lopatka). Z ruky sa leje rovno **hotový** asfalt.
+- Vedro leje, kým je tlačidlo stlačené (4 l/s), a asfalt dopadá na bod pod zameriavačom, odkiaľ sa ako kvapalina rozteká. Zem, ktorá je už pokrytá, nestojí nič, takže čo sa nepoložilo, ostáva vo vedre.
+- Miska a lyžica sú v **dvoch rukách**: miska v ľavej, lyžica v pravej.
 - Vedro sa plní v ruke zo zásoby: z kohútika stojaceho kufra alebo vozíka, z výpustu výrobne alebo z presuvnej výdajne.
 - Výmena ruky trvá 1,5 s, po odomknutí rýchlej výmeny 0 s.
 - Dosah ruky je 250 cm.
@@ -99,11 +112,12 @@ Oba slúžia aj ako zásoba pre vedro (kohútik, 5 l/s).
 |---|---|
 | `W` `A` `S` `D` | chôdza; v aute `W`/`S` plyn a spiatočka, `A`/`D` zatáčanie |
 | Myš | pohľad; v aute otáča hlavou (±100° do strán, −60° až +45° hore/dole) |
-| Ľavé tlačidlo myši | použiť ruku: nabrať, liať, vyliať vedro, hladiť; podržané s vozíkom kladie pás, s finišerom hladí, v aute leje |
+| Ľavé tlačidlo myši | použiť ruku: liať (vedro ako prúd na zameraný bod), hladiť; podržané s vozíkom kladie pás, s finišerom hladí, v aute leje |
 | Pravé tlačidlo myši (držať) | pracovný pohľad: zorné pole 90° → 60°, naklonenie o 15°, prechod 0,2 s |
 | `Q` | ďalšia ruka |
 | `1` `2` `3` `4` | miska / lopatka / vedro / hladidlo |
 | `E` | chytiť predmet, pustiť ho, nastúpiť do auta alebo vystúpiť |
+| `R` (držať) | naberať: z koryta do misky či lopatky, naplniť vedro pri výrobni, kohútiku kufra či vozíka a pri výdajni |
 | `F` (držať) | klapka kufra |
 | `G` | poslať robota do sektora, v ktorom hráč stojí |
 | Ľavý `Shift` | šprint (po odomknutí) |
@@ -112,7 +126,7 @@ Oba slúžia aj ako zásoba pre vedro (kohútik, 5 l/s).
 | `Esc` | zavrie obchod, inak otvorí pauzu; obrazovka výhry ho ignoruje |
 
 - Chôdza je 450 cm/s, šprint 1,6-krát rýchlejší. Kufor sa ťahá rýchlosťou 350 cm/s, vozík sa tlačí 400 cm/s, finišer 400 cm/s a výdajňa sa nesie 400 cm/s.
-- Počas jazdy fungujú chôdza (plyn, zatáčanie), myš, ľavé tlačidlo, `E`, `Tab` a `Esc`. Klávesy rúk, `G`, `F`, pracovný pohľad a `V` nerobia nič.
+- Počas jazdy fungujú chôdza (plyn, zatáčanie), myš, ľavé tlačidlo, `E`, `Tab` a `Esc`. Klávesy rúk, `R`, `G`, `F`, pracovný pohľad a `V` nerobia nič.
 - Ak hráč niečo drží, `E` patrí držanému predmetu (pustí ho). Do auta sa nastupuje len s voľnými rukami.
 - Kamera je v kabíne auta vo výške 190 cm, 120 cm pred stredom auta, v pokoji sklonená o 8° nadol. Karoséria modelu je z pohľadu z kabíny skrytá (jej sklá by zvnútra zakryli výhľad), preto je dole v obraze plochá žltá kapota; zvonku je auto celé.
 - Kontrolný pohľad (`V`) zobrazí šípku k najbližšiemu nedokončenému políčku.
@@ -120,13 +134,15 @@ Oba slúžia aj ako zásoba pre vedro (kohútik, 5 l/s).
 ## 6. Obrazovka (HUD)
 
 - **Vľavo hore:** kredity.
+- **V strede obrazovky:** malý zameriavač (bodka s tmavým kruhom); pri otvorenom menu, obchode a obrazovke výhry sa skryje.
 - **Vpravo hore:** „x / 30,000 · n %" hotových políčok s pruhom; pod ním „Next: <krok> – entry k / 12, cells a / b", teda ďalší odomykaný krok, koľko z 12 políčok jeho vstupného úseku je hotových a koľko hotových políčok z potrebných je celkovo. Ak je robot pridelený: „Paver: sector N · k / 400", inak „Paver: waiting – press G".
 - **Vpravo dole:** názov ruky a hladina nádoby (napríklad „Bowl 0 / 2.5 l").
 - **V strede dole:** výzva, čo robí `E` pri predmete.
 - **Oznamy (toasty):** najviac 3 naraz, každý 2 s plus 0,5 s dobehu. Kredity sa spájajú do jedného bežiaceho súčtu („+40 credits"). Pri odomknutí: „Unlocked: X" a pod tým účinok kroku.
 - **Tabule pri vstupoch:** názov kroku, „Entry k / 12" (hotové políčka úseku) a „Cells a / b" (hotové políčka z potrebných). Kiosky stoja pri vstupoch 1, 4, 5 a 6; vstupy 2 a 3 majú tabuľu na nákupnom centre.
-- **Obchod (`Tab`):** riadky sú výrobňa (najprv), potom predmety; kúpené riadky idú na koniec. Zamknuté riadky ukazujú podmienku, napríklad „350 cells + entry 3". Poradie sa určí pri otvorení obchodu. Každý nákup sa ukladá.
-- **Pauza a menu:** tlačidlá Continue, Resume, New Game, Quit, Yes, No.
+- **Obchod (`Tab`):** mriežka kariet 4 × 3: výrobňa (najprv), potom predmety. Karta má farebnú dlaždicu, názov, čo dáva, cenu a tlačidlo BUY. Zamknuté karty sú stlmené a ukazujú podmienku, napríklad „350 cells + entry 3". Kúpená vec **ostáva na svojom mieste** a len sa zmení na zelenú kartu so štítkom OWNED. V hlavičke sú kredity. Každý nákup sa ukladá.
+- **Lišta predmetov** je dole uprostred obrazovky: štyri políčka (`1` miska, `2` lopatka, `3` vedro, `4` hladidlo) s vyznačeným tým v ruke, a pri nádobách s ukazovateľom naplnenia. Nad ňou je riadok s názvom a obsahom (aj pre držaný kufor či vozík).
+- **Pauza a menu:** tlačidlá Continue, Resume, New Game, Settings, Quit, Yes, No. **Settings** (aj `Esc` ich zavrie) obsahuje posuvník citlivosti myši (0,1 – 3,0, štandardne 1,0). Hodnota sa ukladá do `GameUserSettings.ini`, nie do uloženej hry.
 - **Výhra:** obrazovka „Parking lot complete!" so riadkami Time, Cells paved, Asphalt poured, Credits earned, Items bought a tlačidlami New Game a Quit.
 
 ## 7. Obchod a odomykanie
@@ -238,4 +254,6 @@ Cheaty sú konzolové príkazy `dia.*`. Existujú len mimo Shipping buildu (v Sh
 - Obrys sektora (10 cm) je zďaleka zhora tenký.
 - Kým sú zobrazené tri iné oznamy, oznamy o kreditoch čakajú.
 - Valček, dusadlo a lata s vodováhou zo špecifikácie v hre nie sú (otvorená otázka O1 v `04-plan-zmien-asphalt-self.md`).
-- Míľnik 800 políčok v simulácii má rezervu pod minútu (41:17 oproti limitu 42:00).
+- Míľnik 800 políčok v simulácii má rezervu pod minútu (41:55 oproti limitu 42:00; po pripočítaní dolára za liter).
+- Tekutý asfalt je vidieť len ako postupujúce pokrytie zeme (bez vlastnej hrúbky či lesku). Simulácia vyváženia (`LotBalanceSimTest`) počíta s okamžitým liatím, takže vplyv tekutiny na dĺžku hry nemeria; pokrytie vychádza zhruba na zaplatenú plochu, no políčko sa pri nerovnomernom rozliatí dokončuje ťažšie.
+- Zameriavač je pevný (nemení sa podľa toho, na čo hráč mieri).

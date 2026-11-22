@@ -53,6 +53,19 @@ Modul `DoItAsphalt` sa kompiluje s `bUseUnity = false`. Každý testovací súbo
 
 Indexovanie políčok: riadky 0 – 99 majú 200 stĺpcov, index = riadok · 200 + stĺpec; od riadku 100 má riadok 100 stĺpcov (kvadrant s centrom chýba), index = 20 000 + (riadok − 100) · 100 + stĺpec. Spolu 30 000 políčok. Sektory sa indexujú rovnako po 20 × 20 políčok (prvých 5 radov po 10 sektoroch, ďalších po 5).
 
+### 3.1 Tekutina (`FLotFluid`)
+
+Pri zapnutej tekutine (`FLotGrid::SetFluidEnabled`; zapína ju `UDIAWorldSubsystem::Initialize`, jadro ju má štandardne vypnutú, aby fungovali staré testy) `ApplyCandidates` zaplatí texely, ale zem nezmení: z ich objemu položí `FLotFluid` niekoľko kôp (4 – 8 jednotiek na kopu, jednotka = film jedného texelu). Jeden krok (`FluidStepSeconds` = 1/30 s) beží v štyroch Jacobiho prechodoch nad 32 × 32 dlaždicami, ktoré existujú len tam, kde je asfalt a o jednu dlaždicu ďalej:
+
+1. toky cez steny medzi texelmi (virtuálne rúry: `zotrvačnosť · starý tok + tuhosť · teplota² · rozdiel výšok nad filmom`),
+2. podiel výtoku, ktorý texel naozaj má (nikdy viac, než drží),
+3. skutočné toky,
+4. nová hrúbka, teplota (nesie ju tok) a druh (väčší podiel vyhrá), potom chladnutie, pokrytie (`OnSet` pre voľný texel s ≥ 0,5 jednotky), zatuhnutie a uvoľnenie prázdnych dlaždíc.
+
+Steny sú okraje mriežky a kvadrant nákupného centra. Výpočet je deterministický (žiadna náhoda). Stabilitu drží zotrvačnosť < 1 a tuhosť 0,2 (λ·k = 1,6 < 3,7). Ručné nástroje liejú tekutinou, stroje (`PourFromCar`, robot, vozík) cez `FInstantPour` hneď.
+
+`FLotGame::Tick` krokuje tekutinu pevným krokom (najviac 6 krokov na `Tick`), pokrytie účtuje cez `ApplyPour`, takže odmena za políčko, odomykanie a udalosti idú tou istou cestou. `SettleFluid` necháva asfalt zatuhnúť naraz; ukladanie ho volá na **kópii** hry (`MakeSaveBlob`), takže uložená hra drží len zem a bežiaca hra pokračuje. `LoadFromBytes` zachová nastavenie tekutiny.
+
 ## 4. Zem a textúra pokrytia
 
 `ADIAGroundActor` zobrazuje mriežku ako textúru `PF_R8G8`: kanál R je 255, ak texel nie je voľný (surový alebo hotový), kanál G je 255, ak je hotový. Materiál `M_Ground` z nich poskladá farbu zeme.
