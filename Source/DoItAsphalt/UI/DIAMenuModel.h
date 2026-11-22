@@ -12,6 +12,16 @@ enum class EDIAMenuMode : uint8
 	Pause,
 };
 
+/** The button that gets the yellow label: the one the screen leads with. */
+enum class EDIAMenuButton : uint8
+{
+	None,
+	Continue,
+	Resume,
+	NewGame,
+	Yes,
+};
+
 /**
  * What the menu shows, as plain data (the widget reads it through attribute lambdas; tests read it without Slate). The main menu
  * offers Continue only when a save exists; the pause menu offers Resume. New Game asks "Start over?" first whenever it would throw
@@ -69,6 +79,24 @@ struct FDIAMenuModel
 	bool ShowsDevStart() const { return bDevStartAvailable && ShowsButtons() && Mode == EDIAMenuMode::Main; }
 	bool ShowsQuestion() const { return IsOpen() && bConfirming; }
 	bool NeedsNewGameConfirmation() const { return Mode == EDIAMenuMode::Pause || (Mode == EDIAMenuMode::Main && bHasSave); }
+
+	/** The button shown in yellow: Yes at the question, none in the settings or when closed, otherwise the first button of the screen. */
+	EDIAMenuButton PrimaryButton() const
+	{
+		if (!IsOpen() || bSettings)
+		{
+			return EDIAMenuButton::None;
+		}
+		if (bConfirming)
+		{
+			return EDIAMenuButton::Yes;
+		}
+		if (Mode == EDIAMenuMode::Pause)
+		{
+			return EDIAMenuButton::Resume;
+		}
+		return bHasSave ? EDIAMenuButton::Continue : EDIAMenuButton::NewGame;
+	}
 
 	FText GetTitle() const
 	{

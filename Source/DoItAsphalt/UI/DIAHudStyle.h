@@ -106,13 +106,13 @@ namespace AsphaltHud
 	inline constexpr float WinTitleSpacing = 28.f;
 	inline constexpr float WinRowSpacing = 8.f;
 	inline constexpr float WinButtonsSpacing = 28.f;
-	inline constexpr float WinButtonWidth = 240.f;
+	inline constexpr float WinButtonWidth = 230.f;
 	/** The menu: the panel's inner width, the title's distance to the buttons, the gap between buttons, and the width of a button. */
 	inline constexpr float MenuPanelWidth = 520.f;
 	inline constexpr float MenuTitleSpacing = 30.f;
 	inline constexpr float MenuButtonSpacing = 14.f;
 	inline constexpr float MenuButtonWidth = 300.f;
-	inline constexpr float MenuQuestionButtonWidth = 140.f;
+	inline constexpr float MenuQuestionButtonWidth = 170.f;
 	inline constexpr float MenuSliderHeight = 28.f;
 	/** The crosshair in the middle of the screen: a white dot (inner) in a dark ring (outer), in pixels. */
 	inline constexpr float CrosshairOuterSize = 10.f;
@@ -233,4 +233,38 @@ namespace AsphaltHud
 	inline constexpr int32 ShopOffButtonFont = 17;
 	inline constexpr int32 ShopOwnedFont = 21;
 	inline constexpr int32 ShopHintFont = 17;
+
+	// The signage menu and win screen (CSS pixels of the mockup are Slate units; font sizes are CSS px x 0.75, the brief wins where it names one).
+	/** The plate of a screen: the width of its ring, and the padding inside it (the mockup's padding less one ring width, as in the HUD). */
+	inline constexpr float ScreenRingWidth = 4.f;
+	inline constexpr float ScreenPlatePadH = 36.f;
+	inline constexpr float ScreenPlatePadTop = 30.f;
+	inline constexpr float ScreenPlatePadBottom = 40.f;
+	/** The menu: the inner width of its plate, the gap between buttons and between the title and the first button, and the button height. */
+	inline constexpr float MenuContentWidth = 352.f;
+	inline constexpr float MenuGap = 12.f;
+	inline constexpr float MenuButtonHeight = 64.f;
+	inline constexpr int32 MenuTitleFont = 60;
+	inline constexpr int32 MenuQuestionFont = 20;
+	inline constexpr int32 MenuButtonFont = 24;
+	/** The settings: the caption and the value on one line, and the slider below (its height, the bar and the handle). */
+	inline constexpr int32 MenuSettingCaptionFont = 20;
+	inline constexpr int32 MenuSettingValueFont = 30;
+	inline constexpr float MenuSettingSliderHeight = 44.f;
+	inline constexpr float SliderBarThickness = 8.f;
+	inline constexpr float SliderThumbWidth = 14.f;
+	inline constexpr float SliderThumbHeight = 34.f;
+	/** The win screen: the inner width of its plate, the stripes along the top, the title, the rows and the buttons. */
+	inline constexpr float WinContentWidth = 472.f;
+	inline constexpr float WinStripeHeight = 20.f;
+	inline constexpr float WinStripeBand = 16.f;
+	inline constexpr int32 WinTitleFont = 48;
+	inline constexpr int32 WinLabelFont = 20;
+	inline constexpr int32 WinValueFont = 26;
+	inline constexpr float WinRowLine = 3.f;
+	inline constexpr float WinRowPadV = 9.f;
+	inline constexpr float WinTitleGapTop = 26.f;
+	inline constexpr float WinTitleGapBottom = 18.f;
+	inline constexpr float WinButtonsGapTop = 14.f;
+	inline constexpr float WinButtonsPadTop = 20.f;
 }

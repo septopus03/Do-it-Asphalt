@@ -38,6 +38,15 @@ public:
 
 	const FDIAMenuModel& GetModel() const { return Model; }
 
+#if !UE_BUILD_SHIPPING
+	/** The dia.Screen cheat: puts the open menu into the settings or the question (or the buttons for neither). */
+	void DebugSetState(bool bSettings, bool bConfirming)
+	{
+		Model.bSettings = bSettings;
+		Model.bConfirming = bConfirming;
+	}
+#endif
+
 	/** Leaves the settings for the buttons (Back, Esc), saving the settings; false when the settings were not up. */
 	bool BackFromSettings();
 
@@ -51,8 +60,10 @@ private:
 	FReply HandleQuit();
 	FReply HandleSettings();
 	FReply HandleBack();
-	/** A button of the menu's width that is only there while Visible says so. */
-	TSharedRef<SWidget> BuildButton(const FText& Label, float Width, FOnClicked OnClicked, TFunction<bool()> Visible);
+	/** The "Start over?" question, wrapped to the plate. */
+	static TSharedRef<SWidget> MakeQuestionText();
+	/** A button that is only there while Visible says so; its label is yellow while Which is the model's primary button. */
+	TSharedRef<SWidget> BuildButton(const FText& Label, float Width, EDIAMenuButton Which, FOnClicked OnClicked, TFunction<bool()> Visible);
 
 	FSimpleDelegate OnContinue;
 	FSimpleDelegate OnResume;
@@ -61,6 +72,6 @@ private:
 	FSimpleDelegate OnQuit;
 
 	FDIAMenuModel Model;
-	FSlateRoundedBoxBrush PanelBrush{FLinearColor::White, AsphaltHud::PanelCornerRadius};
 	FButtonStyle ButtonStyle;
+	FSliderStyle SliderStyle;
 };

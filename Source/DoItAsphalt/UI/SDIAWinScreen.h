@@ -37,14 +37,15 @@ public:
 private:
 	FReply HandleNewGame();
 	FReply HandleQuit();
-	TSharedRef<SWidget> BuildStatRow(const FText& Label, TFunction<FText()> Value, const FLinearColor& ValueColor);
-	TSharedRef<SWidget> BuildButton(const FText& Label, FOnClicked OnClicked);
+	/** A black line across the plate: the separator of the rows. */
+	static TSharedRef<SWidget> MakeRule();
+	TSharedRef<SWidget> BuildStatRow(const FText& Label, TFunction<FText()> Value);
+	/** A button of the screen; the label of the primary one is yellow. */
+	TSharedRef<SWidget> BuildButton(const FText& Label, FOnClicked OnClicked, bool bPrimary);
 
 	FSimpleDelegate OnNewGame;
 	FSimpleDelegate OnQuit;
 
 	FDIAWinModel Model;
-	FSlateRoundedBoxBrush PanelBrush{FLinearColor::White, AsphaltHud::PanelCornerRadius};
-	FSlateRoundedBoxBrush RowBrush{FLinearColor::White, AsphaltHud::RowCornerRadius};
 	FButtonStyle ButtonStyle;
 };

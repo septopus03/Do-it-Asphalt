@@ -33,4 +33,19 @@ namespace AsphaltHud
 			.SetNormalPadding(FMargin(0.f))
 			.SetPressedPadding(FMargin(0.f));
 	}
+
+	/** The slider of the settings: a black bar and a black handle. */
+	inline FSliderStyle MakeSliderStyle()
+	{
+		const FSlateRoundedBoxBrush Bar(SignBlack, SliderBarThickness * 0.5f);
+		const FSlateRoundedBoxBrush Thumb(SignBlack, 4.f, FVector2f(SliderThumbWidth, SliderThumbHeight));
+		return FSliderStyle()
+			.SetNormalBarImage(Bar)
+			.SetHoveredBarImage(Bar)
+			.SetDisabledBarImage(Bar)
+			.SetNormalThumbImage(Thumb)
+			.SetHoveredThumbImage(Thumb)
+			.SetDisabledThumbImage(Thumb)
+			.SetBarThickness(SliderBarThickness);
+	}
 }

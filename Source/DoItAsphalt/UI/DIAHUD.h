@@ -63,6 +63,10 @@ public:
 	void TogglePause();
 	/** Closes the menu that is open without choosing anything (the dia.SkipMenu cheat for screenshots). */
 	void SkipMenu();
+#if !UE_BUILD_SHIPPING
+	/** The dia.Screen cheat: opens Pause, Settings, Question (the pause menu in that state) or Win, so that the screen can be photographed. False for another name. */
+	bool DebugShowScreen(const FString& Name);
+#endif
 	EDIAMenuMode GetMenuMode() const { return MenuMode; }
 	bool IsMenuOpen() const { return MenuMode != EDIAMenuMode::None; }
 

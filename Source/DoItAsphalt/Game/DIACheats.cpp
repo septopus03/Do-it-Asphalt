@@ -534,6 +534,21 @@ namespace DIACheats
 		}
 	}
 
+	void Screen(const TArray<FString>& Args, UWorld* World)
+	{
+		if (!Usage(Args.Num() == 1, TEXT("dia.Screen <Pause|Settings|Question|Win>")))
+		{
+			return;
+		}
+		if (ADIAHUD* Hud = GetHud(World))
+		{
+			if (!Hud->DebugShowScreen(Args[0]))
+			{
+				UE_LOG(LogDoItAsphalt, Warning, TEXT("dia.Screen <Pause|Settings|Question|Win>: unknown screen %s"), *Args[0]);
+			}
+		}
+	}
+
 	void CheckView(const TArray<FString>& Args, UWorld* World)
 	{
 		if (!Usage(Args.Num() == 1 && (Args[0] == TEXT("0") || Args[0] == TEXT("1")), TEXT("dia.CheckView <1|0>")))
@@ -728,6 +743,7 @@ namespace DIACheats
 	FAutoConsoleCommandWithWorldAndArgs CameraConsoleCommand(TEXT("dia.Camera"), TEXT("dia.Camera [distanceCm] [yawOffsetDeg] [pitchDeg]: no arguments toggle between the view from the eyes and the external view; otherwise the external view that far behind the player at that angle (0 = from the eyes)"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&CameraCommand));
 	FAutoConsoleCommandWithWorldAndArgs WorkViewConsoleCommand(TEXT("dia.WorkView"), TEXT("dia.WorkView <1|0>: holds the work view (zoomed, tilted down) or lets it go; screenshots use it"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&WorkView));
 	FAutoConsoleCommandWithWorldAndArgs ShopConsoleCommand(TEXT("dia.Shop"), TEXT("dia.Shop: opens or closes the shop; screenshots use it"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Shop));
+	FAutoConsoleCommandWithWorldAndArgs ScreenConsoleCommand(TEXT("dia.Screen"), TEXT("dia.Screen <Pause|Settings|Question|Win>: opens that screen of the menu or the win screen; screenshots use it"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Screen));
 	FAutoConsoleCommandWithWorldAndArgs CheckViewConsoleCommand(TEXT("dia.CheckView"), TEXT("dia.CheckView <1|0>: holds the check view (unfinished ground in orange, the way to the nearest unfinished cell) or lets it go; screenshots use it"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&CheckView));
 	FAutoConsoleCommandWithWorldAndArgs HandConsoleCommand(TEXT("dia.Hand"), TEXT("dia.Hand <Bowl|Scoop|Bucket>: takes the item into the hand (a scoop or bucket not owned yet is given)"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Hand));
 	FAutoConsoleCommandWithWorldAndArgs FillConsoleCommand(TEXT("dia.Fill"), TEXT("dia.Fill: fills the vessel in hand to its capacity"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Fill));

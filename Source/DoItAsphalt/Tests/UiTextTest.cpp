@@ -7,6 +7,7 @@
 #include "LotGame.h"
 #include "UI/DIAFormat.h"
 #include "UI/DIAHudText.h"
+#include "UI/DIAMenuModel.h"
 
 DIA_TEST(FUiPromptSplitTest, "DoItAsphalt.Game.Ui.Prompt.Split")
 
@@ -90,6 +91,29 @@ bool FUiNextLineTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("empty"), Strip(TEXT("")), FString(TEXT("")));
 	TestEqual(TEXT("nothing after the label"), Strip(TEXT("Next: ")), FString(TEXT("Next: ")));
 	TestEqual(TEXT("paver"), Strip(TEXT("Paver: sector 12 · 143 / 400")), FString(TEXT("sector 12 · 143 / 400")));
+	return true;
+}
+
+DIA_TEST(FMenuPrimaryButtonTest, "DoItAsphalt.Game.Menu.PrimaryButton")
+
+bool FMenuPrimaryButtonTest::RunTest(const FString& Parameters)
+{
+	FDIAMenuModel Model;
+	TestTrue(TEXT("closed"), Model.PrimaryButton() == EDIAMenuButton::None);
+	Model.Open(EDIAMenuMode::Main, true);
+	TestTrue(TEXT("main with a save"), Model.PrimaryButton() == EDIAMenuButton::Continue);
+	Model.Open(EDIAMenuMode::Main, false);
+	TestTrue(TEXT("main without a save"), Model.PrimaryButton() == EDIAMenuButton::NewGame);
+	Model.Open(EDIAMenuMode::Pause, false);
+	TestTrue(TEXT("pause"), Model.PrimaryButton() == EDIAMenuButton::Resume);
+	Model.Open(EDIAMenuMode::Pause, true);
+	Model.bConfirming = true;
+	TestTrue(TEXT("question"), Model.PrimaryButton() == EDIAMenuButton::Yes);
+	Model.Open(EDIAMenuMode::Pause, true);
+	Model.OpenSettings();
+	TestTrue(TEXT("settings"), Model.PrimaryButton() == EDIAMenuButton::None);
+	Model.CloseSettings();
+	TestTrue(TEXT("back from settings"), Model.PrimaryButton() == EDIAMenuButton::Resume);
 	return true;
 }
 

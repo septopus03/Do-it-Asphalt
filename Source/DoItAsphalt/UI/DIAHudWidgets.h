@@ -26,51 +26,6 @@ namespace AsphaltHud
 			.ShadowColorAndOpacity(ShadowColor);
 	}
 
-	/** A button of the given width with the bold button label: the one button builder of the win screen and the menu. */
-	inline TSharedRef<SBox> MakeMenuButton(const FText& Label, float Width, FOnClicked OnClicked, const FButtonStyle* ButtonStyle)
-	{
-		return SNew(SBox).WidthOverride(Width)
-			[
-				SNew(SButton)
-				.ButtonStyle(ButtonStyle)
-				.HAlign(HAlign_Center)
-				.VAlign(VAlign_Center)
-				.ContentPadding(FMargin(0.f, ScreenButtonPaddingV))
-				.OnClicked(OnClicked)
-				[
-					SNew(STextBlock)
-					.Text(Label)
-					.Font(FCoreStyle::GetDefaultFontStyle("Bold", MediumFontSize))
-					.ColorAndOpacity(ButtonTextColor)
-				]
-			];
-	}
-
-	/** A dimmed backdrop over the whole screen with the content on a rounded panel in the middle: the scaffold of the win screen and the menu. */
-	inline TSharedRef<SOverlay> MakeScreenPanel(const FSlateBrush* PanelBrush, float ContentWidth, const TSharedRef<SWidget>& Content)
-	{
-		return SNew(SOverlay)
-			+ SOverlay::Slot()
-			[
-				SNew(SBorder)
-				.BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
-				.BorderBackgroundColor(ScreenBackdropColor)
-			]
-			+ SOverlay::Slot().HAlign(HAlign_Center).VAlign(VAlign_Center)
-			[
-				SNew(SBorder)
-				.BorderImage(PanelBrush)
-				.BorderBackgroundColor(ShopPanelColor)
-				.Padding(ScreenPanelPadding)
-				[
-					SNew(SBox).WidthOverride(ContentWidth)
-					[
-						Content
-					]
-				]
-			];
-	}
-
 	/** The colour with its alpha multiplied by Alpha (clamped to 0..1). */
 	inline FLinearColor Faded(const FLinearColor& Color, float Alpha)
 	{
@@ -119,5 +74,43 @@ namespace AsphaltHud
 			.Font(Font(Weight, Size))
 			.ColorAndOpacity(Color)
 			.TransformPolicy(ETextTransformPolicy::ToUpper);
+	}
+
+	/** A black sign button of the given width: the one button builder of the menu and the win screen. The label is yellow while bPrimary says so, otherwise white. */
+	inline TSharedRef<SBox> MakeMenuButton(const FText& Label, float Width, FOnClicked OnClicked, const FButtonStyle* ButtonStyle, TAttribute<bool> bPrimary = false)
+	{
+		const TAttribute<FSlateColor> LabelColor = TAttribute<FSlateColor>::CreateLambda([bPrimary]() { return FSlateColor(bPrimary.Get() ? SignYellow : SignWhite); });
+		return SNew(SBox).WidthOverride(Width).HeightOverride(MenuButtonHeight)
+			[
+				SNew(SButton)
+				.ButtonStyle(ButtonStyle)
+				.HAlign(HAlign_Center)
+				.VAlign(VAlign_Center)
+				.ContentPadding(FMargin(0.f))
+				.OnClicked(OnClicked)
+				[
+					MakeText(Label, EDIAFontWeight::ExtraBold, MenuButtonFont, LabelColor)
+				]
+			];
+	}
+
+	/** A dimmed backdrop over the whole screen with the content on a yellow sign plate (ring 4) in the middle: the scaffold of the win screen and the menu. */
+	inline TSharedRef<SOverlay> MakeScreenPanel(float ContentWidth, const TSharedRef<SWidget>& Content)
+	{
+		return SNew(SOverlay)
+			+ SOverlay::Slot()
+			[
+				SNew(SBorder)
+				.BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
+				.BorderBackgroundColor(ScreenBackdropColor)
+			]
+			+ SOverlay::Slot().HAlign(HAlign_Center).VAlign(VAlign_Center)
+			[
+				MakePlate(SignYellow, SignBlack, FMargin(ScreenPlatePadH, ScreenPlatePadTop, ScreenPlatePadH, ScreenPlatePadBottom),
+					SNew(SBox).WidthOverride(ContentWidth)
+					[
+						Content
+					], ScreenRingWidth)
+			];
 	}
 }

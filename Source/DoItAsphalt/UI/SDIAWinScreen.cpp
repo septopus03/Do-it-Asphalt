@@ -5,9 +5,11 @@
 #include "UI/DIAButtonStyle.h"
 #include "UI/DIAHudStyle.h"
 #include "UI/DIAHudWidgets.h"
+#include "UI/SDIAHazardStripes.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
+#include "Widgets/Layout/SScaleBox.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SOverlay.h"
 #include "Widgets/Text/STextBlock.h"
@@ -16,51 +18,70 @@ void SDIAWinScreen::Construct(const FArguments& InArgs)
 {
 	OnNewGame = InArgs._OnNewGame;
 	OnQuit = InArgs._OnQuit;
-	ButtonStyle = AsphaltHud::MakeButtonStyle();
+	ButtonStyle = AsphaltHud::MakeSignButtonStyle();
 
 	// Hidden until Show; once shown, the whole screen takes the mouse, so that nothing behind it can be clicked.
 	SetVisibility(EVisibility::Collapsed);
 	const TSharedRef<SWidget> Content =
 		SNew(SVerticalBox)
-		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0.f, 0.f, 0.f, AsphaltHud::WinTitleSpacing)
+		+ SVerticalBox::Slot().AutoHeight()
 		[
-			AsphaltHud::MakeShadowedText(NSLOCTEXT("DIAHud", "WinTitle", "Parking lot complete!"), AsphaltHud::BigFontSize, AsphaltHud::ScreenTitleColor)
+			SNew(SDIAHazardStripes)
+			.Band(AsphaltHud::WinStripeBand)
+			.Height(AsphaltHud::WinStripeHeight)
+			.StripeColor(AsphaltHud::SignBlack)
+			.GroundColor(AsphaltHud::SignYellow)
 		]
-		+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 0.f, 0.f, AsphaltHud::WinRowSpacing)
+		// The title shrinks to fit when it is wider than the plate (at 48 it is).
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.f, AsphaltHud::WinTitleGapTop, 0.f, AsphaltHud::WinTitleGapBottom)
 		[
-			BuildStatRow(NSLOCTEXT("DIAHud", "WinTime", "Time"), [this]() { return Model.GetView().Time; }, AsphaltHud::TextColor)
+			SNew(SScaleBox)
+			.Stretch(EStretch::ScaleToFit)
+			.StretchDirection(EStretchDirection::DownOnly)
+			.HAlign(HAlign_Center)
+			[
+				AsphaltHud::MakeText(NSLOCTEXT("DIAHud", "WinTitle", "Parking lot complete!"), EDIAFontWeight::ExtraBold, AsphaltHud::WinTitleFont, AsphaltHud::SignBlack)
+			]
 		]
-		+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 0.f, 0.f, AsphaltHud::WinRowSpacing)
+		+ SVerticalBox::Slot().AutoHeight()
 		[
-			BuildStatRow(NSLOCTEXT("DIAHud", "WinCells", "Cells paved"), [this]() { return Model.GetView().Cells; }, AsphaltHud::TextColor)
+			BuildStatRow(NSLOCTEXT("DIAHud", "WinTime", "Time"), [this]() { return Model.GetView().Time; })
 		]
-		+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 0.f, 0.f, AsphaltHud::WinRowSpacing)
+		+ SVerticalBox::Slot().AutoHeight()
 		[
-			BuildStatRow(NSLOCTEXT("DIAHud", "WinPoured", "Asphalt poured"), [this]() { return Model.GetView().Poured; }, AsphaltHud::TextColor)
+			BuildStatRow(NSLOCTEXT("DIAHud", "WinCells", "Cells paved"), [this]() { return Model.GetView().Cells; })
 		]
-		+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 0.f, 0.f, AsphaltHud::WinRowSpacing)
+		+ SVerticalBox::Slot().AutoHeight()
 		[
-			BuildStatRow(NSLOCTEXT("DIAHud", "WinCredits", "Credits earned"), [this]() { return Model.GetView().Credits; }, AsphaltHud::CreditsColor)
+			BuildStatRow(NSLOCTEXT("DIAHud", "WinPoured", "Asphalt poured"), [this]() { return Model.GetView().Poured; })
 		]
-		+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 0.f, 0.f, AsphaltHud::WinTitleSpacing)
+		+ SVerticalBox::Slot().AutoHeight()
 		[
-			BuildStatRow(NSLOCTEXT("DIAHud", "WinItems", "Items bought"), [this]() { return Model.GetView().Items; }, AsphaltHud::TextColor)
+			BuildStatRow(NSLOCTEXT("DIAHud", "WinCredits", "Credits earned"), [this]() { return Model.GetView().Credits; })
 		]
-		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center)
+		+ SVerticalBox::Slot().AutoHeight()
+		[
+			BuildStatRow(NSLOCTEXT("DIAHud", "WinItems", "Items bought"), [this]() { return Model.GetView().Items; })
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.f, AsphaltHud::WinButtonsGapTop, 0.f, 0.f)
+		[
+			MakeRule()
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.f, AsphaltHud::WinButtonsPadTop, 0.f, 0.f)
 		[
 			SNew(SHorizontalBox)
-			+ SHorizontalBox::Slot().AutoWidth().Padding(0.f, 0.f, AsphaltHud::WinButtonsSpacing, 0.f)
+			+ SHorizontalBox::Slot().AutoWidth().Padding(0.f, 0.f, AsphaltHud::MenuGap, 0.f)
 			[
-				BuildButton(NSLOCTEXT("DIAHud", "WinNewGame", "New Game"), FOnClicked::CreateSP(this, &SDIAWinScreen::HandleNewGame))
+				BuildButton(NSLOCTEXT("DIAHud", "WinNewGame", "New Game"), FOnClicked::CreateSP(this, &SDIAWinScreen::HandleNewGame), true)
 			]
 			+ SHorizontalBox::Slot().AutoWidth()
 			[
-				BuildButton(NSLOCTEXT("DIAHud", "WinQuit", "Quit"), FOnClicked::CreateSP(this, &SDIAWinScreen::HandleQuit))
+				BuildButton(NSLOCTEXT("DIAHud", "WinQuit", "Quit"), FOnClicked::CreateSP(this, &SDIAWinScreen::HandleQuit), false)
 			]
 		];
 	ChildSlot
 	[
-		AsphaltHud::MakeScreenPanel(&PanelBrush, AsphaltHud::WinPanelWidth, Content)
+		AsphaltHud::MakeScreenPanel(AsphaltHud::WinContentWidth, Content)
 	];
 }
 
@@ -87,29 +108,38 @@ FReply SDIAWinScreen::HandleQuit()
 	return FReply::Handled();
 }
 
-TSharedRef<SWidget> SDIAWinScreen::BuildStatRow(const FText& Label, TFunction<FText()> Value, const FLinearColor& ValueColor)
+TSharedRef<SWidget> SDIAWinScreen::MakeRule()
 {
-	return SNew(SBorder)
-		.BorderImage(&RowBrush)
-		.BorderBackgroundColor(AsphaltHud::ShopRowColor)
-		.Padding(AsphaltHud::PanelPaddingH, AsphaltHud::PanelPaddingV)
+	return SNew(SBox).HeightOverride(AsphaltHud::WinRowLine)
+		[
+			SNew(SBorder)
+			.BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
+			.BorderBackgroundColor(AsphaltHud::SignBlack)
+		];
+}
+
+TSharedRef<SWidget> SDIAWinScreen::BuildStatRow(const FText& Label, TFunction<FText()> Value)
+{
+	return SNew(SVerticalBox)
+		+ SVerticalBox::Slot().AutoHeight()
+		[
+			MakeRule()
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.f, AsphaltHud::WinRowPadV)
 		[
 			SNew(SHorizontalBox)
-			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
+			+ SHorizontalBox::Slot().FillWidth(1.f).VAlign(VAlign_Bottom)
 			[
-				SNew(SBox).WidthOverride(AsphaltHud::WinLabelWidth)
-				[
-					AsphaltHud::MakeShadowedText(Label, AsphaltHud::MediumFontSize, AsphaltHud::CaptionColor)
-				]
+				AsphaltHud::MakeText(Label, EDIAFontWeight::Bold, AsphaltHud::WinLabelFont, AsphaltHud::SignBlack)
 			]
-			+ SHorizontalBox::Slot().FillWidth(1.f).HAlign(HAlign_Right).VAlign(VAlign_Center)
+			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Bottom)
 			[
-				AsphaltHud::MakeShadowedText(TAttribute<FText>::CreateLambda(MoveTemp(Value)), AsphaltHud::MediumFontSize, ValueColor)
+				AsphaltHud::MakeText(TAttribute<FText>::CreateLambda(MoveTemp(Value)), EDIAFontWeight::ExtraBold, AsphaltHud::WinValueFont, AsphaltHud::SignBlack)
 			]
 		];
 }
 
-TSharedRef<SWidget> SDIAWinScreen::BuildButton(const FText& Label, FOnClicked OnClicked)
+TSharedRef<SWidget> SDIAWinScreen::BuildButton(const FText& Label, FOnClicked OnClicked, bool bPrimary)
 {
-	return AsphaltHud::MakeMenuButton(Label, AsphaltHud::WinButtonWidth, OnClicked, &ButtonStyle);
+	return AsphaltHud::MakeMenuButton(Label, AsphaltHud::WinButtonWidth, OnClicked, &ButtonStyle, bPrimary);
 }

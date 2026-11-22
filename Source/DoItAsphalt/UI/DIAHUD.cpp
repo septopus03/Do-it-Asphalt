@@ -229,6 +229,29 @@ void ADIAHUD::TogglePause()
 	}
 }
 
+#if !UE_BUILD_SHIPPING
+bool ADIAHUD::DebugShowScreen(const FString& Name)
+{
+	if (Name.Equals(TEXT("Win"), ESearchCase::IgnoreCase))
+	{
+		ShowWinScreen();
+		return true;
+	}
+	const bool bSettings = Name.Equals(TEXT("Settings"), ESearchCase::IgnoreCase);
+	const bool bQuestion = Name.Equals(TEXT("Question"), ESearchCase::IgnoreCase);
+	if (!bSettings && !bQuestion && !Name.Equals(TEXT("Pause"), ESearchCase::IgnoreCase))
+	{
+		return false;
+	}
+	OpenMenu(EDIAMenuMode::Pause);
+	if (Menu.IsValid())
+	{
+		Menu->DebugSetState(bSettings, bQuestion);
+	}
+	return true;
+}
+#endif
+
 void ADIAHUD::SkipMenu()
 {
 	CloseMenu();
