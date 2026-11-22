@@ -25,6 +25,11 @@ TArray<float> AsphaltHud::HazardStripeStarts(float Width, float Height, float Ba
 	return Starts;
 }
 
+float AsphaltHud::HazardStripeThickness(float Band, float Scale)
+{
+	return Scale > 0.f ? Band * UE_INV_SQRT_2 * Scale : 0.f;
+}
+
 void SDIAHazardStripes::Construct(const FArguments& InArgs)
 {
 	Band = InArgs._Band;
@@ -53,7 +58,8 @@ int32 SDIAHazardStripes::OnPaint(const FPaintArgs& Args, const FGeometry& Allott
 	// that its square end caps fall outside the widget, where the clip to bounds removes them: the parallelogram's horizontal
 	// edges come from the clip.
 	const TArray<float> Starts = AsphaltHud::HazardStripeStarts(Size.X, Size.Y, Band);
-	const float Thickness = Band * UE_INV_SQRT_2;
+	// MakeLines takes the thickness in screen pixels, while the points and Band are local units.
+	const float Thickness = AsphaltHud::HazardStripeThickness(Band, AllottedGeometry.GetAccumulatedLayoutTransform().GetScale());
 	const float Overshoot = Band;
 	const float Reach = Overshoot * UE_INV_SQRT_2;
 	for (const float X : Starts)

@@ -121,4 +121,16 @@ bool FUiStripesDegenerateTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+DIA_TEST(FUiStripesThicknessTest, "DoItAsphalt.Game.Ui.Stripes.ThicknessFollowsScale")
+
+bool FUiStripesThicknessTest::RunTest(const FString& Parameters)
+{
+	const float One = AsphaltHud::HazardStripeThickness(12.f, 1.f);
+	TestEqual(TEXT("scale 1"), One, 12.f / FMath::Sqrt(2.f), 0.001f);
+	TestEqual(TEXT("scale 2 doubles it"), AsphaltHud::HazardStripeThickness(12.f, 2.f), 2.f * One, 0.001f);
+	TestEqual(TEXT("zero scale"), AsphaltHud::HazardStripeThickness(12.f, 0.f), 0.f);
+	TestEqual(TEXT("negative scale"), AsphaltHud::HazardStripeThickness(12.f, -1.f), 0.f);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

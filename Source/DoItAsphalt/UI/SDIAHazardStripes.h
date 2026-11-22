@@ -14,6 +14,9 @@ namespace AsphaltHud
 	 * list ends before Width; at most 4096 stripes. Empty when Width, Height or Band is not positive.
 	 */
 	DOITASPHALT_API TArray<float> HazardStripeStarts(float Width, float Height, float Band);
+
+	/** The screen-pixel thickness of a stripe line whose horizontal width is Band local units at the given layout scale; 0 for a non-positive scale. */
+	DOITASPHALT_API float HazardStripeThickness(float Band, float Scale);
 }
 
 /** A band of diagonal stripes on a ground colour, clipped to its own rectangle: the hazard-sign edge of the plates. */
