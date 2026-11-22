@@ -375,7 +375,7 @@ TSharedRef<SWidget> SDIAHudOverlay::BuildCheckView()
 						// The arrow: "→" turned so that straight up on the screen is straight ahead.
 						SNew(STextBlock)
 						.Text(NSLOCTEXT("DIAHud", "CheckArrow", "→"))
-						.Font(FCoreStyle::GetDefaultFontStyle("Bold", AsphaltHud::CheckArrowFontSize))
+						.Font(AsphaltHud::Font(EDIAFontWeight::Bold, AsphaltHud::CheckArrowFontSize))
 						.ColorAndOpacity(AsphaltHud::SignBlack)
 						.RenderTransformPivot(FVector2D(0.5, 0.5))
 						.RenderTransform_Lambda([WeakHud, View, DiamondTurn]()

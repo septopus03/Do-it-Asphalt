@@ -42,12 +42,6 @@ namespace
 		return Looks[FMath::Clamp(static_cast<int32>(State), 0, 3)];
 	}
 
-	/** What a card says it gives. The typeface has no arrow, so "2,000 → 4,200 l/min" reads "2,000 to 4,200 l/min". */
-	FText ValueText(const FText& Value)
-	{
-		return FText::FromString(Value.ToString().Replace(TEXT("→"), TEXT("to")));
-	}
-
 	/** The tick in front of OWNED, drawn as two lines (the font has no such glyph). */
 	class SDIAShopTick : public SLeafWidget
 	{
@@ -291,7 +285,7 @@ TSharedRef<SWidget> SDIAShopPanel::BuildCard(int32 Row)
 			+ SVerticalBox::Slot().AutoHeight()
 			[
 				SNew(STextBlock)
-				.Text_Lambda([this, Index]() { return ValueText(Model.GetRow(Index).Value); })
+				.Text_Lambda([this, Index]() { return Model.GetRow(Index).Value; })
 				.Font(AsphaltHud::Font(EDIAFontWeight::SemiBold, AsphaltHud::ShopValueTextFont))
 				.ColorAndOpacity_Lambda([Look]() { return FSlateColor(Look().Text); })
 				.AutoWrapText(true)

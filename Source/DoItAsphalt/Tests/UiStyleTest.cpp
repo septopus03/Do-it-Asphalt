@@ -185,4 +185,28 @@ bool FUiShopLookTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+DIA_TEST(FUiFontFallbackGlyphsTest, "DoItAsphalt.Game.Ui.Font.Fallback")
+
+bool FUiFontFallbackGlyphsTest::RunTest(const FString& Parameters)
+{
+	for (const EDIAFontWeight Weight : {EDIAFontWeight::SemiBold, EDIAFontWeight::Bold, EDIAFontWeight::ExtraBold})
+	{
+		const FSlateFontInfo F = AsphaltHud::Font(Weight, 20);
+		if (!TestTrue(TEXT("the composite font exists"), F.CompositeFont.IsValid()))
+		{
+			continue;
+		}
+		if (!TestEqual(TEXT("one sub-typeface"), F.CompositeFont->SubTypefaces.Num(), 1))
+		{
+			continue;
+		}
+		const TArray<FTypefaceEntry>& Symbols = F.CompositeFont->SubTypefaces[0].Typeface.Fonts;
+		if (TestEqual(TEXT("one symbol font"), Symbols.Num(), 1))
+		{
+			TestTrue(TEXT("the symbol font is DroidSansFallback"), Symbols[0].Font.GetFontFilename().EndsWith(TEXT("DroidSansFallback.ttf")));
+		}
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
