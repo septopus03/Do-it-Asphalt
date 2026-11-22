@@ -88,7 +88,7 @@ namespace AsphaltHud
 	inline constexpr float ScreenMargin = 28.f;
 	inline constexpr float PanelPaddingH = 18.f;
 	inline constexpr float PanelPaddingV = 10.f;
-	inline constexpr float BarHeight = 12.f;
+	inline constexpr float BarHeight = 18.f;
 	inline constexpr float ProgressBarWidth = 440.f;
 	/** Distance from the bottom edge of the screen to the lowest widget. */
 	inline constexpr float BottomMargin = 26.f;
