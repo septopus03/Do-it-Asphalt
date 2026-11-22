@@ -219,12 +219,12 @@ DIA_TEST(FUiShopLookTest, "DoItAsphalt.Game.Ui.Shop.Look")
 - [ ] **Step 2: Over, že padá**, implementuj `ShopLook`, over `Scripts/test.sh DoItAsphalt.Game.Ui` → `FAILED 0`.
 - [ ] **Step 3: Prestav `SDIAShopPanel`** podľa specu, časť 6 „Obchod", a `B-Shop.html`. Rozhodnutia:
   - Panel čierny, polomer 8, šírka obsahu 1300; šrafovaný pás 20 hore cez celú šírku panela; žiadne stmavenie okolo, koreň ostáva `SelfHitTestInvisible`.
-  - Karta = `MakePlate` s farbami z `ShopLook(State)` čítanými cez lambdy; výška 172, medzera 12, 4 stĺpce.
+  - Karta = `MakePlate` s farbami z `ShopLook(State)` čítanými cez lambdy; výška 172, medzera 12, 4 stĺpce (11 kariet: v poslednom riadku sú tri, zarovnané vľavo).
   - Tlačidlo BUY: štýl `MakeSignButtonStyle()` (Task 2), text `SignYellow`, vo vypnutom stave `SignDimText`. Ostáva `SDIAShopButton`, `IsFocusable(false)`, `OnPressed` / `OnClicked` bez zmeny.
   - „OWNED": text `SignWhite` (ExtraBold) a pred ním fajka ako text „✓"; ak ju písmo nemá, nakresli ju dvoma čiarami.
   - Miestne funkcie `ButtonLabel`, `PriceColor`, `OutlineColor`, `IconColor` v `SDIAShopPanel.cpp` sa mažú, nahrádza ich `ShopLook`.
 - [ ] **Step 4: Over.** `Scripts/build.sh && Scripts/test.sh` → `FAILED 0` (vrátane `DoItAsphalt.Game.Shop.*`).
-- [ ] **Step 5: Snímka všetkých štyroch stavov.** `Scripts/shot.sh shop_b "dia.Give 9450; dia.Item Scoop; dia.Item Bucket; dia.Item Suitcase; dia.Item Cart; dia.CompleteEntry 2; dia.CompleteEntry 3; dia.CompleteEntry 4; dia.Complete 6000; dia.Item Station; dia.Item Finisher; dia.Item AutoPaver; dia.Plant 3; dia.Shop"`. Na snímke musia byť: žlté karty (Plant, Fast Auto Paver), sivá karta s červenkastou cenou (Paver Car), tmavé zamknuté karty s dôvodom žltou (Faster Auto Paver, Wide Bar) a čierne karty „OWNED". Ak cheaty stav netrafia, uprav ich a zapíš použitý príkaz do správy.
+- [ ] **Step 5: Snímka všetkých štyroch stavov.** `Scripts/shot.sh shop_b "dia.Give 9450; dia.Item Scoop; dia.Item Bucket; dia.Item Suitcase; dia.Item Cart; dia.CompleteEntry 2; dia.CompleteEntry 3; dia.CompleteEntry 4; dia.Complete 6000; dia.Item Station; dia.Item AutoPaver; dia.Plant 3; dia.Shop"`. Na snímke musia byť: žlté karty (Plant, Fast Auto Paver), sivá karta s červenkastou cenou (Paver Car), tmavé zamknuté karty s dôvodom žltou (Faster Auto Paver, Wide Bar) a čierne karty „OWNED". Ak cheaty stav netrafia, uprav ich a zapíš použitý príkaz do správy.
 - [ ] **Step 6: Dlhé texty.** Na tej istej snímke: „FASTER AUTO PAVER" a „needs Fast Auto Paver" sú celé vnútri karty, nič neprekrýva cenu ani tlačidlo.
 - [ ] **Step 7: Commit** `feat(ui): shop as sign plates`.
 

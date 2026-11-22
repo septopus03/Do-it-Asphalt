@@ -83,7 +83,7 @@ Presné rozmery a veľkosti sú v predlohe; tu je, čo je kde a čo sa oproti dn
 **Obchod** (`SDIAShopPanel`), šírka 1300
 
 - Čierny panel (polomer 8), hore šrafovaný pás; nadpis „SHOP" žltou (ExtraBold 57), podnadpis bielou, vpravo žltá tabuľa s kreditmi.
-- Mriežka 4 × 3, karta vysoká 172, medzera 12. Okolo panela sa obraz nestmavuje a hra ostáva klikateľná ako dnes (stmavenie v predlohe je len kvôli obrázku).
+- Mriežka so 4 stĺpcami, karta vysoká 172, medzera 12. Kariet je 11 (výrobňa a desať položiek; finišer bol z hry odstránený 2026-11-22, predloha `B-Shop.html` ho ešte ukazuje), v poslednom riadku sú tri, zarovnané vľavo. Okolo panela sa obraz nestmavuje a hra ostáva klikateľná ako dnes (stmavenie v predlohe je len kvôli obrázku).
 - Karta je tabuľa podľa stavu:
 
 | Stav | Tabuľa | Linka | Dlaždica (kruh 46) | Cena | Vpravo dole |
