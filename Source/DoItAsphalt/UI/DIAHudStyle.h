@@ -128,12 +128,12 @@ namespace AsphaltHud
 	inline constexpr int32 ShopValueFontSize = 17;
 	inline constexpr int32 ShopColumns = 4;
 	inline constexpr float ShopCardWidth = 252.f;
-	inline constexpr float ShopCardHeight = 152.f;
-	inline constexpr float ShopCardGap = 6.f;
+	inline constexpr float ShopCardHeight = 172.f;
+	inline constexpr float ShopCardGap = 12.f;
 	inline constexpr float ShopCardPadding = 12.f;
 	inline constexpr float ShopCardBorder = 2.f;
 	inline constexpr float ShopIconSize = 46.f;
-	inline constexpr float ShopButtonWidth = 96.f;
+	inline constexpr float ShopButtonWidth = 108.f;
 	inline constexpr float ShopPadding = 28.f;
 	/** The shop's surfaces: the card, and the outline of a card in each of its states. */
 	inline const FLinearColor ShopCardColor{0.10f, 0.12f, 0.16f, 1.f};
@@ -200,4 +200,37 @@ namespace AsphaltHud
 	inline constexpr float PromptLineGap = 8.f;
 	/** The key square in a hotbar slot. */
 	inline constexpr float HotbarKeySize = 26.f;
+
+	// The signage shop (CSS pixels of the mockup are Slate units; font sizes are CSS px x 0.75).
+	/** The panel: its width, its corner radius, and the height and band of the stripes along its top edge. */
+	inline constexpr float ShopPanelWidth = 1300.f;
+	inline constexpr float ShopPanelRadius = 8.f;
+	inline constexpr float ShopStripeHeight = 20.f;
+	inline constexpr float ShopStripeBand = 16.f;
+	/** The panel's padding (top, sides, bottom) and the gap between its header, grid and hint. */
+	inline constexpr float ShopContentTop = 22.f;
+	inline constexpr float ShopContentSide = 36.f;
+	inline constexpr float ShopContentBottom = 26.f;
+	inline constexpr float ShopSectionGap = 22.f;
+	/** A card: the padding of its content (CSS, measured from inside the border), the gap between the tile and the text, the button height. */
+	inline constexpr float ShopCardPaddingH = 18.f;
+	inline constexpr float ShopCardPaddingV = 16.f;
+	inline constexpr float ShopTileGap = 12.f;
+	inline constexpr float ShopButtonHeight = 48.f;
+	/** The tick in front of OWNED: the side of its box (the tick itself is drawn in a 24-unit square) and its line width. */
+	inline constexpr float ShopTickSize = 26.f;
+	inline constexpr float ShopTickLine = 4.f;
+	/** Font sizes of the shop. */
+	inline constexpr int32 ShopTitleFont = 57;
+	inline constexpr int32 ShopSubtitleFont = 17;
+	inline constexpr int32 ShopCreditsFont = 44;
+	inline constexpr int32 ShopCreditsCaptionFont = 17;
+	inline constexpr int32 ShopNameFont = 22;
+	inline constexpr int32 ShopValueTextFont = 16;
+	inline constexpr int32 ShopTileFont = 21;
+	inline constexpr int32 ShopPriceFont = 26;
+	inline constexpr int32 ShopBuyFont = 20;
+	inline constexpr int32 ShopOffButtonFont = 17;
+	inline constexpr int32 ShopOwnedFont = 21;
+	inline constexpr int32 ShopHintFont = 17;
 }

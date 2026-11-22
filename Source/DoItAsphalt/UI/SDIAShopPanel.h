@@ -29,8 +29,9 @@ public:
 };
 
 /**
- * The shop: a grid of cards for the plant and the ten items. A card has a coloured tile, the name, what it gives, the price and
- * a button (Buy, Locked with the reason); an item that is owned stays where it is and shows an OWNED badge instead of the button.
+ * The shop: a black panel with a hazard-striped top edge and a grid of sign plates for the plant and the ten items. A card is a
+ * plate in the colours of its state (AsphaltHud::ShopLook) with a round tile, the name, what it gives, the price and a button
+ * (Buy, Locked with the reason); an item that is owned stays where it is and shows OWNED with a tick instead of the button.
  * The widget tree is built once; the texts and the buttons' state are read from
  * FDIAShopModel through attribute lambdas, and the model is refreshed on OnStateChanged but only changes when a shown value
  * changed. The panel is shown and hidden by the HUD (Visible / Collapsed); only the panel itself takes the mouse, the game
@@ -67,9 +68,8 @@ private:
 	FDIAShopModel Model;
 	/** What the button that is held down would buy, named by item (or plant level), not by row: the rows move when something is bought. */
 	FDIAShopTarget Pressed;
-	FSlateRoundedBoxBrush PanelBrush{FLinearColor::White, AsphaltHud::PanelCornerRadius};
-	FSlateRoundedBoxBrush CardBrush{FLinearColor::White, AsphaltHud::RowCornerRadius};
-	FSlateRoundedBoxBrush IconBrush{FLinearColor::White, AsphaltHud::RowCornerRadius};
-	FSlateRoundedBoxBrush BadgeBrush{FLinearColor::White, AsphaltHud::ButtonCornerRadius};
+	FSlateRoundedBoxBrush PanelBrush{FLinearColor::White, AsphaltHud::ShopPanelRadius};
+	/** The round tile in front of a card's name. */
+	FSlateRoundedBoxBrush TileBrush{FLinearColor::White, AsphaltHud::ShopIconSize / 2.f};
 	FButtonStyle ButtonStyle;
 };

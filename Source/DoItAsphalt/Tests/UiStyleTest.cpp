@@ -8,6 +8,7 @@
 #include "UI/DIAHudFont.h"
 #include "UI/DIAHudStyle.h"
 #include "UI/DIAHudWidgets.h"
+#include "UI/DIAShopLook.h"
 #include "UI/SDIAHazardStripes.h"
 
 DIA_TEST(FUiFontFilesTest, "DoItAsphalt.Game.Ui.Font.FilesExist")
@@ -130,6 +131,57 @@ bool FUiStripesThicknessTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("scale 2 doubles it"), AsphaltHud::HazardStripeThickness(12.f, 2.f), 2.f * One, 0.001f);
 	TestEqual(TEXT("zero scale"), AsphaltHud::HazardStripeThickness(12.f, 0.f), 0.f);
 	TestEqual(TEXT("negative scale"), AsphaltHud::HazardStripeThickness(12.f, -1.f), 0.f);
+	return true;
+}
+
+DIA_TEST(FUiShopLookTest, "DoItAsphalt.Game.Ui.Shop.Look")
+
+bool FUiShopLookTest::RunTest(const FString& Parameters)
+{
+	using namespace AsphaltHud;
+	const FDIAShopLook Buy = ShopLook(EDIAShopState::Buy);
+	const FDIAShopLook NoCredits = ShopLook(EDIAShopState::NoCredits);
+	const FDIAShopLook Locked = ShopLook(EDIAShopState::Locked);
+	const FDIAShopLook Owned = ShopLook(EDIAShopState::Owned);
+
+	TestEqual(TEXT("buy plate"), Buy.Plate, SignYellow);
+	TestEqual(TEXT("buy ring"), Buy.Ring, SignBlack);
+	TestTrue(TEXT("buy shows a button"), Buy.bShowsButton);
+	TestTrue(TEXT("buy button is enabled"), Buy.bButtonEnabled);
+	TestEqual(TEXT("buy label"), Buy.ButtonLabel.ToString(), FString(TEXT("BUY")));
+
+	TestEqual(TEXT("no credits plate"), NoCredits.Plate, SignCardLack);
+	TestEqual(TEXT("no credits price"), NoCredits.Price, SignLackPrice);
+	TestTrue(TEXT("no credits shows a button"), NoCredits.bShowsButton);
+	TestFalse(TEXT("no credits button is disabled"), NoCredits.bButtonEnabled);
+	TestEqual(TEXT("no credits label"), NoCredits.ButtonLabel.ToString(), FString(TEXT("BUY")));
+
+	TestEqual(TEXT("locked plate"), Locked.Plate, SignCardLocked);
+	TestTrue(TEXT("locked shows a button"), Locked.bShowsButton);
+	TestFalse(TEXT("locked button is disabled"), Locked.bButtonEnabled);
+	TestEqual(TEXT("locked label"), Locked.ButtonLabel.ToString(), FString(TEXT("LOCKED")));
+
+	TestEqual(TEXT("owned plate"), Owned.Plate, SignBlack);
+	TestEqual(TEXT("owned ring"), Owned.Ring, SignWhite);
+	TestFalse(TEXT("owned shows no button"), Owned.bShowsButton);
+	TestTrue(TEXT("owned has no label"), Owned.ButtonLabel.IsEmpty());
+
+	const FDIAShopLook Looks[] = {Buy, NoCredits, Locked, Owned};
+	for (int32 A = 0; A < 4; ++A)
+	{
+		for (int32 B = A + 1; B < 4; ++B)
+		{
+			TestNotEqual(*FString::Printf(TEXT("plates %d and %d differ"), A, B), Looks[A].Plate, Looks[B].Plate);
+		}
+	}
+	for (int32 I = 0; I < 4; ++I)
+	{
+		const FDIAShopLook& L = Looks[I];
+		TestTrue(*FString::Printf(TEXT("text on plate %d"), I), ContrastRatio(Over(L.Text, L.Plate), L.Plate) >= 4.5f);
+		TestTrue(*FString::Printf(TEXT("price on plate %d"), I), ContrastRatio(Over(L.Price, L.Plate), L.Plate) >= 4.5f);
+		const FLinearColor Tile = Over(L.TileFill, L.Plate);
+		TestTrue(*FString::Printf(TEXT("tile letter on tile %d"), I), ContrastRatio(Over(L.TileText, Tile), Tile) >= 4.5f);
+	}
 	return true;
 }
 
