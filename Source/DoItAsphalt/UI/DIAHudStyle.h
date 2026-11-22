@@ -25,24 +25,7 @@ namespace AsphaltHud
 	inline constexpr int32 MenuZOrder = 13;
 
 	// Colours.
-	inline const FLinearColor TextColor{0.97f, 0.97f, 0.97f, 1.f};
-	inline const FLinearColor CaptionColor{0.78f, 0.80f, 0.84f, 1.f};
-	inline const FLinearColor ShadowColor{0.f, 0.f, 0.f, 0.85f};
-	inline const FLinearColor PanelColor{0.04f, 0.05f, 0.07f, 0.62f};
-	inline const FLinearColor CreditsColor{1.f, 0.86f, 0.30f, 1.f};
-	inline const FLinearColor ProgressColor{0.55f, 0.88f, 0.45f, 1.f};
-	inline const FLinearColor BarTrackColor{1.f, 1.f, 1.f, 0.16f};
-	inline const FLinearColor PromptColor{1.f, 0.93f, 0.55f, 1.f};
-	inline const FLinearColor ShopPanelColor{0.04f, 0.05f, 0.07f, 0.94f};
-	inline const FLinearColor ShopRowColor{1.f, 1.f, 1.f, 0.07f};
-	inline const FLinearColor ButtonColor{1.f, 0.62f, 0.15f, 1.f};
-	inline const FLinearColor ButtonHoverColor{1.f, 0.74f, 0.36f, 1.f};
-	inline const FLinearColor ButtonPressedColor{0.82f, 0.46f, 0.08f, 1.f};
-	inline const FLinearColor ButtonDisabledColor{1.f, 1.f, 1.f, 0.10f};
 	inline const FLinearColor ScreenBackdropColor{0.f, 0.f, 0.f, 0.72f};
-	inline const FLinearColor ScreenTitleColor{1.f, 0.62f, 0.15f, 1.f};
-	inline const FLinearColor ButtonTextColor{0.08f, 0.06f, 0.03f, 1.f};
-	inline const FLinearColor ButtonTextDisabledColor{0.78f, 0.80f, 0.84f, 0.45f};
 
 	// Hazard signage palette: yellow and black signs. Written as sRGB bytes; Slate blends gamma-encoded values.
 	inline const FLinearColor SignYellow{FColor(0xFF, 0xC6, 0x1A, 0xFF)};
@@ -78,88 +61,36 @@ namespace AsphaltHud
 		return (FMath::Max(La, Lb) + 0.05f) / (FMath::Min(La, Lb) + 0.05f);
 	}
 
-	/** Offset of the text shadow. */
-	inline const FVector2D ShadowOffset{1.0, 1.0};
-
 	// Sizes.
-	inline constexpr int32 BigFontSize = 34;
-	inline constexpr int32 MediumFontSize = 26;
-	inline constexpr int32 CaptionFontSize = 17;
 	inline constexpr float ScreenMargin = 28.f;
-	inline constexpr float PanelPaddingH = 18.f;
-	inline constexpr float PanelPaddingV = 10.f;
 	inline constexpr float BarHeight = 18.f;
 	inline constexpr float ProgressBarWidth = 440.f;
 	/** Distance from the bottom edge of the screen to the lowest widget. */
 	inline constexpr float BottomMargin = 26.f;
-	inline constexpr float ButtonCornerRadius = 8.f;
-	/** Corner radii: the big panels (win screen, menu), their rows, and the smaller HUD panels (stats, toasts). */
-	inline constexpr float PanelCornerRadius = 12.f;
-	inline constexpr float RowCornerRadius = 8.f;
-	inline constexpr float HudPanelCornerRadius = 8.f;
-	/** The full-screen panels (win screen and menu): the padding inside the panel and above and below a button's text. */
-	inline constexpr float ScreenPanelPadding = 36.f;
-	inline constexpr float ScreenButtonPaddingV = 10.f;
-	/** The win screen: the panel's inner width, the statistics' label column and the two buttons. */
-	inline constexpr float WinPanelWidth = 640.f;
-	inline constexpr float WinLabelWidth = 320.f;
-	inline constexpr float WinTitleSpacing = 28.f;
-	inline constexpr float WinRowSpacing = 8.f;
-	inline constexpr float WinButtonsSpacing = 28.f;
+	/** The win screen's two buttons. */
 	inline constexpr float WinButtonWidth = 230.f;
-	/** The menu: the panel's inner width, the title's distance to the buttons, the gap between buttons, and the width of a button. */
-	inline constexpr float MenuPanelWidth = 520.f;
-	inline constexpr float MenuTitleSpacing = 30.f;
-	inline constexpr float MenuButtonSpacing = 14.f;
-	inline constexpr float MenuButtonWidth = 300.f;
+	/** The question buttons of the menu. */
 	inline constexpr float MenuQuestionButtonWidth = 170.f;
-	inline constexpr float MenuSliderHeight = 28.f;
 	/** The crosshair in the middle of the screen: a white dot (inner) in a dark ring (outer), in pixels. */
 	inline constexpr float CrosshairOuterSize = 10.f;
 	inline constexpr float CrosshairInnerSize = 5.f;
 	inline const FLinearColor CrosshairColor{1.f, 1.f, 1.f, 0.95f};
 	inline const FLinearColor CrosshairRingColor{0.f, 0.f, 0.f, 0.6f};
 	/** The check view's arrow and text, and their distance from the top edge. */
-	inline const FLinearColor CheckColor{1.f, 0.62f, 0.15f, 1.f};
 	inline constexpr int32 CheckArrowFontSize = 36;
 	inline constexpr float CheckTop = 268.f;
-	/** The shop: a grid of cards. Columns, the size of a card, the gaps, the padding of the panel, and the fonts. */
-	inline constexpr int32 ShopFontSize = 22;
-	inline constexpr int32 ShopValueFontSize = 17;
+	/** The shop: a grid of cards. Columns, the height of a card, the gap, the tile and the button. */
 	inline constexpr int32 ShopColumns = 4;
-	inline constexpr float ShopCardWidth = 252.f;
 	inline constexpr float ShopCardHeight = 172.f;
 	inline constexpr float ShopCardGap = 12.f;
-	inline constexpr float ShopCardPadding = 12.f;
-	inline constexpr float ShopCardBorder = 2.f;
 	inline constexpr float ShopIconSize = 46.f;
 	inline constexpr float ShopButtonWidth = 108.f;
-	inline constexpr float ShopPadding = 28.f;
-	/** The shop's surfaces: the card, and the outline of a card in each of its states. */
-	inline const FLinearColor ShopCardColor{0.10f, 0.12f, 0.16f, 1.f};
-	inline const FLinearColor ShopCardOwnedColor{0.09f, 0.17f, 0.12f, 1.f};
-	inline const FLinearColor ShopOutlineBuyColor{1.f, 0.62f, 0.15f, 0.85f};
-	inline const FLinearColor ShopOutlineLackColor{1.f, 0.45f, 0.40f, 0.45f};
-	inline const FLinearColor ShopOutlineLockedColor{1.f, 1.f, 1.f, 0.06f};
-	inline const FLinearColor ShopOutlineOwnedColor{0.40f, 0.82f, 0.46f, 0.70f};
-	/** Price colours of a card that is owned, or locked (dim), and of one that is on offer but too expensive. */
-	inline const FLinearColor ShopDimColor{0.78f, 0.80f, 0.84f, 0.55f};
-	inline const FLinearColor ShopLackColor{1.f, 0.45f, 0.40f, 1.f};
-	/** The tile in front of a card's name, by what the thing is: the plant, tools, carriers, machines, the car. */
-	inline const FLinearColor ShopIconPlantColor{0.35f, 0.78f, 0.55f, 1.f};
-	inline const FLinearColor ShopIconToolColor{1.f, 0.62f, 0.15f, 1.f};
-	inline const FLinearColor ShopIconCarrierColor{0.30f, 0.72f, 0.82f, 1.f};
-	inline const FLinearColor ShopIconMachineColor{0.52f, 0.52f, 0.95f, 1.f};
-	inline const FLinearColor ShopIconCarColor{0.95f, 0.42f, 0.45f, 1.f};
 	/** The inventory bar at the bottom of the screen: the size of a slot, the gap between slots, the height of a slot's fill gauge. */
 	inline constexpr float HotbarSlotWidth = 140.f;
 	inline constexpr float HotbarSlotHeight = 94.f;
 	inline constexpr float HotbarGap = 10.f;
 	inline constexpr float HotbarGaugeHeight = 9.f;
 	inline constexpr int32 HotbarNameFontSize = 20;
-	inline const FLinearColor HotbarSlotColor{0.06f, 0.07f, 0.10f, 0.78f};
-	inline const FLinearColor HotbarSelectedColor{0.20f, 0.14f, 0.06f, 0.92f};
-	inline const FLinearColor HotbarOutlineColor{1.f, 1.f, 1.f, 0.10f};
 	/** Distance of the toasts from the top edge. */
 	inline constexpr float ToastTop = 110.f;
 

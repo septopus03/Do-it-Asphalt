@@ -15,17 +15,6 @@
 
 namespace AsphaltHud
 {
-	/** Bold text with a drop shadow so that it stays legible on any ground: the one text builder of the HUD, the menu and the win screen. */
-	inline TSharedRef<STextBlock> MakeShadowedText(TAttribute<FText> Text, int32 Size, const FLinearColor& Color)
-	{
-		return SNew(STextBlock)
-			.Text(Text)
-			.Font(FCoreStyle::GetDefaultFontStyle("Bold", Size))
-			.ColorAndOpacity(Color)
-			.ShadowOffset(ShadowOffset)
-			.ShadowColorAndOpacity(ShadowColor);
-	}
-
 	/** The colour with its alpha multiplied by Alpha (clamped to 0..1). */
 	inline FLinearColor Faded(const FLinearColor& Color, float Alpha)
 	{

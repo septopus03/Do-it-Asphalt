@@ -87,7 +87,7 @@ Skript spustený cez `Scripts/uepy.sh Tools/UE/create_materials.py` **nedobehne*
 Overené 2026-11-21 (nie viac):
 
 - `Scripts/build.sh` skončil úspechom.
-- `Scripts/test.sh` (2026-11-22, po odstránení hladenia): 231 testov, všetky prešli. Skupiny: `DoItAsphalt.Lot.*` 91, `DoItAsphalt.Game.*` 139, `DoItAsphalt.Core.Smoke` 1.
+- `Scripts/test.sh` (2026-11-23, po úprave rozhrania na výstražné tabule): 236 testov, všetky prešli. Skupiny: `DoItAsphalt.Lot.*` 91, `DoItAsphalt.Game.*` 144, `DoItAsphalt.Core.Smoke` 1.
 - Shipping cieľ sa (pred posledným kolom opráv kabíny a ukladania, neopakované) skompiloval a zlinkoval príkazom `Build.sh DoItAsphalt Mac Shipping -project=<cesta>/DoItAsphalt.uproject` (`Binaries/Mac/DoItAsphalt-Mac-Shipping`, 281 774 456 bajtov). Dokončenie balíka `.app` zlyhalo na `codesign` (nižšie).
 - V Shipping binárke nie sú cheaty: žiadny z 26 reťazcov `dia.*` v nej nie je ani v UTF-16, ani v ASCII. Reťazce `TEXT()` sú na Macu UTF-16, preto obyčajné `strings` ich nenájde ani tam, kde sú; kontrola sa overila na editorovej knižnici `libUnrealEditor-DoItAsphalt.dylib`, kde je v UTF-16 všetkých 26.
 - Snímky (urobené pred odstránením hladidla a finišera, po zmene neopakované) `start`, `hand`, `shop`, `cart`, `finisher`, `paver`, `car`, `exit`, `site`, `win` a `load` (`Saved/Screenshots/`, v gite nie sú) boli otvorené a prezreté: štartová scéna s výrobňou a korytom, plná miska, obchod, vozík s kufrom, finišer, robot s oranžovým obrysom a riadkom „Paver: sector 23 · 0 / 400“, kabína auta pri pohľade na otvorené parkovisko, otvorená brána východu, nákupné centrum, obrazovka výhry s riadkami Time, Cells paved, Asphalt poured, Credits earned, Items bought a obnovený stav po `dia.Load`.

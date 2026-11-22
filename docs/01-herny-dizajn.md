@@ -129,17 +129,32 @@ Hra nemá hladidlo ani finišer. Asfalt sa nehladí: každý vyliaty asfalt je h
 
 ## 6. Obrazovka (HUD)
 
-- **Vľavo hore:** kredity.
-- **V strede obrazovky:** malý zameriavač (bodka s tmavým kruhom); pri otvorenom menu, obchode a obrazovke výhry sa skryje.
-- **Vpravo hore:** „x / 30,000 · n %" hotových políčok s pruhom; pod ním „Next: <krok> – entry k / 12, cells a / b", teda ďalší odomykaný krok, koľko z 12 políčok jeho vstupného úseku je hotových a koľko hotových políčok z potrebných je celkovo. Ak je robot pridelený: „Paver: sector N · k / 400", inak „Paver: waiting – press G".
-- **Vpravo dole:** názov ruky a hladina nádoby (napríklad „Bowl 0 / 2.5 l").
-- **V strede dole:** výzva, čo robí `E` pri predmete.
-- **Oznamy (toasty):** najviac 3 naraz, každý 2 s plus 0,5 s dobehu. Kredity sa spájajú do jedného bežiaceho súčtu („+40 credits"). Pri odomknutí: „Unlocked: X" a pod tým účinok kroku.
-- **Tabule pri vstupoch:** názov kroku, „Entry k / 12" (hotové políčka úseku) a „Cells a / b" (hotové políčka z potrebných). Kiosky stoja pri vstupoch 1, 4, 5 a 6; vstupy 2 a 3 majú tabuľu na nákupnom centre.
-- **Obchod (`Tab`):** mriežka kariet 4 × 3: výrobňa (najprv), potom predmety. Karta má farebnú dlaždicu, názov, čo dáva, cenu a tlačidlo BUY. Zamknuté karty sú stlmené a ukazujú podmienku, napríklad „350 cells + entry 3". Kúpená vec **ostáva na svojom mieste** a len sa zmení na zelenú kartu so štítkom OWNED. V hlavičke sú kredity. Každý nákup sa ukladá.
-- **Lišta predmetov** je dole uprostred obrazovky: tri políčka (`1` miska, `2` lopatka, `3` vedro) s vyznačeným tým v ruke, a pri nádobách s ukazovateľom naplnenia. Nad ňou je riadok s názvom a obsahom (aj pre držaný kufor či vozík).
-- **Pauza a menu:** tlačidlá Continue, Resume, New Game, Settings, Quit, Yes, No. **Settings** (aj `Esc` ich zavrie) obsahuje posuvník citlivosti myši (0,1 – 3,0, štandardne 1,0). Hodnota sa ukladá do `GameUserSettings.ini`, nie do uloženej hry.
-- **Výhra:** obrazovka „Parking lot complete!" so riadkami Time, Cells paved, Asphalt poured, Credits earned, Items bought a tlačidlami New Game a Quit.
+Celé rozhranie (HUD, obchod, menu, nastavenia aj výhra) je štylizované ako žlto-čierne výstražné tabule: žlté alebo čierne zaoblené tabule s tenkou čiarou vo vnútri, text písmom Barlow Condensed veľkými písmenami, bez tieňov. Pruhy (šrafovaný pás žltej a čiernej) zdobia panel obchodu, obrazovku výhry a spodok lišty predmetov.
+
+- **Vľavo hore:** žltá tabuľa s kreditmi (čierne číslo) a popisom „credits".
+- **V strede obrazovky:** malý zameriavač (biela bodka v tmavom kruhu, bez zmeny); pri otvorenom menu, obchode a obrazovke výhry sa skryje.
+- **Vpravo hore:** čierna tabuľa so žltou linkou. Hore biely text „x / 30,000 · n %", pod ním žltý popis „CELLS PAVED" a ukazovateľ postupu (žltý rámik, šrafovaná dráha, žltá výplň). Pod ním riadok ďalšieho kroku: žltý štítok „NEXT" a biely text kroku, napríklad „Quick swap – entry 0 / 12, cells 0 / 10" (ďalší odomykaný krok, koľko z 12 políčok jeho vstupného úseku je hotových a koľko hotových políčok z potrebných je celkovo). Slovo „Next:" na začiatku textu widget odreže, nahrádza ho štítok; po odomknutí všetkých krokov sa riadok skryje. Ak je robot pridelený, pod tým je riadok „Paver: sector N · k / 400", inak „Paver: waiting – press G"; kým hráč robota nevlastní, riadok sa nezobrazí.
+- **Oznamy (toasty):** žlté tabule s čiernym textom, najviac 3 naraz, každý 2 s plus 0,5 s dobehu (dobeh priehľadnosti platí pre celú tabuľu). Dlhý oznam sa zalamuje a je na stred. Kredity sa spájajú do jedného bežiaceho súčtu („+40 credits"). Pri odomknutí: „Unlocked: X" a pod tým účinok kroku.
+- **Kontrolný pohľad (`V`):** oranžový kosoštvorec (štvorcová tabuľa otočená o 45°) s čiernou šípkou k najbližšiemu nedokončenému políčku, vedľa čierna tabuľa s oranžovou linkou a oranžovým textom.
+- **Tabule pri vstupoch (vo svete):** názov kroku, „Entry k / 12" (hotové políčka úseku) a „Cells a / b" (hotové políčka z potrebných). Kiosky stoja pri vstupoch 1, 4, 5 a 6; vstupy 2 a 3 majú tabuľu na nákupnom centre.
+- **Dole v strede zhora nadol:** zásoba výrobne (čierna tabuľa, popis „Plant stock" žltou; zobrazí sa, len keď je výrobňa v dosahu), výzva, čo robí `E` pri predmete, riadok ruky, lišta predmetov a pod ňou šrafovaný pás.
+- **Výzva** je pre každý riadok žltá štvorcová tabuľa s klávesom a vedľa nej čierna tabuľa s činnosťou (napríklad `E` a „Push"). Pri držanom kufri sú dva riadky pod sebou (`E` a `F`); riadok bez klávesa má len čiernu tabuľu. Kým je výzva prázdna, nezobrazí sa.
+- **Riadok ruky** je čierna tabuľa nad lištou predmetov: názov bielou a obsah žltou (napríklad „Bowl" a „0 / 2.5 L"); platí aj pre držaný kufor či vozík.
+- **Lišta predmetov:** tri políčka (`1` miska, `2` lopatka, `3` vedro) s medzerou 10. Políčko je čierna tabuľa so žltou linkou, žltým štvorčekom s číslom klávesu, názvom bielou a (pri nádobách) ukazovateľom naplnenia. Vybrané políčko je opačne: žltá tabuľa s čiernou linkou, čiernym štvorčekom, čiernym názvom a čiernou výplňou. Políčko, ktoré sa nedá vziať, má názov stlmený na 70 % bielej a ukazovateľ skrytý.
+- **Obchod (`Tab`):** čierny panel široký 1300, hore s šrafovaným pásom. Nadpis „SHOP" žltou, pod ním biely podnadpis „Tools and machines for the car park" a vpravo žltá tabuľa s kreditmi. Pod tým mriežka kariet po 4 v riadku (karta je vysoká 172, medzera 12): výrobňa (najprv), potom predmety; kariet je 11, takže v poslednom riadku sú tri, zarovnané vľavo. Dole stojí „Tab / Esc – close". Okolo panela sa obraz nestmavuje a hra ostáva klikateľná. Každý nákup sa ukladá.
+- **Karta obchodu** je tabuľa, ktorej vzhľad závisí od stavu. Vľavo hore je dlaždica (kruh s prvým písmenom názvu), vedľa nej názov, čo vec dáva a prípadná podmienka odomknutia (žltou, napríklad „350 cells + entry 3"), dole vľavo cena a vpravo tlačidlo alebo štítok:
+
+| Stav | Tabuľa | Linka | Dlaždica | Cena | Vpravo dole |
+|---|---|---|---|---|---|
+| Dá sa kúpiť | žltá | čierna | čierna, písmeno žlté | čierna | čierne tlačidlo „BUY" so žltým textom |
+| Chýbajú kredity | tmavosivá | biela (45 %) | biela, písmeno čierne | svetločervená | vypnuté tlačidlo „BUY" s tenkým obrysom |
+| Zamknuté | takmer čierna | biela (18 %) | biela (22 %), písmeno biele | biela (70 %) | vypnuté tlačidlo „LOCKED" s tenkým obrysom |
+| Vlastnené | čierna | biela | biela, písmeno čierne | bez ceny | biely štítok „OWNED" s fajkou |
+
+  Kúpená vec **ostáva na svojom mieste** a len sa zmení na čiernu kartu so štítkom OWNED. Farba dlaždice nezávisí od druhu predmetu.
+- **Pauza a menu:** žltá tabuľa na stmavenom pozadí s čiernym nadpisom („Do it Asphalt", pri pauze „Paused", v nastaveniach „Settings") a čiernymi tlačidlami s bielym textom. Prvé viditeľné tlačidlo (Continue alebo Resume, bez uloženej hry New Game) má text žltý. V hlavnom menu je mimo Shipping buildu aj tlačidlo Dev Start. Pod kurzorom je tlačidlo svetlejšie, stlačené čierne. Otázka „Start over? Progress will be lost." nahradí nadpis (čierne písmo, na stred) a tlačidlá Yes (žlté) a No stoja vedľa seba.
+- **Nastavenia** (`Esc` ich zavrie) sú na rovnakej žltej tabuli: riadok „Mouse sensitivity" s hodnotou čiernou (ExtraBold) a pod ním posuvník s čiernou dráhou a čiernym jazdcom (0,1 – 3,0, štandardne 1,0), dole tlačidlo Back. Hodnota sa ukladá do `GameUserSettings.ini`, nie do uloženej hry.
+- **Výhra:** žltá tabuľa s hore šrafovaným pásom (čierna a žltá) a čiernym nadpisom „Parking lot complete!". Pod ním riadky Time, Cells paved, Asphalt poured, Credits earned a Items bought: čierny popis vľavo, hodnota vpravo, každý riadok nad čiernou čiarou. Pod poslednou čiarou sú tlačidlá New Game (text žltý) a Quit.
 
 ## 7. Obchod a odomykanie
 
@@ -212,7 +227,7 @@ Rýchlosť výdajne má v kóde vlastnú pomenovanú hodnotu (`StationCarrySpeed
 
 ## 11. Cheaty
 
-Cheaty sú konzolové príkazy `dia.*`. Existujú len mimo Shipping buildu (v Shipping binárke sa nenachádza žiadny z 26 reťazcov). Spúšťajú sa v konzole editora alebo cez `-ExecCmds` (skript `Scripts/shot.sh`).
+Cheaty sú konzolové príkazy `dia.*`. Je ich 27 a existujú len mimo Shipping buildu. Pre prvých 26 reťazcov sa overilo, že v Shipping binárke nie je ani jeden; pre `dia.Screen`, ktorý pribudol neskôr, sa toto overenie nerobilo. Spúšťajú sa v konzole editora alebo cez `-ExecCmds` (skript `Scripts/shot.sh`).
 
 | Príkaz | Čo robí |
 |---|---|
@@ -233,6 +248,7 @@ Cheaty sú konzolové príkazy `dia.*`. Existujú len mimo Shipping buildu (v Sh
 | `dia.Camera [vzdialenosť] [yaw] [pitch]` | kamera mimo hráča |
 | `dia.WorkView <1\|0>`, `dia.CheckView <1\|0>` | zapne alebo vypne pracovný / kontrolný pohľad |
 | `dia.Shop` | prepne obchod |
+| `dia.Screen <Pause\|Settings\|Question\|Win>` | otvorí danú obrazovku (pauzu, nastavenia, otázku alebo výhru), aby sa dala odfotiť; ladiaca pomôcka |
 | `dia.Hand <názov>` | zmení ruku |
 | `dia.Fill` | naplní ruku |
 | `dia.TopView [výška m=260]` | pohľad zhora |
