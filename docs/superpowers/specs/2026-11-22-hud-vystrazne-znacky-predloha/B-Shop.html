@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>B Hazard Signage: Shop</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="position: relative; width: 1920px; height: 1080px; overflow: hidden; background: #2b2c2f; font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif; font-weight: 700; color: #ffffff; text-transform: uppercase; letter-spacing: 0.04em">
+<svg aria-hidden="true" viewBox="0 0 1920 1080" preserveAspectRatio="none" style="position: absolute; left: 0; top: 0; width: 1920px; height: 1080px">
+<rect width="1920" height="470" fill="#465867"></rect>
+<rect y="350" width="1920" height="120" fill="#566978"></rect>
+<rect x="1180" y="356" width="560" height="114" fill="#35414b"></rect>
+<rect x="240" y="296" width="72" height="174" fill="#35414b"></rect>
+<rect x="322" y="380" width="170" height="90" fill="#35414b"></rect>
+<rect y="470" width="1920" height="610" fill="#6c675d"></rect>
+<polygon points="960,470 1330,470 1920,800 1920,1080 280,1080" fill="#2b2c2f"></polygon>
+<polygon points="960,470 1004,470 800,1080 280,1080" fill="#151618"></polygon>
+</svg>
+<div style="position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; background: rgba(0,0,0,0.5)"></div>
+
+<div style="position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; display: flex; align-items: center; justify-content: center">
+<div style="width: 1300px; box-sizing: border-box; background: #111214; border-radius: 8px; overflow: hidden; display: flex; flex-direction: column">
+<div style="height: 20px; background: repeating-linear-gradient(-45deg, #FFC61A 0px, #FFC61A 16px, #111214 16px, #111214 32px)"></div>
+<div style="padding: 22px 36px 26px 36px; display: flex; flex-direction: column; gap: 22px">
+<div style="display: flex; align-items: center; justify-content: space-between">
+<div style="display: flex; flex-direction: column">
+<div style="font-size: 76px; font-weight: 800; line-height: 1; color: #FFC61A">Shop</div>
+<div style="font-size: 23px; letter-spacing: 0.1em">Tools and machines for the car park</div>
+</div>
+<div style="display: flex; align-items: baseline; gap: 12px; padding: 8px 24px 10px 24px; background: #FFC61A; color: #111214; border: 3px solid #FFC61A; box-shadow: inset 0 0 0 3px #111214; border-radius: 6px">
+<div style="font-size: 58px; font-weight: 800; line-height: 1">9,450</div>
+<div style="font-size: 23px; letter-spacing: 0.12em">Credits</div>
+</div>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px">
+<sc-for list="{{rows}}" as="r" hint-placeholder-count="12">
+<div style="height: 172px; box-sizing: border-box; padding: 16px 18px; display: flex; flex-direction: column; background: {{r.bg}}; color: {{r.fg}}; border: 3px solid {{r.bg}}; box-shadow: inset 0 0 0 3px {{r.ring}}; border-radius: 6px">
+<div style="display: flex; gap: 12px">
+<div style="flex: none; width: 46px; height: 46px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: {{r.tileBg}}; color: {{r.tileFg}}; font-size: 28px; font-weight: 800; letter-spacing: 0">{{r.letter}}</div>
+<div style="display: flex; flex-direction: column; min-width: 0">
+<div style="font-size: 29px; font-weight: 800; line-height: 1.05">{{r.name}}</div>
+<div style="font-size: 21px; font-weight: 600; text-transform: none">{{r.value}}</div>
+<sc-if value="{{r.hasReason}}" hint-placeholder-val="{{false}}">
+<div style="font-size: 21px; font-weight: 600; text-transform: none; color: #FFC61A">{{r.reason}}</div>
+</sc-if>
+</div>
+</div>
+<div style="margin-top: auto; display: flex; align-items: center; justify-content: space-between; gap: 12px">
+<sc-if value="{{r.isOwned}}" hint-placeholder-val="{{false}}">
+<div style="display: flex; align-items: center; gap: 10px; font-size: 28px; font-weight: 800">
+<svg aria-hidden="true" viewBox="0 0 24 24" style="width: 26px; height: 26px; fill: none; stroke: #ffffff; stroke-width: 4px">
+<path d="M3 13 L9 19 L21 5"></path>
+</svg>
+<div>Owned</div>
+</div>
+</sc-if>
+<sc-if value="{{r.hasPrice}}" hint-placeholder-val="{{true}}">
+<div style="font-size: 34px; font-weight: 800; color: {{r.priceColor}}">{{r.price}}</div>
+</sc-if>
+<sc-if value="{{r.isBuy}}" hint-placeholder-val="{{true}}">
+<button style="width: 108px; height: 48px; border: 0; border-radius: 4px; background: #111214; color: #FFC61A; font-family: inherit; font-size: 26px; font-weight: 800; letter-spacing: 0.1em; cursor: pointer">BUY</button>
+</sc-if>
+<sc-if value="{{r.isOff}}" hint-placeholder-val="{{false}}">
+<button disabled style="width: 108px; height: 48px; box-sizing: border-box; border: 2px solid rgba(255,255,255,0.4); border-radius: 4px; background: transparent; color: rgba(255,255,255,0.7); font-family: inherit; font-size: 23px; font-weight: 800; letter-spacing: 0.1em">{{r.offLabel}}</button>
+</sc-if>
+</div>
+</div>
+</sc-for>
+</div>
+
+<div style="align-self: center; font-size: 22px; letter-spacing: 0.14em">Tab / Esc – close</div>
+</div>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1920,"height":1080}}'>
+class Component extends DCLogic {
+renderVals() {
+var data = [
+['Plant', '2,000 → 4,200 l/min', '8,000', '', 'buy'],
+['Scoop', '1 l', '', '', 'owned'],
+['Bucket', '10 l', '', '', 'owned'],
+['Suitcase', '60 l', '', '', 'owned'],
+['Cart', '200 l', '', '', 'owned'],
+['Portable Station', 'Refill anywhere', '', '', 'owned'],
+['Finisher', '85 cells/min', '', '', 'owned'],
+['Auto Paver', '120 cells/min', '', '', 'owned'],
+['Fast Auto Paver', '120 → 170 cells/min', '9,000', '', 'buy'],
+['Faster Auto Paver', '170 → 220 cells/min', '22,000', 'needs Fast Auto Paver', 'locked'],
+['Paver Car', '260 cells/min', '12,000', '', 'lack'],
+['Wide Bar', '260 → 300 cells/min', '24,000', 'needs Paver Car', 'locked']
+];
+var look = {
+buy: { bg: '#FFC61A', fg: '#111214', ring: '#111214', tileBg: '#111214', tileFg: '#FFC61A', price: '#111214' },
+lack: { bg: '#2c2d31', fg: '#ffffff', ring: 'rgba(255,255,255,0.45)', tileBg: '#ffffff', tileFg: '#111214', price: '#FF9A80' },
+locked: { bg: '#1d1e21', fg: 'rgba(255,255,255,0.7)', ring: 'rgba(255,255,255,0.18)', tileBg: 'rgba(255,255,255,0.22)', tileFg: '#ffffff', price: 'rgba(255,255,255,0.7)' },
+owned: { bg: '#111214', fg: '#ffffff', ring: '#ffffff', tileBg: '#ffffff', tileFg: '#111214', price: '#ffffff' }
+};
+var rows = data.map(function (d) {
+var st = d[4];
+var l = look[st];
+return {
+name: d[0], letter: d[0].charAt(0), value: d[1], price: d[2], reason: d[3],
+hasReason: d[3] !== '', hasPrice: st !== 'owned',
+isOwned: st === 'owned', isBuy: st === 'buy', isOff: st === 'lack' || st === 'locked',
+offLabel: st === 'locked' ? 'LOCKED' : 'BUY',
+bg: l.bg, fg: l.fg, ring: l.ring, tileBg: l.tileBg, tileFg: l.tileFg, priceColor: l.price
+};
+});
+return { rows: rows };
+}
+}
+</script>
+</body>
+</html>
