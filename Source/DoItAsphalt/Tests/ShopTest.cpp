@@ -12,6 +12,7 @@
 #include "Tests/DIATestWorld.h"
 #include "UI/DIAFormat.h"
 #include "UI/DIAHUD.h"
+#include "UI/DIAMenuModel.h"
 #include "UI/SDIAShopPanel.h"
 
 namespace
@@ -293,6 +294,59 @@ bool FShopRowsStayPutTest::RunTest(const FString& Parameters)
 	// Whatever was bought, nothing has moved.
 	Model.Update(Game);
 	TestEqual(TEXT("the bucket is still where it was"), RowOfItem(Model, ELotItem::Bucket), 2);
+	return true;
+}
+
+DIA_TEST(FShopDevStartTest, "DoItAsphalt.Game.Shop.DevStart")
+
+bool FShopDevStartTest::RunTest(const FString& Parameters)
+{
+	// Dev Start: a new game in which the whole shop can be bought (and the exit is still closed).
+	FTestWorldWrapper Wrapper;
+	if (!DIATest::StartGameWorld(Wrapper, *this))
+	{
+		return false;
+	}
+	UDIAWorldSubsystem* Subsystem = Wrapper.GetTestWorld()->GetSubsystem<UDIAWorldSubsystem>();
+	if (!TestNotNull(TEXT("world subsystem"), Subsystem))
+	{
+		return false;
+	}
+	Subsystem->DevStart();
+	FLotGame& Game = Subsystem->GetGame();
+	TestFalse(TEXT("the exit is closed"), Game.IsExitOpen());
+	TestTrue(TEXT("the unlock cells are done"), Game.GetCompletedCells() >= LotBalance::UnlockCells[static_cast<int32>(ELotUnlock::Car)]);
+
+	for (int32 I = 0; I < static_cast<int32>(ELotItem::Count); ++I)
+	{
+		const ELotItem Item = static_cast<ELotItem>(I);
+		TestTrue(*FString::Printf(TEXT("item %d is offered"), I), Game.IsItemOffered(Item));
+		TestTrue(*FString::Printf(TEXT("item %d can be bought"), I), Game.BuyItem(Item));
+	}
+	for (int32 Level = 1; Level <= static_cast<int32>(std::size(LotBalance::PlantPrice)); ++Level)
+	{
+		TestTrue(*FString::Printf(TEXT("plant level %d can be bought"), Level), Game.BuyPlant());
+	}
+	TestEqual(TEXT("everything is owned"), Game.GetNumItemsOwned(), static_cast<int32>(ELotItem::Count));
+	TestTrue(TEXT("the credits were enough"), Game.GetCredits() >= 0.0);
+	return true;
+}
+
+DIA_TEST(FMenuDevStartTest, "DoItAsphalt.Game.Menu.DevStartButton")
+
+bool FMenuDevStartTest::RunTest(const FString& Parameters)
+{
+	// Only the main menu offers Dev Start, and not while the question or the settings are up.
+	FDIAMenuModel Model;
+	Model.Open(EDIAMenuMode::Main, false);
+	TestEqual(TEXT("the main menu offers it outside Shipping"), Model.ShowsDevStart(), FDIAMenuModel::bDevStartAvailable);
+	Model.bConfirming = true;
+	TestFalse(TEXT("not at the question"), Model.ShowsDevStart());
+	Model.Open(EDIAMenuMode::Pause, false);
+	TestFalse(TEXT("not in the pause menu"), Model.ShowsDevStart());
+	Model.Open(EDIAMenuMode::Main, true);
+	Model.OpenSettings();
+	TestFalse(TEXT("not in the settings"), Model.ShowsDevStart());
 	return true;
 }
 

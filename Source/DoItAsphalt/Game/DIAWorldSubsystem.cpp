@@ -7,6 +7,7 @@
 #include "GameFramework/Actor.h"
 #include "Kismet/GameplayStatics.h"
 #include "LotBalance.h"
+#include "LotMap.h"
 #include "Misc/CommandLine.h"
 #include "PlatformFeatures.h"
 #include "SaveGameSystem.h"
@@ -267,6 +268,21 @@ void UDIAWorldSubsystem::NewGame()
 	AutosaveTimer = 0.0;
 	OnGameReset.Broadcast();
 	OnStateChanged.Broadcast();
+}
+
+void UDIAWorldSubsystem::DevStart()
+{
+	NewGame();
+	Game.DebugGive(DevStartCredits);
+	FLotEvents Events = Game.DebugCompleteCells(LotBalance::UnlockCells[static_cast<int32>(ELotUnlock::Car)]);
+	for (int32 Entry = 0; Entry < static_cast<int32>(ELotUnlock::Exit); ++Entry)
+	{
+		for (int32 I = 0; I < AsphaltLot::CellsPerEntry; ++I)
+		{
+			Events.Append(Game.DebugCompleteCell(AsphaltLot::EntryCell(Entry, I)));
+		}
+	}
+	Dispatch(Events);
 }
 
 void UDIAWorldSubsystem::Autosave()

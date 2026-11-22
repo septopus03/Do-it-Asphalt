@@ -26,6 +26,11 @@ struct FDIAMenuModel
 	bool bConfirming = false;
 	/** The settings (mouse sensitivity) are up instead of the buttons. */
 	bool bSettings = false;
+	/** The "Start over?" question belongs to Dev Start, not to New Game: Yes starts the dev game. */
+	bool bConfirmingDevStart = false;
+
+	/** Dev Start (a new game with credits and every unlock step open, for trying the whole shop) exists only outside a Shipping build. */
+	static constexpr bool bDevStartAvailable = !UE_BUILD_SHIPPING;
 
 	void Open(EDIAMenuMode InMode, bool bInHasSave)
 	{
@@ -33,6 +38,7 @@ struct FDIAMenuModel
 		bHasSave = bInHasSave;
 		bConfirming = false;
 		bSettings = false;
+		bConfirmingDevStart = false;
 	}
 
 	void Close()
@@ -40,6 +46,7 @@ struct FDIAMenuModel
 		Mode = EDIAMenuMode::None;
 		bConfirming = false;
 		bSettings = false;
+		bConfirmingDevStart = false;
 	}
 
 	/** The Settings button: only from the buttons. */
@@ -59,6 +66,7 @@ struct FDIAMenuModel
 	bool ShowsSettings() const { return IsOpen() && bSettings; }
 	bool ShowsContinue() const { return ShowsButtons() && Mode == EDIAMenuMode::Main && bHasSave; }
 	bool ShowsResume() const { return ShowsButtons() && Mode == EDIAMenuMode::Pause; }
+	bool ShowsDevStart() const { return bDevStartAvailable && ShowsButtons() && Mode == EDIAMenuMode::Main; }
 	bool ShowsQuestion() const { return IsOpen() && bConfirming; }
 	bool NeedsNewGameConfirmation() const { return Mode == EDIAMenuMode::Pause || (Mode == EDIAMenuMode::Main && bHasSave); }
 

@@ -19,6 +19,7 @@ void SDIAMenu::Construct(const FArguments& InArgs)
 	OnContinue = InArgs._OnContinue;
 	OnResume = InArgs._OnResume;
 	OnNewGame = InArgs._OnNewGame;
+	OnDevStart = InArgs._OnDevStart;
 	OnQuit = InArgs._OnQuit;
 	ButtonStyle = AsphaltHud::MakeButtonStyle();
 
@@ -56,6 +57,11 @@ void SDIAMenu::Construct(const FArguments& InArgs)
 		[
 			BuildButton(NSLOCTEXT("DIAHud", "MenuNewGame", "New Game"), AsphaltHud::MenuButtonWidth,
 				FOnClicked::CreateSP(this, &SDIAMenu::HandleNewGame), [this]() { return Model.ShowsButtons(); })
+		]
+		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0.f, 0.f, 0.f, AsphaltHud::MenuButtonSpacing)
+		[
+			BuildButton(NSLOCTEXT("DIAHud", "MenuDevStart", "Dev Start"), AsphaltHud::MenuButtonWidth,
+				FOnClicked::CreateSP(this, &SDIAMenu::HandleDevStart), [this]() { return Model.ShowsDevStart(); })
 		]
 		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0.f, 0.f, 0.f, AsphaltHud::MenuButtonSpacing)
 		[
@@ -162,16 +168,33 @@ FReply SDIAMenu::HandleNewGame()
 	return FReply::Handled();
 }
 
+FReply SDIAMenu::HandleDevStart()
+{
+	if (Model.NeedsNewGameConfirmation())
+	{
+		Model.bConfirming = true;
+		Model.bConfirmingDevStart = true;
+	}
+	else
+	{
+		OnDevStart.ExecuteIfBound();
+	}
+	return FReply::Handled();
+}
+
 FReply SDIAMenu::HandleYes()
 {
+	const bool bDevStart = Model.bConfirmingDevStart;
 	Model.bConfirming = false;
-	OnNewGame.ExecuteIfBound();
+	Model.bConfirmingDevStart = false;
+	(bDevStart ? OnDevStart : OnNewGame).ExecuteIfBound();
 	return FReply::Handled();
 }
 
 FReply SDIAMenu::HandleNo()
 {
 	Model.bConfirming = false;
+	Model.bConfirmingDevStart = false;
 	return FReply::Handled();
 }
 

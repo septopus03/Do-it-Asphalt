@@ -76,6 +76,12 @@ public:
 	void SaveGame();
 	/** Starts over: a fresh core, the slot and its backup are deleted, and OnGameReset and OnStateChanged are broadcast (the actors go to the layout's positions). */
 	void NewGame();
+	/**
+	 * Dev Start: NewGame, then credits for everything in the shop (DevStartCredits) and every unlock step open up to the car (the exit
+	 * stays closed): the cells and the entry segments the steps ask for are completed. For trying the whole game without playing it.
+	 */
+	void DevStart();
+	static constexpr double DevStartCredits = 150000.0;
 
 	/**
 	 * The game saves itself only while this is on (every LotBalance::AutosaveIntervalSeconds of game time, after each purchase, when it is won and

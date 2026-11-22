@@ -16,7 +16,8 @@
  * attribute lambdas) and show or hide the screen. New Game that would throw progress away turns the buttons into the question
  * "Start over? Progress will be lost." with Yes and No; only Yes calls OnNewGame. The Settings button turns the buttons into the
  * settings screen: a slider for the mouse sensitivity (DIASettings, kept at once, written to disk when the slider is let go) and Back.
- * The other buttons only call the delegates given by the HUD.
+ * The main menu of a non-Shipping build also has Dev Start (a new game with credits and every unlock step open; it asks the same question
+ * when a save exists). The other buttons only call the delegates given by the HUD.
  */
 class SDIAMenu : public SCompoundWidget
 {
@@ -25,6 +26,7 @@ public:
 		SLATE_EVENT(FSimpleDelegate, OnContinue)
 		SLATE_EVENT(FSimpleDelegate, OnResume)
 		SLATE_EVENT(FSimpleDelegate, OnNewGame)
+		SLATE_EVENT(FSimpleDelegate, OnDevStart)
 		SLATE_EVENT(FSimpleDelegate, OnQuit)
 	SLATE_END_ARGS()
 
@@ -43,6 +45,7 @@ private:
 	FReply HandleContinue();
 	FReply HandleResume();
 	FReply HandleNewGame();
+	FReply HandleDevStart();
 	FReply HandleYes();
 	FReply HandleNo();
 	FReply HandleQuit();
@@ -54,6 +57,7 @@ private:
 	FSimpleDelegate OnContinue;
 	FSimpleDelegate OnResume;
 	FSimpleDelegate OnNewGame;
+	FSimpleDelegate OnDevStart;
 	FSimpleDelegate OnQuit;
 
 	FDIAMenuModel Model;

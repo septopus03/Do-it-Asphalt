@@ -42,6 +42,8 @@ public:
 	bool IsWinScreenShown() const { return bWinShown; }
 	/** New Game (menu, win screen): starts over in the same world (the subsystem's NewGame) and leaves the menu. */
 	void NewGame();
+	/** Dev Start (main menu, not in Shipping): a new game with credits and every unlock step open (the subsystem's DevStart); leaves the menu. */
+	void DevStart();
 	/** Continue of the main menu: loads the saved game and leaves the menu; if the save is unusable the menu stays and offers a new game only. */
 	void ContinueGame();
 	/** Quit (menu, win screen); the game saves itself when the world ends. */

@@ -136,6 +136,15 @@ void ADIAHUD::NewGame()
 	CloseMenu();
 }
 
+void ADIAHUD::DevStart()
+{
+	if (UDIAWorldSubsystem* Subsystem = BoundSubsystem.Get())
+	{
+		Subsystem->DevStart();
+	}
+	CloseMenu();
+}
+
 void ADIAHUD::ContinueGame()
 {
 	UDIAWorldSubsystem* Subsystem = BoundSubsystem.Get();
@@ -310,6 +319,7 @@ void ADIAHUD::CreateOverlay(UDIAWorldSubsystem* Subsystem)
 		.OnContinue(FSimpleDelegate::CreateUObject(this, &ADIAHUD::ContinueGame))
 		.OnResume(FSimpleDelegate::CreateUObject(this, &ADIAHUD::CloseMenu))
 		.OnNewGame(FSimpleDelegate::CreateUObject(this, &ADIAHUD::NewGame))
+		.OnDevStart(FSimpleDelegate::CreateUObject(this, &ADIAHUD::DevStart))
 		.OnQuit(FSimpleDelegate::CreateUObject(this, &ADIAHUD::QuitGame));
 	GEngine->GameViewport->AddViewportWidgetContent(Menu.ToSharedRef(), AsphaltHud::MenuZOrder);
 
