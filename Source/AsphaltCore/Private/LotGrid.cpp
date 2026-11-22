@@ -70,12 +70,12 @@ namespace
 
 	/** Bytes of the complete-cell bitset of a save: one bit per cell, 30 000 cells fill 3 750 bytes exactly. */
 	constexpr int32 SaveCompleteBytes = AsphaltLot::NumCells / 8;
-	/** Bytes of the texels of one in-progress cell: 400 texels at 2 bits fill 100 bytes exactly. */
-	constexpr int32 SaveCellBytes = FLotGrid::TexelsPerCell / 4;
+	/** Bytes of the texels of one in-progress cell: 400 texels at 1 bit fill 50 bytes exactly. */
+	constexpr int32 SaveCellBytes = FLotGrid::TexelsPerCell / 8;
 	/** An in-progress record: the cell index and its packed texels. */
 	constexpr int32 SaveRecordBytes = 4 + SaveCellBytes;
 	static_assert(AsphaltLot::NumCells % 8 == 0, "the complete-cell bitset has no padding bits");
-	static_assert(FLotGrid::TexelsPerCell % 4 == 0, "the packed texels of a cell have no padding bits");
+	static_assert(FLotGrid::TexelsPerCell % 8 == 0, "the packed texels of a cell have no padding bits");
 
 	/** Gives every sector (numbered as AsphaltLot::SectorOf) the rectangle of its texels. */
 	void MakeAllSectorsDirty(TArray<FIntRect>& Dirty)
@@ -98,7 +98,6 @@ FLotGrid::FLotGrid()
 {
 	Texels.SetNumZeroed(Size * Size);
 	CellDone.SetNumZeroed(AsphaltLot::NumCells);
-	CellRaw.SetNumZeroed(AsphaltLot::NumCells);
 	Dirty.Init(FIntRect(TNumericLimits<int32>::Max(), TNumericLimits<int32>::Max(), TNumericLimits<int32>::Lowest(), TNumericLimits<int32>::Lowest()), AsphaltLot::NumSectors);
 }
 
@@ -111,19 +110,10 @@ void FLotGrid::ExpandDirty(int32 Sector, int32 MinX, int32 MinY, int32 MaxX, int
 	Rect.Max.Y = FMath::Max(Rect.Max.Y, MaxY);
 }
 
-void FLotGrid::ChangeTexel(int32 X, int32 Y, int32 Cell, ELotTexel To, FLotPour& Result)
+void FLotGrid::CoverTexel(int32 X, int32 Y, int32 Cell, FLotPour& Result)
 {
-	uint8& Texel = Texels[TexelIndexOf(X, Y)];
-	if (Texel == static_cast<uint8>(ELotTexel::Raw))
-	{
-		--CellRaw[Cell];
-	}
-	Texel = static_cast<uint8>(To);
-	if (To == ELotTexel::Raw)
-	{
-		++CellRaw[Cell];
-	}
-	else if (++CellDone[Cell] >= ThresholdTexels)
+	Texels[TexelIndexOf(X, Y)] = static_cast<uint8>(ELotTexel::Done);
+	if (++CellDone[Cell] >= ThresholdTexels)
 	{
 		FinishCell(Cell, Result);
 		return;
@@ -141,7 +131,6 @@ void FLotGrid::FinishCell(int32 Cell, FLotPour& Result)
 		FMemory::Memset(&Texels[TexelIndexOf(X0, Y)], static_cast<uint8>(ELotTexel::Done), TexelsPerCellSide);
 	}
 	CellDone[Cell] = TexelsPerCell;
-	CellRaw[Cell] = 0;
 	++CompleteCount;
 	ExpandDirty(SectorOfTexel(X0, Y0), X0, Y0, X0 + TexelsPerCellSide, Y0 + TexelsPerCellSide);
 	Result.CompletedCells.Add(Cell);
@@ -163,14 +152,14 @@ FLotPour FLotGrid::StepFluid()
 	{
 		return Result;
 	}
-	Fluid.Step(Texels, [this, &Result](int32 X, int32 Y, uint8 Kind)
+	Fluid.Step(Texels, [this, &Result](int32 X, int32 Y)
 	{
 		const int32 Cell = CellOfTexel(X, Y);
 		if (Cell == INDEX_NONE || Texels[TexelIndexOf(X, Y)] != static_cast<uint8>(ELotTexel::Free))
 		{
 			return;
 		}
-		ChangeTexel(X, Y, Cell, Kind == static_cast<uint8>(ELotTexel::Done) ? ELotTexel::Done : ELotTexel::Raw, Result);
+		CoverTexel(X, Y, Cell, Result);
 		++Result.TexelsChanged;
 	});
 	return Result;
@@ -197,7 +186,7 @@ void FLotGrid::SortCandidates()
 	});
 }
 
-FLotPour FLotGrid::ApplyCandidates(int32 Budget, ELotTexel State)
+FLotPour FLotGrid::ApplyCandidates(int32 Budget)
 {
 	FLotPour Result;
 	if (bFluidEnabled && !bInstantPour)
@@ -221,7 +210,7 @@ FLotPour FLotGrid::ApplyCandidates(int32 Budget, ELotTexel State)
 			const float Units = FMath::Min(static_cast<float>(Taken.Num()) / Heaps, static_cast<float>(LotBalance::FluidMaxPileUnits));
 			for (int32 Heap = 0; Heap < Heaps; ++Heap)
 			{
-				Fluid.Add(Taken[Heap] % Size, Taken[Heap] / Size, Units, static_cast<uint8>(State));
+				Fluid.Add(Taken[Heap] % Size, Taken[Heap] / Size, Units);
 			}
 		}
 		Result.TexelsChanged = Taken.Num();
@@ -240,14 +229,14 @@ FLotPour FLotGrid::ApplyCandidates(int32 Budget, ELotTexel State)
 		}
 		const int32 X = Candidate.Index % Size;
 		const int32 Y = Candidate.Index / Size;
-		ChangeTexel(X, Y, CellOfTexel(X, Y), State, Result);
+		CoverTexel(X, Y, CellOfTexel(X, Y), Result);
 		++Result.TexelsChanged;
 	}
 	Result.LitresUsed = Result.TexelsChanged * LitresPerTexel;
 	return Result;
 }
 
-void FLotGrid::CollectStampCandidates(FVector2D A, FVector2D B, double WidthCm, ELotTexel WantedState)
+void FLotGrid::CollectStampCandidates(FVector2D A, FVector2D B, double WidthCm)
 {
 	Candidates.Reset();
 
@@ -302,13 +291,9 @@ void FLotGrid::CollectStampCandidates(FVector2D A, FVector2D B, double WidthCm, 
 		for (int32 X = X0; X <= X1; ++X)
 		{
 			const int32 Index = TexelIndexOf(X, Y);
-			if (Texels[Index] != static_cast<uint8>(WantedState))
+			if (Texels[Index] != static_cast<uint8>(ELotTexel::Free) || CellOfTexel(X, Y) == INDEX_NONE)
 			{
-				continue;
-			}
-			if (WantedState == ELotTexel::Free && CellOfTexel(X, Y) == INDEX_NONE)
-			{
-				continue; // outside the car park: never changes
+				continue; // taken already, or outside the car park: never changes
 			}
 			const FVector2D Offset(TexelCentre(X) - A.X, Wy - A.Y);
 			const double Along = FVector2D::DotProduct(Offset, Axis);
@@ -322,15 +307,15 @@ void FLotGrid::CollectStampCandidates(FVector2D A, FVector2D B, double WidthCm, 
 	}
 }
 
-FLotPour FLotGrid::Stamp(FVector2D A, FVector2D B, double WidthCm, double MaxLitres, ELotTexel State)
+FLotPour FLotGrid::Stamp(FVector2D A, FVector2D B, double WidthCm, double MaxLitres)
 {
-	if (State == ELotTexel::Free || !FMath::IsFinite(MaxLitres) || !(MaxLitres > 0.0) || !FMath::IsFinite(WidthCm) || !(WidthCm >= 0.0) || !IsFinite(A) || !IsFinite(B))
+	if (!FMath::IsFinite(MaxLitres) || !(MaxLitres > 0.0) || !FMath::IsFinite(WidthCm) || !(WidthCm >= 0.0) || !IsFinite(A) || !IsFinite(B))
 	{
 		return FLotPour();
 	}
-	CollectStampCandidates(A, B, WidthCm, ELotTexel::Free);
+	CollectStampCandidates(A, B, WidthCm);
 	SortCandidates();
-	return ApplyCandidates(BudgetTexels(MaxLitres), State);
+	return ApplyCandidates(BudgetTexels(MaxLitres));
 }
 
 FLotPour FLotGrid::PourDisc(FVector2D Centre, double RadiusCm, double MaxLitres, FVector2D From)
@@ -380,12 +365,12 @@ FLotPour FLotGrid::PourDisc(FVector2D Centre, double RadiusCm, double MaxLitres,
 		}
 	}
 	SortCandidates();
-	return ApplyCandidates(BudgetTexels(MaxLitres), ELotTexel::Done);
+	return ApplyCandidates(BudgetTexels(MaxLitres));
 }
 
-FLotPour FLotGrid::DepositIntoCell(int32 Cell, double MaxLitres, FVector2D From, ELotTexel State)
+FLotPour FLotGrid::DepositIntoCell(int32 Cell, double MaxLitres, FVector2D From)
 {
-	if (State == ELotTexel::Free || Cell < 0 || Cell >= AsphaltLot::NumCells || IsCellComplete(Cell) || !FMath::IsFinite(MaxLitres) || !(MaxLitres > 0.0) || !IsFinite(From))
+	if (Cell < 0 || Cell >= AsphaltLot::NumCells || IsCellComplete(Cell) || !FMath::IsFinite(MaxLitres) || !(MaxLitres > 0.0) || !IsFinite(From))
 	{
 		return FLotPour();
 	}
@@ -409,11 +394,7 @@ FLotPour FLotGrid::DepositIntoCell(int32 Cell, double MaxLitres, FVector2D From,
 
 	// Every texel costs the same and finishing the cell frees the rest, so only the first Take texels in order
 	// can ever be paid for; select them instead of sorting the whole cell.
-	int32 Take = FMath::Min(BudgetTexels(MaxLitres), Candidates.Num());
-	if (State == ELotTexel::Done)
-	{
-		Take = FMath::Min(Take, ThresholdTexels - static_cast<int32>(CellDone[Cell]));
-	}
+	const int32 Take = FMath::Min3(BudgetTexels(MaxLitres), Candidates.Num(), ThresholdTexels - static_cast<int32>(CellDone[Cell]));
 	if (Take <= 0)
 	{
 		return FLotPour();
@@ -424,29 +405,7 @@ FLotPour FLotGrid::DepositIntoCell(int32 Cell, double MaxLitres, FVector2D From,
 			[](const FCandidate& L, const FCandidate& R) { return CandidateLess(L.Key, L.Index, R.Key, R.Index); });
 		Candidates.SetNum(Take, EAllowShrinking::No);
 	}
-	return ApplyCandidates(Take, State);
-}
-
-FLotPour FLotGrid::FinishRaw(FVector2D A, FVector2D B, double WidthCm)
-{
-	FLotPour Result;
-	if (!FMath::IsFinite(WidthCm) || !(WidthCm >= 0.0) || !IsFinite(A) || !IsFinite(B))
-	{
-		return Result;
-	}
-	CollectStampCandidates(A, B, WidthCm, ELotTexel::Raw);
-	for (const FCandidate& Candidate : Candidates)
-	{
-		if (Texels[Candidate.Index] != static_cast<uint8>(ELotTexel::Raw))
-		{
-			continue; // finished meanwhile by the completion of its cell
-		}
-		const int32 X = Candidate.Index % Size;
-		const int32 Y = Candidate.Index / Size;
-		ChangeTexel(X, Y, CellOfTexel(X, Y), ELotTexel::Done, Result);
-		++Result.TexelsChanged;
-	}
-	return Result;
+	return ApplyCandidates(Take);
 }
 
 FLotPour FLotGrid::CompleteCell(int32 Cell)
@@ -456,7 +415,7 @@ FLotPour FLotGrid::CompleteCell(int32 Cell)
 	{
 		return Result;
 	}
-	Result.TexelsChanged = TexelsPerCell - CellDone[Cell] - CellRaw[Cell];
+	Result.TexelsChanged = TexelsPerCell - CellDone[Cell];
 	Result.LitresUsed = Result.TexelsChanged * LitresPerTexel;
 	FinishCell(Cell, Result);
 	return Result;
@@ -465,11 +424,6 @@ FLotPour FLotGrid::CompleteCell(int32 Cell)
 int32 FLotGrid::GetCellDone(int32 Cell) const
 {
 	return (Cell >= 0 && Cell < AsphaltLot::NumCells) ? CellDone[Cell] : 0;
-}
-
-int32 FLotGrid::GetCellRaw(int32 Cell) const
-{
-	return (Cell >= 0 && Cell < AsphaltLot::NumCells) ? CellRaw[Cell] : 0;
 }
 
 bool FLotGrid::IsCellComplete(int32 Cell) const
@@ -519,7 +473,7 @@ void FLotGrid::Write(TArray<uint8>& Out) const
 		{
 			Out[BitsAt + Cell / 8] |= static_cast<uint8>(1 << (Cell % 8));
 		}
-		else if (CellDone[Cell] + CellRaw[Cell] > 0)
+		else if (CellDone[Cell] > 0)
 		{
 			InProgress.Add(Cell);
 		}
@@ -536,7 +490,7 @@ void FLotGrid::Write(TArray<uint8>& Out) const
 		for (int32 I = 0; I < TexelsPerCell; ++I)
 		{
 			const int32 Texel = Texels[TexelIndexOf(Coord.X * TexelsPerCellSide + I % TexelsPerCellSide, Coord.Y * TexelsPerCellSide + I / TexelsPerCellSide)];
-			Out[PackedAt + I / 4] |= static_cast<uint8>(Texel << (2 * (I % 4)));
+			Out[PackedAt + I / 8] |= static_cast<uint8>(Texel << (I % 8));
 		}
 	}
 }
@@ -561,8 +515,6 @@ bool FLotGrid::Read(TConstArrayView<uint8> In, int32& OutBytesRead)
 	NewTexels.SetNumZeroed(Size * Size);
 	TArray<uint16> NewDone;
 	NewDone.SetNumZeroed(AsphaltLot::NumCells);
-	TArray<uint16> NewRaw;
-	NewRaw.SetNumZeroed(AsphaltLot::NumCells);
 	int32 NewComplete = 0;
 
 	for (int32 Cell = 0; Cell < AsphaltLot::NumCells; ++Cell)
@@ -597,30 +549,22 @@ bool FLotGrid::Read(TConstArrayView<uint8> In, int32& OutBytesRead)
 
 		const FIntPoint Coord = AsphaltLot::CellCoord(Cell);
 		int32 Done = 0;
-		int32 Raw = 0;
 		for (int32 I = 0; I < TexelsPerCell; ++I)
 		{
-			const uint8 Texel = (Packed[I / 4] >> (2 * (I % 4))) & 3;
-			if (Texel > static_cast<uint8>(ELotTexel::Done))
-			{
-				return false;
-			}
-			Done += Texel == static_cast<uint8>(ELotTexel::Done) ? 1 : 0;
-			Raw += Texel == static_cast<uint8>(ELotTexel::Raw) ? 1 : 0;
+			const uint8 Texel = (Packed[I / 8] >> (I % 8)) & 1;
+			Done += Texel;
 			NewTexels[TexelIndexOf(Coord.X * TexelsPerCellSide + I % TexelsPerCellSide, Coord.Y * TexelsPerCellSide + I / TexelsPerCellSide)] = Texel;
 		}
 		// A cell at the threshold should have been complete; an untouched cell is not written at all.
-		if (Done >= ThresholdTexels || Done + Raw == 0)
+		if (Done >= ThresholdTexels || Done == 0)
 		{
 			return false;
 		}
 		NewDone[Cell] = static_cast<uint16>(Done);
-		NewRaw[Cell] = static_cast<uint16>(Raw);
 	}
 
 	Texels = MoveTemp(NewTexels);
 	CellDone = MoveTemp(NewDone);
-	CellRaw = MoveTemp(NewRaw);
 	CompleteCount = NewComplete;
 	Fluid.Clear();
 	MakeAllSectorsDirty(Dirty);

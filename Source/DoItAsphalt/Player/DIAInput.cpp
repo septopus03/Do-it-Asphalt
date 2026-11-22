@@ -47,7 +47,6 @@ FDIAInput FDIAInput::Create(UObject* Outer)
 	Input.Hand1 = MakeAction(Outer, TEXT("IA_DIA_Hand1"), EInputActionValueType::Boolean);
 	Input.Hand2 = MakeAction(Outer, TEXT("IA_DIA_Hand2"), EInputActionValueType::Boolean);
 	Input.Hand3 = MakeAction(Outer, TEXT("IA_DIA_Hand3"), EInputActionValueType::Boolean);
-	Input.Hand4 = MakeAction(Outer, TEXT("IA_DIA_Hand4"), EInputActionValueType::Boolean);
 	Input.Flap = MakeAction(Outer, TEXT("IA_DIA_Flap"), EInputActionValueType::Boolean);
 	Input.Fill = MakeAction(Outer, TEXT("IA_DIA_Fill"), EInputActionValueType::Boolean);
 	Input.SendPaver = MakeAction(Outer, TEXT("IA_DIA_SendPaver"), EInputActionValueType::Boolean);
@@ -77,7 +76,6 @@ FDIAInput FDIAInput::Create(UObject* Outer)
 	Context->MapKey(Input.Hand1, EKeys::One);
 	Context->MapKey(Input.Hand2, EKeys::Two);
 	Context->MapKey(Input.Hand3, EKeys::Three);
-	Context->MapKey(Input.Hand4, EKeys::Four);
 	Context->MapKey(Input.Flap, EKeys::F);
 	Context->MapKey(Input.Fill, EKeys::R);
 	Context->MapKey(Input.SendPaver, EKeys::G);

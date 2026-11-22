@@ -29,7 +29,7 @@ public:
 };
 
 /**
- * The shop: a grid of cards for the plant and the eleven items. A card has a coloured tile, the name, what it gives, the price and
+ * The shop: a grid of cards for the plant and the ten items. A card has a coloured tile, the name, what it gives, the price and
  * a button (Buy, Locked with the reason); an item that is owned stays where it is and shows an OWNED badge instead of the button.
  * The widget tree is built once; the texts and the buttons' state are read from
  * FDIAShopModel through attribute lambdas, and the model is refreshed on OnStateChanged but only changes when a shown value

@@ -16,9 +16,8 @@
  * flow, so the front of a spreading puddle is as hot as the pour that feeds it.
  *
  * The fluid sees only the geometry of the car park (texels outside it, and the shopping-centre quadrant, are walls); it knows
- * nothing of raw or finished asphalt except the kind it was poured as, which it hands to the texels it covers. A texel that is
- * still free in the grid and holds LotBalance::FluidCoverUnits is reported through the callback of Step, once; the grid turns it
- * into ground. Asphalt that cools without ever covering a texel is lost, as the thin edge of a real puddle is.
+ * nothing of the ground except which texels are still free. A texel that is still free in the grid and holds
+ * LotBalance::FluidCoverUnits is reported through the callback of Step, once; the grid turns it into ground. Asphalt that cools without ever covering a texel is lost, as the thin edge of a real puddle is.
  *
  * Memory is sparse: the fluid lives in tiles of 32 x 32 texels that exist only where there is asphalt (and next to it, where it
  * is about to flow). Stepping costs time in proportion to the tiles in use and nothing at all when there are none. All
@@ -42,14 +41,14 @@ public:
 	FLotFluid(FLotFluid&&) = default;
 	FLotFluid& operator=(FLotFluid&&) = default;
 
-	/** Lays Units of hot asphalt of the given kind (1 raw, 2 finished) on a texel. False for a texel outside the car park or Units <= 0. */
-	bool Add(int32 X, int32 Y, float Units, uint8 Kind);
+	/** Lays Units of hot asphalt on a texel. False for a texel outside the car park or Units <= 0. */
+	bool Add(int32 X, int32 Y, float Units);
 
 	/**
 	 * Advances the fluid by one step of LotBalance::FluidStepSeconds. Texels is the grid's texel array (GridSide x GridSide, 0 =
-	 * free); OnSet(X, Y, Kind) is called for each free texel that now holds enough asphalt to set (the caller changes the grid).
+	 * free); OnSet(X, Y) is called for each free texel that now holds enough asphalt to set (the caller changes the grid).
 	 */
-	void Step(TConstArrayView<uint8> Texels, TFunctionRef<void(int32, int32, uint8)> OnSet);
+	void Step(TConstArrayView<uint8> Texels, TFunctionRef<void(int32, int32)> OnSet);
 
 	/** True while any asphalt is still hot enough to run. */
 	bool IsActive() const { return NumUsedTiles > 0; }
@@ -82,8 +81,6 @@ private:
 		float S[TileTexels];
 		float Hn[TileTexels];
 		float En[TileTexels];
-		uint8 Kind[TileTexels];
-		uint8 KindN[TileTexels];
 	};
 
 	/** The tile that holds texel (X, Y), or null where there is none. */

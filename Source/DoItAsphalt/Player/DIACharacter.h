@@ -165,9 +165,6 @@ private:
 	bool bExternalView = false;
 	/** 0 = normal view, 1 = work view. */
 	float WorkViewAlpha = 0.f;
-	/** The trowel has a contact point from the press on; it follows the aim at most TrowelSpeedCmS. */
-	bool bTrowelDown = false;
-	FVector2D TrowelContact = FVector2D::ZeroVector;
 	/** The item the pivot shows now and the movable held then; Count before the first refresh. */
 	ELotHand ShownHand = ELotHand::Count;
 	ELotMovable ShownHeld = ELotMovable::Count;

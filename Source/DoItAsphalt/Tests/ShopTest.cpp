@@ -42,7 +42,7 @@ bool FShopRowsTest::RunTest(const FString& Parameters)
 	FLotGame Game;
 	FDIAShopModel Model;
 	TestTrue(TEXT("the first update builds the rows"), Model.Update(Game));
-	if (!TestEqual(TEXT("the plant and eleven items"), FDIAShopModel::NumRows, 12))
+	if (!TestEqual(TEXT("the plant and ten items"), FDIAShopModel::NumRows, 11))
 	{
 		return false;
 	}
@@ -67,18 +67,16 @@ bool FShopRowsTest::RunTest(const FString& Parameters)
 	Is(TEXT("scoop price"), Model.GetRow(1).Price, TEXT("10"));
 	Is(TEXT("suitcase value"), Model.GetRow(3).Value, TEXT("60 l"));
 	Is(TEXT("cart value"), Model.GetRow(4).Value, TEXT("200 l"));
-	Is(TEXT("finisher value"), Model.GetRow(6).Value, TEXT("85 cells/min"));
-	Is(TEXT("auto paver upgrade"), Model.GetRow(8).Value, TEXT("120 → 170 cells/min"));
-	Is(TEXT("auto paver upgrade price"), Model.GetRow(8).Price, TEXT("9,000"));
-	Is(TEXT("wide bar value"), Model.GetRow(11).Value, TEXT("260 → 300 cells/min"));
+	Is(TEXT("auto paver upgrade"), Model.GetRow(7).Value, TEXT("120 → 170 cells/min"));
+	Is(TEXT("auto paver upgrade price"), Model.GetRow(7).Price, TEXT("9,000"));
+	Is(TEXT("wide bar value"), Model.GetRow(10).Value, TEXT("260 → 300 cells/min"));
 	TestTrue(TEXT("the scoop is too expensive for nothing"), Model.GetRow(1).State == EDIAShopState::NoCredits);
 
 	// The machines are visible and locked, with the reason.
 	TestTrue(TEXT("the station is locked"), Model.GetRow(5).State == EDIAShopState::Locked);
 	Is(TEXT("the station's reason"), Model.GetRow(5).Reason, TEXT("350 cells + entry 3"));
-	Is(TEXT("the finisher's reason"), Model.GetRow(6).Reason, TEXT("350 cells + entry 3"));
-	Is(TEXT("the auto paver's reason"), Model.GetRow(7).Reason, TEXT("800 cells + entry 4"));
-	Is(TEXT("the car's reason"), Model.GetRow(10).Reason, TEXT("6,000 cells + entry 5"));
+	Is(TEXT("the auto paver's reason"), Model.GetRow(6).Reason, TEXT("800 cells + entry 4"));
+	Is(TEXT("the car's reason"), Model.GetRow(9).Reason, TEXT("6,000 cells + entry 5"));
 	TestTrue(TEXT("the unlocked rows have no reason"), Model.GetRow(1).Reason.IsEmpty());
 
 	// With money the first four items and the plant can be bought.

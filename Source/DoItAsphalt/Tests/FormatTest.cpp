@@ -56,7 +56,7 @@ bool FFormatTest::RunTest(const FString& Parameters)
 	Is(TEXT("car item name"), DIAFormat::ItemName(ELotItem::Car), TEXT("Paver Car"));
 	Is(TEXT("car upgrade name"), DIAFormat::ItemName(ELotItem::CarWideBar), TEXT("Wide Bar"));
 	Is(TEXT("car unlock name"), DIAFormat::UnlockName(ELotUnlock::Car), TEXT("Paver Car"));
-	Is(TEXT("hand name"), DIAFormat::HandName(ELotHand::Trowel), TEXT("Trowel"));
+	Is(TEXT("hand name"), DIAFormat::HandName(ELotHand::Bucket), TEXT("Bucket"));
 	TestEqual(TEXT("unlock toast"), DIAFormat::UnlockToast(ELotUnlock::Sprint).ToString(), FString(TEXT("Unlocked: Sprint\n")) + DIAFormat::UnlockEffect(ELotUnlock::Sprint).ToString());
 	Is(TEXT("nearest unfinished"), DIAFormat::NearestUnfinished(4180.0), TEXT("Nearest unfinished: 42 m"));
 	Is(TEXT("nearest unfinished rounds to the nearest metre"), DIAFormat::NearestUnfinished(4260.0), TEXT("Nearest unfinished: 43 m"));

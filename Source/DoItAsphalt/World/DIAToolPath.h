@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 
-/** Numbers of the path a working tool (the cart's mouth, the finisher's bar, the car's bar) draws in one tick. */
+/** Numbers of the path a working tool (the cart's mouth, the car's bar) draws in one tick. */
 namespace DIAToolPath
 {
 	/** Two points closer than this are the same point: a tool that does not move works nothing. */
@@ -15,7 +15,7 @@ namespace DIAToolPath
 
 /**
  * The path of a tool that works while it moves, from tick to tick: from where it was to where it is now. Used by everything that
- * lays asphalt by moving (the held cart and finisher, the paver car), so that all of them treat a standing tool, the first tick of
+ * lays asphalt by moving (the held cart, the paver car), so that all of them treat a standing tool, the first tick of
  * a stroke and a jump in the same way.
  */
 struct FDIAToolPath

@@ -2,6 +2,8 @@
 
 Verzia 0.2 · 2026-11-20 · vychádza z `Do_it_Asphalt-self.md` · zvolený variant so surovým pásom
 
+> **Prekonané (2026-11-22):** surový asfalt, hladidlo a pásový finišer sa z hry odstránili. Hráč len leje asfalt na zem (fyzika tekutiny ostala) a vyliaty asfalt je rovno hotový. Platí `01-herny-dizajn.md`; tento dokument zostáva ako história návrhu, takže kapitoly o surovom páse, hladidle a finišeri už neplatia.
+
 Tento dokument hovorí, ako z hotovej hry v1 (šesťuholníkové parkovisko, batoh, shardy) spraviť hru podľa novej dokumentácie. Rozpis úloh po krokoch je v `superpowers/plans/2026-11-20-asphalt-self.md`. Všetko, čo nová dokumentácia neurčila a rozhodol som sám, je v kapitole 6 a dá sa zmeniť jednou vetou.
 
 ---

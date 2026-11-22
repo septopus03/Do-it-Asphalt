@@ -56,9 +56,8 @@ namespace
 		return Movable == ELotMovable::Suitcase || Movable == ELotMovable::Cart;
 	}
 
-	/** Hand items that hold litres (the bowl, the scoop and the bucket); the trowel is last and holds nothing. */
-	constexpr int32 NumLitreHands = static_cast<int32>(ELotHand::Trowel);
-	static_assert(static_cast<int32>(ELotHand::Trowel) == static_cast<int32>(ELotHand::Count) - 1, "the trowel is the last hand item");
+	/** Hand items that hold litres: the bowl, the scoop and the bucket. */
+	constexpr int32 NumLitreHands = static_cast<int32>(ELotHand::Count);
 	/** Rounding slack when a loaded amount of litres is compared with its limit. */
 	constexpr double LoadSlackL = 1e-6;
 
@@ -75,8 +74,7 @@ namespace
 		{
 		case ELotMovable::Suitcase: return ELotItem::Suitcase;
 		case ELotMovable::Cart: return ELotItem::Cart;
-		case ELotMovable::Station: return ELotItem::Station;
-		default: return ELotItem::Finisher;
+		default: return ELotItem::Station;
 		}
 	}
 
@@ -332,12 +330,10 @@ FLotEvents FLotGame::PourFromCar(FVector2D A, FVector2D B)
 		return FLotEvents();
 	}
 	const double Width = LotBalance::CarWidthCm[Level];
-	FLotEvents Events = ApplyPour(Grid.FinishRaw(A, B, Width));
 	const FInstantPour Instant(Grid);
-	const FLotPour Pour = Grid.Stamp(A, B, Width, PlantStock, ELotTexel::Done);
+	const FLotPour Pour = Grid.Stamp(A, B, Width, PlantStock);
 	PlantStock = FMath::Max(0.0, PlantStock - Pour.LitresUsed);
-	Events.Append(ApplyPour(Pour));
-	return Events;
+	return ApplyPour(Pour);
 }
 
 void FLotGame::TickAutoPaver(double Step, FLotEvents& Events)
@@ -374,15 +370,10 @@ void FLotGame::TickAutoPaver(double Step, FLotEvents& Events)
 		AutoPaverPos = Centre;
 		if (!Grid.IsCellComplete(Cell))
 		{
-			if (Grid.GetCellRaw(Cell) > 0)
-			{
-				const double Half = AsphaltLot::CellCm * 0.5 - LotBalance::StampPadCm;
-				Events.Append(ApplyPour(Grid.FinishRaw(Centre - FVector2D(Half, 0.0), Centre + FVector2D(Half, 0.0), AsphaltLot::CellCm)));
-			}
-			if (!Grid.IsCellComplete(Cell) && AutoPaverBudget > 0.0)
+			if (AutoPaverBudget > 0.0)
 			{
 				const FInstantPour Instant(Grid);
-				const FLotPour Pour = Grid.DepositIntoCell(Cell, AutoPaverBudget, From, ELotTexel::Done);
+				const FLotPour Pour = Grid.DepositIntoCell(Cell, AutoPaverBudget, From);
 				AutoPaverBudget = FMath::Max(0.0, AutoPaverBudget - Pour.LitresUsed);
 				PlantStock = FMath::Max(0.0, PlantStock - Pour.LitresUsed);
 				Events.Append(ApplyPour(Pour));
@@ -470,7 +461,6 @@ bool FLotGame::CanSelectHand(ELotHand NewHand) const
 	switch (NewHand)
 	{
 	case ELotHand::Bowl:
-	case ELotHand::Trowel:
 		return true;
 	case ELotHand::Scoop:
 		return Owns(ELotItem::Scoop);
@@ -623,18 +613,9 @@ FLotEvents FLotGame::DumpBucket(FVector2D Aim, FVector2D From)
 	{
 		return FLotEvents();
 	}
-	const FLotPour Pour = Grid.DepositIntoCell(Cell, Content, From, ELotTexel::Done);
+	const FLotPour Pour = Grid.DepositIntoCell(Cell, Content, From);
 	Content = FMath::Max(0.0, Content - Pour.LitresUsed);
 	return ApplyPour(Pour);
-}
-
-FLotEvents FLotGame::Trowel(FVector2D A, FVector2D B)
-{
-	if (Hand != ELotHand::Trowel || !HandsFree())
-	{
-		return FLotEvents();
-	}
-	return ApplyPour(Grid.FinishRaw(A, B, LotBalance::TrowelWidthCm));
 }
 
 bool FLotGame::HandsFree() const
@@ -714,7 +695,7 @@ FLotEvents FLotGame::DoseSuitcase(FVector2D Mouth, FVector2D From, double Dt)
 		return FLotEvents();
 	}
 	const int32 Cell = AsphaltLot::CellAt(Mouth);
-	if (Cell == INDEX_NONE || Grid.IsCellComplete(Cell) || Grid.GetCellDone(Cell) + Grid.GetCellRaw(Cell) >= FLotGrid::TexelsPerCell)
+	if (Cell == INDEX_NONE || Grid.IsCellComplete(Cell) || Grid.GetCellDone(Cell) >= FLotGrid::TexelsPerCell)
 	{
 		// Nothing can be laid here: the flap closes and the stream starts anew elsewhere.
 		DoseBudget = 0.0;
@@ -724,7 +705,7 @@ FLotEvents FLotGame::DoseSuitcase(FVector2D Mouth, FVector2D From, double Dt)
 	const double Earned = LotBalance::SuitcaseDoseRateLPerS * FMath::Min(Dt, MaxTickSeconds);
 	const FLotPour Pour = SpendStream(DoseBudget, Content, Earned, [&](double Budget)
 	{
-		return Grid.DepositIntoCell(Cell, Budget, From, ELotTexel::Raw);
+		return Grid.DepositIntoCell(Cell, Budget, From);
 	});
 	return ApplyPour(Pour);
 }
@@ -737,18 +718,9 @@ FLotEvents FLotGame::LayCartStrip(FVector2D A, FVector2D B)
 	}
 	double& Content = MovableLitres[static_cast<int32>(ELotMovable::Cart)];
 	const FInstantPour Instant(Grid);
-	const FLotPour Pour = Grid.Stamp(A, B, LotBalance::CartStripWidthCm, Content, ELotTexel::Raw);
+	const FLotPour Pour = Grid.Stamp(A, B, LotBalance::CartStripWidthCm, Content);
 	Content = FMath::Max(0.0, Content - Pour.LitresUsed);
 	return ApplyPour(Pour);
-}
-
-FLotEvents FLotGame::FinisherPass(FVector2D A, FVector2D B)
-{
-	if (Held != ELotMovable::Finisher)
-	{
-		return FLotEvents();
-	}
-	return ApplyPour(Grid.FinishRaw(A, B, LotBalance::FinisherWidthCm));
 }
 
 void FLotGame::PlaceBoughtItem(ELotItem Item)

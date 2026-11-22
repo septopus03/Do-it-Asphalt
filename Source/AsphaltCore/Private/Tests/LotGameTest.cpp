@@ -193,8 +193,8 @@ bool FLotPlantLevelsTest::RunTest(const FString& Parameters)
 bool FLotShopPricesTest::RunTest(const FString& Parameters)
 {
 	FLotGame G;
-	const double Expected[11] = {10, 35, 110, 340, 900, 1400, 3000, 9000, 22000, 12000, 24000};
-	for (int32 I = 0; I < 11; ++I)
+	const double Expected[10] = {10, 35, 110, 340, 900, 3000, 9000, 22000, 12000, 24000};
+	for (int32 I = 0; I < 10; ++I)
 	{
 		TestNearlyEqual(FString::Printf(TEXT("price %d"), I), G.GetItemPrice(static_cast<ELotItem>(I)), Expected[I], Tolerance);
 	}
@@ -218,7 +218,6 @@ bool FLotShopLockedUntilUnlockTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("step locked without the segment"), G.IsUnlocked(ELotUnlock::StripWork));
 	TestFalse(TEXT("station not offered"), G.IsItemOffered(ELotItem::Station));
 	TestFalse(TEXT("station not bought"), G.BuyItem(ELotItem::Station));
-	TestFalse(TEXT("finisher not bought"), G.BuyItem(ELotItem::Finisher));
 	for (int32 Cell : EntryCells(2))
 	{
 		TestFalse(TEXT("still locked while the segment is incomplete"), G.IsUnlocked(ELotUnlock::StripWork));

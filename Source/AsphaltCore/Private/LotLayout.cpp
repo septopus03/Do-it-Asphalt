@@ -34,7 +34,6 @@ namespace LotLayout
 		case ELotItem::Suitcase: return FVector2D(150.0, -9700.0);
 		case ELotItem::Cart: return FVector2D(350.0, -9700.0);
 		case ELotItem::Station: return FVector2D(-350.0, -9700.0);
-		case ELotItem::Finisher: return FVector2D(600.0, -9700.0);
 		case ELotItem::AutoPaver: return FVector2D(-600.0, -9700.0);
 		case ELotItem::Car: return FVector2D(-1000.0, -9500.0);
 		default: return PlayerStart;

@@ -32,9 +32,8 @@ namespace DIAMovable
  * HandleClearanceCm in front of the player (the capsule is 34 cm wide); the suitcase is pulled behind the player, turned the other
  * way round and tilted about its wheel axis.
  *
- * Every pose keeps the footprint clear of the player's capsule (34 cm), so that letting go needs no move. The finisher's origin (the
- * middle of its bar) is 1.65 m ahead: its rear edge, 1.22 m behind the origin, is then 43 cm ahead of the player's centre. The station
- * is pulled behind the player with its handle (the model's -X end) towards the player.
+ * Every pose keeps the footprint clear of the player's capsule (34 cm), so that letting go needs no move. The station is pulled behind
+ * the player with its handle (the model's -X end) towards the player.
  */
 namespace DIAMovableHold
 {
@@ -49,8 +48,6 @@ namespace DIAMovableHold
 	/** The suitcase's origin (below its wheel axis) is this far behind the player; its handle then lies right behind the player's back. */
 	inline constexpr double SuitcaseBehindCm = 62.0;
 	inline constexpr double SuitcaseTiltDeg = 25.0;
-	/** The finisher's origin (the middle of its bar) ahead of the player: its rear edge (122 cm behind the origin) 43 cm in front of the player's centre. */
-	inline constexpr double FinisherAheadCm = 165.0;
 	/** The station's origin behind the player: its near end (60 cm from the origin) 45 cm behind the player's centre. */
 	inline constexpr double StationBehindCm = 105.0;
 
@@ -61,7 +58,6 @@ namespace DIAMovableHold
 		{
 		case ELotMovable::Suitcase: return {-SuitcaseBehindCm, 180.0, SuitcaseTiltDeg};
 		case ELotMovable::Station: return {-StationBehindCm, 180.0, 0.0};
-		case ELotMovable::Finisher: return {FinisherAheadCm, 0.0, 0.0};
 		case ELotMovable::Cart:
 		default: return {HandleClearanceCm + 65.0, 0.0, 0.0};
 		}
@@ -69,7 +65,7 @@ namespace DIAMovableHold
 }
 
 /**
- * The suitcase, the cart, the portable station and the finisher as objects of the world (one actor per owned kind; the game mode
+ * The suitcase, the cart and the portable station as objects of the world (one actor per owned kind; the game mode
  * keeps the set). The core owns the position and who holds it (FLotWorldState::Movables), this actor only mirrors it: Interact grabs
  * or lets go through FLotGame, and the actor follows the core on every state change and after a loaded or restarted game. While
  * held it follows the player every tick (presentation only, collision off): the suitcase behind the player tilted about its wheel
@@ -77,8 +73,8 @@ namespace DIAMovableHold
  * actor has into the core, if there is room there.
  *
  * Behaviour that belongs to the object lives here, so that it runs in one place: a standing suitcase or cart in the refill zone fills
- * itself, a standing suitcase doses raw asphalt while the player holds Flap beside it, and the held cart lays a raw strip while Use is
- * held and it moves. The level shows as a disc in the cart's tub and as a column in the suitcase's sight strip.
+ * itself, a standing suitcase doses asphalt while the player holds Flap beside it, and the held cart lays a strip while Use is held and
+ * it moves. The level shows as a disc in the cart's tub and as a column in the suitcase's sight strip.
  */
 UCLASS(NotBlueprintable)
 class DOITASPHALT_API ADIAMovable : public AActor, public IDIAInteractable
@@ -143,13 +139,13 @@ private:
 	bool HasRoomAt(FVector2D Where, double YawDeg, const ADIACharacter* By) const;
 	void ShowNoRoomToast(const ADIACharacter* By) const;
 	/**
-	 * The path of the held cart's mouth or the finisher's bar in this tick while Use is down: from where it was to where it is now.
+	 * The path of the held cart's mouth in this tick while Use is down: from where it was to where it is now.
 	 * False (and no path) on the first tick of a press, when it did not move, and when it moved further than a walk at SpeedCmS allows
 	 * (a teleport, a hitch, a spin): the path then starts again where it is. The bound is the larger of this tick's and the previous
 	 * tick's length, so that one long frame followed by a short one does not drop a segment of an honest walk.
 	 */
 	bool NextToolPath(const ADIACharacter* Player, float DeltaSeconds, double SpeedCmS, FVector2D& OutFrom, FVector2D& OutTo);
-	/** The held cart lays a raw strip, the held finisher finishes the raw asphalt under its bar. */
+	/** The held cart lays a strip of asphalt along the path of its mouth. */
 	void WorkTheStrip(UDIAWorldSubsystem& Subsystem, const ADIACharacter* Player, float DeltaSeconds);
 	/** The held actor ticks after this character and its movement (null: after nobody), so that its pose is this frame's. */
 	void TickAfter(ADIACharacter* Character);
@@ -169,7 +165,7 @@ private:
 
 	/** The actor shows the held pose (collision off, tilted), as opposed to standing. */
 	bool bShownHeld = false;
-	/** The path of the held cart's mouth or the finisher's bar while Use is down. */
+	/** The path of the held cart's mouth while Use is down. */
 	FDIAToolPath ToolPath;
 	/** The character this actor was ordered to tick after. */
 	TWeakObjectPtr<ADIACharacter> TickedAfter;

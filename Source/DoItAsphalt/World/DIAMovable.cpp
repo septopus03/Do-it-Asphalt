@@ -46,8 +46,6 @@ namespace
 			return {TEXT("SM_Suitcase"), FVector(-5.0, -25.4, 0.0), FVector(37.0, 25.4, 105.5), DIAModelSizes::SuitcaseMouthCm, true};
 		case ELotMovable::Station:
 			return {TEXT("SM_PortableStation"), FVector(-60.0, -40.0, 0.0), FVector(60.0, 40.0, 130.0), FVector::ZeroVector, false};
-		case ELotMovable::Finisher:
-			return {TEXT("SM_Finisher"), FVector(-122.0, -53.6, 0.0), FVector(10.0, 53.6, 100.0), FVector::ZeroVector, false};
 		case ELotMovable::Cart:
 		default:
 			return {TEXT("SM_Cart"), FVector(-65.0, -33.5, 0.0), FVector(61.0, 33.5, 99.0), DIAModelSizes::CartMouthCm, true};
@@ -402,13 +400,11 @@ bool ADIAMovable::NextToolPath(const ADIACharacter* Player, float DeltaSeconds, 
 
 void ADIAMovable::WorkTheStrip(UDIAWorldSubsystem& Subsystem, const ADIACharacter* Player, float DeltaSeconds)
 {
-	const bool bCart = Kind == ELotMovable::Cart;
 	FVector2D From;
 	FVector2D To;
-	if (NextToolPath(Player, DeltaSeconds, bCart ? LotBalance::CartLaySpeedCmS : LotBalance::FinisherSpeedCmS(), From, To))
+	if (NextToolPath(Player, DeltaSeconds, LotBalance::CartLaySpeedCmS, From, To))
 	{
-		FLotGame& Game = Subsystem.GetGame();
-		Subsystem.Dispatch(bCart ? Game.LayCartStrip(From, To) : Game.FinisherPass(From, To));
+		Subsystem.Dispatch(Subsystem.GetGame().LayCartStrip(From, To));
 	}
 }
 
@@ -468,7 +464,7 @@ void ADIAMovable::Tick(float DeltaSeconds)
 
 	if (IsHeld())
 	{
-		if (Kind == ELotMovable::Cart || Kind == ELotMovable::Finisher)
+		if (Kind == ELotMovable::Cart)
 		{
 			WorkTheStrip(*Subsystem, Player, DeltaSeconds);
 		}

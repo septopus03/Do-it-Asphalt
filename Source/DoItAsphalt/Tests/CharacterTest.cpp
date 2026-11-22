@@ -83,7 +83,7 @@ namespace
 		return Game.GetGrid().GetTexel(X, Y);
 	}
 
-	int32 CountTexels(const FLotGame& Game, ELotTexel State)
+	int32 CountTexels(const FLotGame& Game, ELotTexel State = ELotTexel::Done)
 	{
 		int32 Count = 0;
 		for (const uint8 Texel : Game.GetGrid().GetTexels())
@@ -357,12 +357,6 @@ bool FCharacterHandMeshTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("... with the spoon"), MeshName(Character->GetSpoonMesh()), FString(TEXT("SM_Spoon")));
 	TestTrue(TEXT("... the spoon shows"), Character->GetSpoonMesh()->IsVisible());
 
-	TestTrue(TEXT("take the trowel"), Character->SelectHand(ELotHand::Trowel));
-	TestEqual(TEXT("trowel mesh"), MeshName(Character->GetHandMesh()), FString(TEXT("SM_Trowel")));
-	TestFalse(TEXT("no spoon with the trowel"), Character->GetSpoonMesh()->IsVisible());
-	TestFalse(TEXT("no asphalt level on the trowel"), Character->GetLiquidMesh()->IsVisible());
-
-	TickFor(Wrapper, LotBalance::SwapSeconds + 0.5);
 	Game.DebugGrantItem(ELotItem::Bucket);
 	TestTrue(TEXT("take the bucket"), Character->SelectHand(ELotHand::Bucket));
 	TestEqual(TEXT("bucket mesh"), MeshName(Character->GetHandMesh()), FString(TEXT("SM_Bucket")));
@@ -433,7 +427,7 @@ bool FCharacterPourOnLotTest::RunTest(const FString& Parameters)
 	DIA_CHARACTER_FIXTURE()
 	Game.DebugFillHand();
 	const double Before = Game.GetHandLitres(ELotHand::Bowl);
-	const int32 DoneBefore = CountTexels(Game, ELotTexel::Done);
+	const int32 DoneBefore = CountTexels(Game);
 	TestEqual(TEXT("nothing on the lot yet"), DoneBefore, 0);
 
 	// Looking down at the feet; the player walks on 15 cm per tick so that the stream always meets free texels.
@@ -447,7 +441,7 @@ bool FCharacterPourOnLotTest::RunTest(const FString& Parameters)
 	Character->SetUsing(false);
 
 	TestNearlyEqual(TEXT("the bowl is a litre lighter"), Before - Game.GetHandLitres(ELotHand::Bowl), LotBalance::HandPourRateLPerS * 1.0, 0.05);
-	const int32 Gained = CountTexels(Game, ELotTexel::Done) - DoneBefore;
+	const int32 Gained = CountTexels(Game) - DoneBefore;
 	TestTrue(TEXT("finished texels appeared on the ground"), Gained > 0);
 	TestNearlyEqual(TEXT("... as many as the litres pay for"), Gained * FLotGrid::LitresPerTexel, Game.GetTotalLitres(), 1e-6);
 	TestNearlyEqual(TEXT("the litres came out of the bowl"), Game.GetTotalLitres(), Before - Game.GetHandLitres(ELotHand::Bowl), 1e-6);
@@ -607,7 +601,6 @@ namespace
 	{
 		double Scooped = 0.0;
 		double Poured = 0.0;
-		double TrowelCm = 0.0;
 		double DumpedLitres = 0.0;
 		int32 DumpedCells = 0;
 	};
@@ -651,32 +644,6 @@ namespace
 			UWorld* World = Wrapper.GetTestWorld();
 			FLotGame& Game = World->GetSubsystem<UDIAWorldSubsystem>()->GetGame();
 			ADIACharacter* Character = DIATest::SpawnCharacter(World, MiddleOfLot());
-			Character->SelectHand(ELotHand::Trowel);
-			TickFor(Wrapper, LotBalance::SwapSeconds + 0.5, Step);
-			const FVector2D Start = MiddleOfLot();
-			Game.GetGrid().Stamp(Start - FVector2D(10.0, 0.0), Start + FVector2D(LotBalance::ReachCm, 0.0), LotBalance::TrowelWidthCm, 100.0, ELotTexel::Raw);
-			Place(Character, Start, -90.0, 0.0);
-			Character->SetUsing(true);
-			Wrapper.TickTestWorld(static_cast<float>(Step));
-			Place(Character, Start, 0.0, 0.0);
-			TickFor(Wrapper, 1.0, Step);
-			for (double X = 2.5; X < LotBalance::ReachCm + 20.0; X += FLotGrid::TexelCm)
-			{
-				if (TexelAt(Game, Start + FVector2D(X, 0.0)) == ELotTexel::Done)
-				{
-					Out.TrowelCm = X;
-				}
-			}
-		}
-		{
-			FTestWorldWrapper Wrapper;
-			if (!DIATest::StartGameWorld(Wrapper, Test))
-			{
-				return false;
-			}
-			UWorld* World = Wrapper.GetTestWorld();
-			FLotGame& Game = World->GetSubsystem<UDIAWorldSubsystem>()->GetGame();
-			ADIACharacter* Character = DIATest::SpawnCharacter(World, MiddleOfLot());
 			Game.DebugGrantItem(ELotItem::Bucket);
 			Character->SelectHand(ELotHand::Bucket);
 			TickFor(Wrapper, LotBalance::SwapSeconds + 0.5, Step);
@@ -708,7 +675,6 @@ bool FCharacterTickRateIndependentTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("two strokes of the spoon"), Fine.Scooped, 2.0 * LotBalance::SpoonLitres, 1e-6);
 	TestNearlyEqual(TEXT("poured litres (within two texels)"), Fine.Poured, Coarse.Poured, 2.0 * FLotGrid::LitresPerTexel);
 	TestEqual(TEXT("poured about a litre"), Fine.Poured, LotBalance::HandPourRateLPerS, 0.1);
-	TestNearlyEqual(TEXT("finished trowel length"), Fine.TrowelCm, Coarse.TrowelCm, 10.0);
 	TestNearlyEqual(TEXT("the bucket's stream pours the same in both"), Fine.DumpedLitres, Coarse.DumpedLitres, 2.0 * FLotGrid::LitresPerTexel);
 	TestEqual(TEXT("a second of the bucket's stream"), Fine.DumpedLitres, LotBalance::BucketPourRateLPerS, 0.1);
 	return true;
@@ -720,57 +686,18 @@ bool FCharacterNextHandTest::RunTest(const FString& Parameters)
 {
 	DIA_CHARACTER_FIXTURE()
 	Character->NextHand();
-	TestEqual(TEXT("bowl -> trowel while nothing else is owned"), Game.GetHand(), ELotHand::Trowel);
-	TickFor(Wrapper, LotBalance::SwapSeconds + 0.5);
-	Character->NextHand();
-	TestEqual(TEXT("trowel -> bowl"), Game.GetHand(), ELotHand::Bowl);
+	TestEqual(TEXT("the bowl stays while nothing else is owned"), Game.GetHand(), ELotHand::Bowl);
 	TickFor(Wrapper, LotBalance::SwapSeconds + 0.5);
 
 	Game.DebugGrantItem(ELotItem::Scoop);
 	Game.DebugGrantItem(ELotItem::Bucket);
-	const ELotHand Order[] = {ELotHand::Scoop, ELotHand::Bucket, ELotHand::Trowel, ELotHand::Bowl};
+	const ELotHand Order[] = {ELotHand::Scoop, ELotHand::Bucket, ELotHand::Bowl};
 	for (const ELotHand Expected : Order)
 	{
 		Character->NextHand();
 		TestEqual(TEXT("next item in order"), Game.GetHand(), Expected);
 		TickFor(Wrapper, LotBalance::SwapSeconds + 0.5);
 	}
-	return true;
-}
-
-DIA_TEST(FCharacterTrowelSpeedLimitedTest, "DoItAsphalt.Game.Character.TrowelSpeedLimited")
-
-bool FCharacterTrowelSpeedLimitedTest::RunTest(const FString& Parameters)
-{
-	DIA_CHARACTER_FIXTURE()
-	TestTrue(TEXT("take the trowel"), Character->SelectHand(ELotHand::Trowel));
-	TickFor(Wrapper, LotBalance::SwapSeconds + 0.5);
-
-	// A raw strip ahead of the player, longer than the trowel can travel in a second.
-	const FVector2D Start = MiddleOfLot();
-	const double StripLength = LotBalance::ReachCm;
-	Game.GetGrid().Stamp(Start - FVector2D(10.0, 0.0), Start + FVector2D(StripLength, 0.0), LotBalance::TrowelWidthCm, 100.0, ELotTexel::Raw);
-	TestTrue(TEXT("raw at the far end"), TexelAt(Game, Start + FVector2D(StripLength - 2.5, 0.0)) == ELotTexel::Raw);
-
-	// Press while looking down at the feet: the contact point starts there. Then the aim jumps to the far end of the reach.
-	Place(Character, Start, -90.0, 0.0);
-	Character->SetUsing(true);
-	Wrapper.TickTestWorld(TickSeconds);
-	Place(Character, Start, 0.0, 0.0);
-	TestEqual(TEXT("the aim jumped a whole reach"), Character->GetAimPoint().X - Start.X, LotBalance::ReachCm, 0.5);
-	TickFor(Wrapper, 1.0);
-	Character->SetUsing(false);
-
-	double FinishedLength = 0.0;
-	for (double X = 2.5; X < StripLength + 20.0; X += FLotGrid::TexelCm)
-	{
-		if (TexelAt(Game, Start + FVector2D(X, 0.0)) == ELotTexel::Done)
-		{
-			FinishedLength = X;
-		}
-	}
-	TestEqual(TEXT("in one second only TrowelSpeedCmS of the strip is finished"), FinishedLength, LotBalance::TrowelSpeedCmS, 2.0 * LotBalance::StampPadCm + FLotGrid::TexelCm);
-	TestTrue(TEXT("the far end is still raw"), TexelAt(Game, Start + FVector2D(StripLength - 2.5, 0.0)) == ELotTexel::Raw);
 	return true;
 }
 

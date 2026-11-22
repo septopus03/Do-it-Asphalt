@@ -21,7 +21,7 @@ bool FLotBalanceTablesTest::RunTest(const FString& Parameters)
 	{
 		ItemTotal += Price;
 	}
-	TestEqual(TEXT("item prices"), ItemTotal, 72795);
+	TestEqual(TEXT("item prices"), ItemTotal, 71395);
 
 	int32 PlantTotal = 0;
 	for (const int32 Price : LotBalance::PlantPrice)
@@ -48,7 +48,6 @@ bool FLotBalanceTablesTest::RunTest(const FString& Parameters)
 
 bool FLotBalanceDerivedTest::RunTest(const FString& Parameters)
 {
-	TestEqual(TEXT("finisher speed"), LotBalance::FinisherSpeedCmS(), 141.667, 0.01);
 	TestEqual(TEXT("car speed, plain bar"), LotBalance::CarPaveSpeedCmS(0), 144.444, 0.01);
 	TestEqual(TEXT("car speed, wide bar"), LotBalance::CarPaveSpeedCmS(1), 142.857, 0.01);
 	TestEqual(TEXT("dispense rate"), LotBalance::DispenseRateLPerS(0), 2.5);
@@ -57,10 +56,7 @@ bool FLotBalanceDerivedTest::RunTest(const FString& Parameters)
 
 bool FLotBalanceMachineSpeedsTest::RunTest(const FString& Parameters)
 {
-	TestTrue(TEXT("trowel speed"), LotBalance::TrowelSpeedCmS > 0.0);
-	TestTrue(TEXT("finisher push speed"), LotBalance::FinisherPushSpeedCmS > 0.0);
 	TestTrue(TEXT("station carry speed"), LotBalance::StationCarrySpeedCmS > 0.0);
-	TestTrue(TEXT("pushing the finisher is faster than finishing"), LotBalance::FinisherPushSpeedCmS > LotBalance::FinisherSpeedCmS());
 	return true;
 }
 
@@ -95,7 +91,7 @@ bool FLotLayoutStartTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("first cell is by the trough"), FVector2D::Distance(CellCentre(LotLayout::FirstCell()), LotLayout::TroughPos) <= 150.0);
 
 	TArray<FVector2D> Spawns;
-	for (const ELotItem Item : {ELotItem::Suitcase, ELotItem::Cart, ELotItem::Station, ELotItem::Finisher, ELotItem::AutoPaver, ELotItem::Car})
+	for (const ELotItem Item : {ELotItem::Suitcase, ELotItem::Cart, ELotItem::Station, ELotItem::AutoPaver, ELotItem::Car})
 	{
 		const FVector2D Spawn = LotLayout::ItemSpawn(Item);
 		TestTrue(TEXT("spawn is on the lot"), CellAt(Spawn) != INDEX_NONE);

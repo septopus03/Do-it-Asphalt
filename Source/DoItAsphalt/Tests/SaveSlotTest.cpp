@@ -345,9 +345,9 @@ bool FAutosaveTest::RunTest(const FString& Parameters)
 		TestTrue(TEXT("a purchase with autosave"), Subsystem->BuyPlant());
 		TestTrue(TEXT("the upgrade was saved"), FSaveTestSlot::Exists());
 
-		// A purchase that fails saves nothing: the finisher is still locked (its unlock step is closed).
+		// A purchase that fails saves nothing: the station is still locked (its unlock step is closed).
 		FSaveTestSlot::Delete();
-		TestFalse(TEXT("a locked item cannot be bought"), Subsystem->BuyItem(ELotItem::Finisher));
+		TestFalse(TEXT("a locked item cannot be bought"), Subsystem->BuyItem(ELotItem::Station));
 		TestFalse(TEXT("and saves nothing"), FSaveTestSlot::Exists());
 
 		// An item saves too.
@@ -1271,12 +1271,12 @@ bool FSaveNewGameRemovesMachinesTest::RunTest(const FString& Parameters)
 	{
 		return false;
 	}
-	for (const ELotItem Item : {ELotItem::Suitcase, ELotItem::Cart, ELotItem::Station, ELotItem::Finisher, ELotItem::AutoPaver, ELotItem::Car})
+	for (const ELotItem Item : {ELotItem::Suitcase, ELotItem::Cart, ELotItem::Station, ELotItem::AutoPaver, ELotItem::Car})
 	{
 		Scene.Grant(Item);
 	}
 	Scene.TickFor(0.2);
-	TestEqual(TEXT("four movables"), Scene.Find<ADIAMovable>().Num(), static_cast<int32>(ELotMovable::Count));
+	TestEqual(TEXT("all movables"), Scene.Find<ADIAMovable>().Num(), static_cast<int32>(ELotMovable::Count));
 	TestEqual(TEXT("an auto paver"), Scene.Find<ADIAAutoPaver>().Num(), 1);
 	TestEqual(TEXT("a car"), Scene.Find<ADIAPaverCar>().Num(), 1);
 
@@ -1548,7 +1548,6 @@ bool FSaveHeldNeedsRoomTest::RunTest(const FString& Parameters)
 	using namespace SaveWorldTestSupport;
 	CheckHeldKind(*this, ELotMovable::Cart, ELotItem::Cart, TEXT("cart"));
 	CheckHeldKind(*this, ELotMovable::Suitcase, ELotItem::Suitcase, TEXT("suitcase"));
-	CheckHeldKind(*this, ELotMovable::Finisher, ELotItem::Finisher, TEXT("finisher"));
 	CheckHeldKind(*this, ELotMovable::Station, ELotItem::Station, TEXT("station"));
 	return true;
 }

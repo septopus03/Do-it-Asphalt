@@ -73,12 +73,12 @@ Rozmery sú obálka D × Š × V (X × Y × Z) v metroch, prevzatá z `Tools/Mod
 |---|---|---|---|---|---|
 | `SM_Spoon` | 0,199 × 0,045 × 0,018 | X −0,055 … 0,144 | 200 | lyžica v ruke k miske | `hand_tools.py` |
 | `SM_Bowl` | 0,25 × 0,25 × 0,09 | stred pôdorysu, Z od 0 | 400 | miska v ruke (štartovacia nádoba) | `hand_tools.py` |
-| `SM_Trowel` | 0,28 × 0,12 × 0,092 | X −0,14 … 0,14 | 250 | hladidlo v ruke | `hand_tools.py` |
+| `SM_Trowel` | 0,28 × 0,12 × 0,092 | X −0,14 … 0,14 | 250 | hladidlo (hra ho od 2026-11-22 nepoužíva, model ostáva v repozitári) | `hand_tools.py` |
 | `SM_Scoop` | 0,34 × 0,12 × 0,07 | X −0,07 … 0,27 | 250 | lopatka v ruke | `hand_tools.py` |
 | `SM_Bucket` | 0,288 × 0,31 × 0,385 | stred pôdorysu, Z od 0 | 600 | vedro v ruke | `hand_tools.py` |
 | `SM_Suitcase` | 0,42 × 0,508 × 1,055 | X −0,05 … 0,37, Z od 0 | 1000 | kufor, ťahaný, s klapkou | `suitcase.py` |
 | `SM_Cart` | 1,26 × 0,67 × 0,99 | X −0,65 … 0,61, Z od 0 | 1500 | vozík, tlačený | `cart.py` |
-| `SM_Finisher` | 1,32 × 1,072 × 1,0 | X −1,22 … 0,1, Z od 0 | 2000 | pásový finišer, tlačený | `finisher.py` |
+| `SM_Finisher` | 1,32 × 1,072 × 1,0 | X −1,22 … 0,1, Z od 0 | 2000 | pásový finišer (hra ho od 2026-11-22 nepoužíva, model ostáva v repozitári) | `finisher.py` |
 | `SM_Trough` | 1,28 × 0,60 × 0,50 | stred pôdorysu, Z od 0 | 400 | koryto s asfaltom pred výrobňou | `lot_props.py` |
 | `SM_Curb` | 0,15 × 2,0 × 0,12 | stred pôdorysu, Z od 0 | 40 | diel obrubníka okolo parkoviska | `lot_props.py` |
 | `SM_PaverCar_WideBar` | 0,16 × 3,5 × 0,18 | X −2,32 … −2,16, Z 0,02 … 0,2 | 400 | široká lišta auta (kúpa CarWideBar) | `lot_props.py` |

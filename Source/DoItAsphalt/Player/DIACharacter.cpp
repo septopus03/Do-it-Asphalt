@@ -55,9 +55,6 @@ namespace
 			// Inner measurements of SM_Bucket (docs/04, chapter 4.1): rim radius 13.2 cm, floor radius 9.6 cm; the body ends at about 25 cm, the bail rises above it.
 			Layout = {TEXT("SM_Bucket"), DIAAssets::EFallback::Cylinder, DIAModelSizes::BucketCm, FVector(10.0, 2.0, -8.0), FRotator(0.0, 0.0, 0.0), 1.5, 9.6, 25.0, 13.2};
 			break;
-		case ELotHand::Trowel:
-			Layout = {TEXT("SM_Trowel"), DIAAssets::EFallback::Cube, DIAModelSizes::TrowelCm, FVector(4.0, 0.0, 17.0), FRotator(10.0, 0.0, 0.0)};
-			break;
 		case ELotHand::Bowl:
 		default:
 			// Inner measurements of SM_Bowl: floor at 1.2 cm (radius 6.0 cm), rim at 9.0 cm (radius 11.7 cm).
@@ -275,10 +272,6 @@ void ADIACharacter::UpdateMovementSettings()
 	case ELotMovable::Station:
 		Speed = LotBalance::StationCarrySpeedCmS;
 		break;
-	case ELotMovable::Finisher:
-		// Bar lowered (Use held): the finishing speed, sprint does nothing; raised: pushed along at the pushing speed.
-		Speed = bUsing ? LotBalance::FinisherSpeedCmS() : LotBalance::FinisherPushSpeedCmS;
-		break;
 	default:
 		if (bSprinting && Game && Game->IsUnlocked(ELotUnlock::Sprint))
 		{
@@ -311,10 +304,6 @@ void ADIACharacter::DoLook(float Yaw, float Pitch)
 
 void ADIACharacter::SetUsing(bool bUse)
 {
-	if (!bUse)
-	{
-		bTrowelDown = false;
-	}
 	bUsing = bUse;
 	// Laying a strip with the cart is slower than pushing it.
 	UpdateMovementSettings();
@@ -427,7 +416,6 @@ void ADIACharacter::RefreshHandMesh()
 		ShownHand = Hand;
 		ShownHeld = Held;
 		ShownLitres = -1.0;
-		bTrowelDown = false;
 
 		const FHandLayout Layout = LayoutOf(Hand);
 		// The model's own origin is where the tool is held; a placeholder shape rests on it instead.
@@ -533,14 +521,9 @@ void ADIACharacter::UseHand(UDIAWorldSubsystem& Subsystem, float DeltaSeconds)
 	const FVector2D Player(Location.X, Location.Y);
 	const ELotHand Hand = Game.GetHand();
 
-	if (Hand != ELotHand::Trowel)
-	{
-		bTrowelDown = false;
-	}
 	if (Game.GetHeld() != ELotMovable::Count)
 	{
 		// The hands are on a suitcase, cart or machine: what they do is that object's own (the cart lays its strip from its own tick).
-		bTrowelDown = false;
 		return;
 	}
 
@@ -554,21 +537,6 @@ void ADIACharacter::UseHand(UDIAWorldSubsystem& Subsystem, float DeltaSeconds)
 		// The bucket pours as long as the button is held, as a stream where the player aims.
 		Subsystem.Dispatch(Game.PourBucket(Aim, Player, DeltaSeconds));
 		break;
-	case ELotHand::Trowel:
-	{
-		// The contact point starts at the aim on the press and follows it no faster than the trowel can be moved.
-		if (!bTrowelDown)
-		{
-			bTrowelDown = true;
-			TrowelContact = Aim;
-		}
-		const FVector2D Previous = TrowelContact;
-		const FVector2D ToAim = Aim - TrowelContact;
-		const double MaxStep = LotBalance::TrowelSpeedCmS * DeltaSeconds;
-		TrowelContact = ToAim.SizeSquared() > FMath::Square(MaxStep) ? TrowelContact + ToAim.GetSafeNormal() * MaxStep : Aim;
-		Subsystem.Dispatch(Game.Trowel(Previous, TrowelContact));
-		break;
-	}
 	default:
 		break;
 	}
@@ -623,10 +591,6 @@ void ADIACharacter::Tick(float DeltaSeconds)
 		if (bUsing && !bExternalView)
 		{
 			UseHand(*Subsystem, DeltaSeconds);
-		}
-		else
-		{
-			bTrowelDown = false;
 		}
 		if (bFilling && !bExternalView)
 		{

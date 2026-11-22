@@ -171,7 +171,7 @@ void FLotFluid::Clear()
 	NumUsedTiles = 0;
 }
 
-bool FLotFluid::Add(int32 X, int32 Y, float Units, uint8 Kind)
+bool FLotFluid::Add(int32 X, int32 Y, float Units)
 {
 	if (!Pourable(X, Y) || !(Units > 0.f) || !FMath::IsFinite(Units))
 	{
@@ -179,10 +179,6 @@ bool FLotFluid::Add(int32 X, int32 Y, float Units, uint8 Kind)
 	}
 	FTile* Tile = EnsureTile(X >> TileShift, Y >> TileShift);
 	const int32 I = Idx(X & (TileSide - 1), Y & (TileSide - 1));
-	if (Tile->H[I] <= Units || Tile->Kind[I] == 0)
-	{
-		Tile->Kind[I] = Kind;
-	}
 	Tile->H[I] += Units;
 	// New asphalt is as hot as it gets.
 	Tile->E[I] += Units;
@@ -262,7 +258,7 @@ void FLotFluid::GrowBorders()
 	}
 }
 
-void FLotFluid::Step(TConstArrayView<uint8> Texels, TFunctionRef<void(int32, int32, uint8)> OnSet)
+void FLotFluid::Step(TConstArrayView<uint8> Texels, TFunctionRef<void(int32, int32)> OnSet)
 {
 	if (NumUsedTiles == 0)
 	{
@@ -302,7 +298,6 @@ void FLotFluid::Step(TConstArrayView<uint8> Texels, TFunctionRef<void(int32, int
 	const auto GetFx = [](const FTile& T) { return T.Fx; };
 	const auto GetFy = [](const FTile& T) { return T.Fy; };
 	const auto GetS = [](const FTile& T) { return T.S; };
-	const auto GetK = [](const FTile& T) { return T.Kind; };
 
 	// A: how hard each face pushes (the old flow carries on, which is the inertia).
 	for (int32 T = 0; T < Used.Num(); ++T)
@@ -367,7 +362,7 @@ void FLotFluid::Step(TConstArrayView<uint8> Texels, TFunctionRef<void(int32, int
 		}
 	}
 
-	// D: what each texel holds after the flows, its heat (carried by the flow) and its kind (the larger share wins).
+	// D: what each texel holds after the flows, its heat (carried by the flow).
 	for (int32 T = 0; T < Used.Num(); ++T)
 	{
 		FTile& C = *Used[T];
@@ -380,7 +375,6 @@ void FLotFluid::Step(TConstArrayView<uint8> Texels, TFunctionRef<void(int32, int
 				const float Hi = C.H[I];
 				const float Ei = C.E[I];
 				const float HeatI = HeatOf(Hi, Ei);
-				const uint8 KindI = C.Kind[I];
 
 				const float Er = C.Fx[I];
 				const float Eu = C.Fy[I];
@@ -394,28 +388,15 @@ void FLotFluid::Step(TConstArrayView<uint8> Texels, TFunctionRef<void(int32, int
 				const float HeatR = HeatOf(Hr, Sample(N.L, N.R, N.D, N.U, C, Lx + 1, Ly, GetE));
 				const float HeatD = HeatOf(Hd, Sample(N.L, N.R, N.D, N.U, C, Lx, Ly - 1, GetE));
 				const float HeatU = HeatOf(Hu, Sample(N.L, N.R, N.D, N.U, C, Lx, Ly + 1, GetE));
-				const uint8 KindL = Sample(N.L, N.R, N.D, N.U, C, Lx - 1, Ly, GetK);
-				const uint8 KindR = Sample(N.L, N.R, N.D, N.U, C, Lx + 1, Ly, GetK);
-				const uint8 KindD = Sample(N.L, N.R, N.D, N.U, C, Lx, Ly - 1, GetK);
-				const uint8 KindU = Sample(N.L, N.R, N.D, N.U, C, Lx, Ly + 1, GetK);
 
 				// A positive flow leaves the texel to the right/up and enters it from the left/down.
 				float NewH = Hi - Er + El - Eu + Ed;
 				float NewE = Ei - Er * (Er > 0.f ? HeatI : HeatR) + El * (El > 0.f ? HeatL : HeatI) - Eu * (Eu > 0.f ? HeatI : HeatU) + Ed * (Ed > 0.f ? HeatD : HeatI);
 
-				float Mass[3] = {0.f, 0.f, 0.f};
-				const float Left = FMath::Max(Hi - FMath::Max(Er, 0.f) - FMath::Max(-El, 0.f) - FMath::Max(Eu, 0.f) - FMath::Max(-Ed, 0.f), 0.f);
-				Mass[FMath::Min<int32>(KindI, 2)] += Left;
-				Mass[FMath::Min<int32>(KindR, 2)] += FMath::Max(-Er, 0.f);
-				Mass[FMath::Min<int32>(KindL, 2)] += FMath::Max(El, 0.f);
-				Mass[FMath::Min<int32>(KindU, 2)] += FMath::Max(-Eu, 0.f);
-				Mass[FMath::Min<int32>(KindD, 2)] += FMath::Max(Ed, 0.f);
-
 				NewH = FMath::Max(NewH, 0.f);
 				NewE = FMath::Clamp(NewE, 0.f, NewH);
 				C.Hn[I] = NewH;
 				C.En[I] = NewE;
-				C.KindN[I] = NewH > 0.f ? static_cast<uint8>(Mass[2] > Mass[1] ? 2 : 1) : static_cast<uint8>(0);
 			}
 		}
 	}
@@ -433,7 +414,6 @@ void FLotFluid::Step(TConstArrayView<uint8> Texels, TFunctionRef<void(int32, int
 				const int32 I = Idx(Lx, Ly);
 				float H = C.Hn[I];
 				float E = C.En[I] * CoolPerStep;
-				uint8 Kind = C.KindN[I];
 				if (H < DustUnits)
 				{
 					H = 0.f;
@@ -444,7 +424,7 @@ void FLotFluid::Step(TConstArrayView<uint8> Texels, TFunctionRef<void(int32, int
 					const int32 Gy = C.Ty * S + Ly;
 					if (H >= Cover && Texels[Gy * GridSide + Gx] == 0)
 					{
-						OnSet(Gx, Gy, Kind);
+						OnSet(Gx, Gy);
 					}
 					if (HeatOf(H, E) < FreezeHeat)
 					{
@@ -455,7 +435,6 @@ void FLotFluid::Step(TConstArrayView<uint8> Texels, TFunctionRef<void(int32, int
 				{
 					H = 0.f;
 					E = 0.f;
-					Kind = 0;
 				}
 				else
 				{
@@ -463,7 +442,6 @@ void FLotFluid::Step(TConstArrayView<uint8> Texels, TFunctionRef<void(int32, int
 				}
 				C.H[I] = H;
 				C.E[I] = FMath::Min(E, H);
-				C.Kind[I] = Kind;
 			}
 		}
 		if (!bAny)

@@ -38,7 +38,7 @@ namespace
 	/** A cell well inside the car park (col 50, row 50). */
 	const int32 MidCell = 50 * AsphaltLot::Side + 50;
 
-	int32 CountTexels(const FLotGrid& Grid, ELotTexel State)
+	int32 CountTexels(const FLotGrid& Grid, ELotTexel State = ELotTexel::Done)
 	{
 		int32 Count = 0;
 		for (uint8 Texel : Grid.GetTexels())
@@ -50,14 +50,14 @@ namespace
 
 	int32 CountAll(const FLotGrid& Grid)
 	{
-		return CountTexels(Grid, ELotTexel::Done) + CountTexels(Grid, ELotTexel::Raw);
+		return CountTexels(Grid);
 	}
 
-	FLotPour PourOnMidCell(FLotGrid& Grid, double Litres, ELotTexel State)
+	FLotPour PourOnMidCell(FLotGrid& Grid, double Litres, int32 Cell = MidCell)
 	{
 		FVector2D A, B;
-		CellStrip(MidCell, A, B);
-		return Grid.Stamp(A, B, 100.0, Litres, State);
+		CellStrip(Cell, A, B);
+		return Grid.Stamp(A, B, 100.0, Litres);
 	}
 
 	/** Steps the grid until nothing runs (or the seconds pass); returns the steps taken. */
@@ -83,8 +83,8 @@ bool FLotFluidOffByDefaultTest::RunTest(const FString& Parameters)
 {
 	FLotGrid G;
 	TestFalse(TEXT("off"), G.IsFluidEnabled());
-	const FLotPour Pour = PourOnMidCell(G, 10.0, ELotTexel::Done);
-	TestEqual(TEXT("the texels change at once"), CountTexels(G, ELotTexel::Done), 400);
+	const FLotPour Pour = PourOnMidCell(G, 10.0);
+	TestEqual(TEXT("the texels change at once"), CountTexels(G), 400);
 	TestEqual(TEXT("and are paid (the cell completes at 95 %, the rest is free)"), Pour.TexelsChanged, 380);
 	TestFalse(TEXT("nothing runs"), G.IsFluidActive());
 	return true;
@@ -94,7 +94,7 @@ bool FLotFluidPaysAtPourTest::RunTest(const FString& Parameters)
 {
 	FLotGrid G;
 	G.SetFluidEnabled(true);
-	const FLotPour Pour = PourOnMidCell(G, 5.0, ELotTexel::Done);
+	const FLotPour Pour = PourOnMidCell(G, 5.0);
 	TestNearlyEqual(TEXT("the litres are paid when poured"), Pour.LitresUsed, 5.0, 1e-9);
 	TestEqual(TEXT("no ground yet"), CountAll(G), 0);
 	TestTrue(TEXT("the asphalt runs"), G.IsFluidActive());
@@ -107,7 +107,7 @@ bool FLotFluidSpreadsTest::RunTest(const FString& Parameters)
 {
 	FLotGrid G;
 	G.SetFluidEnabled(true);
-	PourOnMidCell(G, 10.0, ELotTexel::Done);
+	PourOnMidCell(G, 10.0);
 	const int32 Heaps = G.GetFluid().GetNumTiles();
 	TestTrue(TEXT("at least one tile"), Heaps >= 1);
 	const int32 Steps = RunUntilSettled(G, 60.0);
@@ -136,7 +136,7 @@ bool FLotFluidVolumeNeverGrowsTest::RunTest(const FString& Parameters)
 {
 	FLotGrid G;
 	G.SetFluidEnabled(true);
-	PourOnMidCell(G, 10.0, ELotTexel::Done);
+	PourOnMidCell(G, 10.0);
 	double Last = G.GetFluid().GetTotalUnits();
 	const double Start = Last;
 	bool bGrew = false;
@@ -160,7 +160,7 @@ bool FLotFluidCoolsAndSetsTest::RunTest(const FString& Parameters)
 {
 	FLotGrid G;
 	G.SetFluidEnabled(true);
-	PourOnMidCell(G, 10.0, ELotTexel::Done);
+	PourOnMidCell(G, 10.0);
 	const int32 Steps = RunUntilSettled(G, LotBalance::FluidSettleSeconds);
 	const double Seconds = Steps * LotBalance::FluidStepSeconds;
 	AddInfo(FString::Printf(TEXT("cools: settled after %.1f s"), Seconds));
@@ -179,8 +179,8 @@ bool FLotFluidColdRunsSlowerTest::RunTest(const FString& Parameters)
 	FLotFluid F;
 	TArray<uint8> Ground;
 	Ground.SetNumZeroed(FLotFluid::GridSide * FLotFluid::GridSide);
-	F.Add(1000, 1000, 400.f, 1);
-	const auto NoSet = [](int32, int32, uint8) {};
+	F.Add(1000, 1000, 400.f);
+	const auto NoSet = [](int32, int32) {};
 	TestNearlyEqual(TEXT("fresh asphalt is at full heat"), F.GetHeat(1000, 1000), 1.f, 1e-4f);
 	const int32 SecondsSteps = FMath::RoundToInt(LotBalance::FluidCoolSeconds / LotBalance::FluidStepSeconds);
 	for (int32 Step = 0; Step < SecondsSteps; ++Step)
@@ -208,23 +208,23 @@ bool FLotFluidWallsTest::RunTest(const FString& Parameters)
 	TArray<uint8> Ground;
 	Ground.SetNumZeroed(FLotFluid::GridSide * FLotFluid::GridSide);
 	// A heap next to the shopping-centre quadrant (X >= 2000 and Y >= 2000 is not car park) and one at the grid edge.
-	F.Add(1999, 2500, 200.f, 2);
-	F.Add(2500, 1999, 200.f, 2);
-	F.Add(0, 3999, 200.f, 2);
+	F.Add(1999, 2500, 200.f);
+	F.Add(2500, 1999, 200.f);
+	F.Add(0, 3999, 200.f);
 	bool bBadCallback = false;
 	for (int32 Step = 0; Step < 400 && F.IsActive(); ++Step)
 	{
-		F.Step(Ground, [&](int32 X, int32 Y, uint8)
+		F.Step(Ground, [&](int32 X, int32 Y)
 		{
 			bBadCallback = bBadCallback || !FLotFluid::IsPourable(X, Y);
 		});
 	}
 	TestFalse(TEXT("nothing was set in the quadrant or outside"), bBadCallback);
 	TestEqual(TEXT("the quadrant holds no asphalt"), F.GetUnits(2000, 2500) + F.GetUnits(2500, 2000) + F.GetUnits(3000, 3000), 0.f);
-	TestFalse(TEXT("add refuses the quadrant"), F.Add(3000, 3000, 1.f, 1));
-	TestFalse(TEXT("add refuses outside"), F.Add(-1, 5, 1.f, 1));
-	TestFalse(TEXT("add refuses nothing"), F.Add(10, 10, 0.f, 1));
-	TestFalse(TEXT("add refuses a non-number"), F.Add(10, 10, std::numeric_limits<float>::quiet_NaN(), 1));
+	TestFalse(TEXT("add refuses the quadrant"), F.Add(3000, 3000, 1.f));
+	TestFalse(TEXT("add refuses outside"), F.Add(-1, 5, 1.f));
+	TestFalse(TEXT("add refuses nothing"), F.Add(10, 10, 0.f));
+	TestFalse(TEXT("add refuses a non-number"), F.Add(10, 10, std::numeric_limits<float>::quiet_NaN()));
 	return true;
 }
 
@@ -234,13 +234,13 @@ bool FLotFluidTileBordersTest::RunTest(const FString& Parameters)
 	TArray<uint8> Ground;
 	Ground.SetNumZeroed(FLotFluid::GridSide * FLotFluid::GridSide);
 	// On the corner of four tiles, so the asphalt has to cross tile borders in both directions.
-	F.Add(31, 31, 40.f, 2);
-	F.Add(32, 32, 40.f, 2);
+	F.Add(31, 31, 40.f);
+	F.Add(32, 32, 40.f);
 	const double Start = F.GetTotalUnits();
 	TArray<TPair<int32, int32>> Set;
 	for (int32 Step = 0; Step < 60; ++Step)
 	{
-		F.Step(Ground, [&](int32 X, int32 Y, uint8)
+		F.Step(Ground, [&](int32 X, int32 Y)
 		{
 			Set.Add({X, Y});
 			Ground[Y * FLotFluid::GridSide + X] = 1;
@@ -270,13 +270,13 @@ bool FLotFluidDeterministicTest::RunTest(const FString& Parameters)
 	{
 		FLotGrid G;
 		G.SetFluidEnabled(true);
-		PourOnMidCell(G, 10.0, ELotTexel::Done);
+		PourOnMidCell(G, 10.0);
 		for (int32 Step = 0; Step < 40; ++Step)
 		{
 			G.StepFluid();
 			if (Step == 10)
 			{
-				PourOnMidCell(G, 3.0, ELotTexel::Raw);
+				PourOnMidCell(G, 3.0, MidCell + 1);
 			}
 		}
 		RunUntilSettled(G, 60.0);
@@ -293,13 +293,13 @@ bool FLotFluidRipplesTest::RunTest(const FString& Parameters)
 	FLotFluid F;
 	TArray<uint8> Ground;
 	Ground.SetNumZeroed(FLotFluid::GridSide * FLotFluid::GridSide);
-	F.Add(500, 500, 60.f, 2);
+	F.Add(500, 500, 60.f);
 	float PeakAtRing = 0.f;
 	bool bFell = false;
 	float Previous = 0.f;
 	for (int32 Step = 0; Step < 90; ++Step)
 	{
-		F.Step(Ground, [](int32, int32, uint8) {});
+		F.Step(Ground, [](int32, int32) {});
 		const float Here = F.GetUnits(504, 500);
 		PeakAtRing = FMath::Max(PeakAtRing, Here);
 		bFell = bFell || (Step > 3 && Here < Previous - 1e-3f);
@@ -315,7 +315,7 @@ bool FLotFluidCopyTest::RunTest(const FString& Parameters)
 {
 	FLotGrid G;
 	G.SetFluidEnabled(true);
-	PourOnMidCell(G, 10.0, ELotTexel::Done);
+	PourOnMidCell(G, 10.0);
 	for (int32 Step = 0; Step < 10; ++Step)
 	{
 		G.StepFluid();
@@ -399,7 +399,7 @@ bool FLotFluidPerformanceTest::RunTest(const FString& Parameters)
 	{
 		FVector2D A, B;
 		CellStrip(MidCell + I, A, B);
-		G.Stamp(A, B, 100.0, 10.0, ELotTexel::Done);
+		G.Stamp(A, B, 100.0, 10.0);
 	}
 	const int32 Tiles = G.GetFluid().GetNumTiles();
 	const double Start = FPlatformTime::Seconds();

@@ -82,12 +82,11 @@ namespace DIAModelSizes
 
 	/**
 	 * Asphalt-self models (docs/04-plan-zmien-asphalt-self.md, chapter 4.1; envelopes in Tools/ModelGen/manifest.json). Hand tools:
-	 * spoon and trowel have the origin at the centre of the handle, the scoop too (the working edge towards +X for spoon and scoop,
-	 * the trowel's working surface at Z = -7.5), the bowl and the bucket at the centre of the bottom.
+	 * spoon and scoop have the origin at the centre of the handle (the working edge towards +X), the bowl and the bucket at the
+	 * centre of the bottom.
 	 */
 	inline const FVector SpoonCm(20.0, 4.5, 1.8);
 	inline const FVector BowlCm(25.0, 25.0, 9.0);
-	inline const FVector TrowelCm(28.0, 12.0, 9.2);
 	inline const FVector ScoopCm(34.0, 12.0, 7.0);
 	inline const FVector BucketCm(29.0, 31.0, 38.5);
 	/** Points of the bucket (model axes, cm): the bail handle at the top of the arc. */
@@ -104,12 +103,7 @@ namespace DIAModelSizes
 	inline const FVector CartHandleCm(-63.0, 0.0, 97.0);
 	inline const FVector CartMouthCm(58.5, 0.0, 6.0);
 
-	/**
-	 * Finisher (origin on the ground below the centre of the front bar, which lies along Y at X = 0; the roller is behind it, the
-	 * handles at the back -X) and the trough (origin at the centre of the footprint on the ground).
-	 */
-	inline const FVector FinisherCm(132.0, 107.0, 100.0);
-	inline const FVector FinisherGripCm(-115.0, 0.0, 98.0);
+	/** The trough (origin at the centre of the footprint on the ground). */
 	inline const FVector TroughCm(128.0, 60.0, 50.0);
 
 	/** Curb piece (origin at the centre of the footprint on the ground; pieces tile along Y, the bevel faces +X towards the lot) and the wide bar of the car (origin = the car's origin, no offset). */

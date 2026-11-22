@@ -116,7 +116,7 @@ public:
 	void SetWon();
 
 	ELotHand GetHand() const { return Hand; }
-	/** True if the hand item can be taken: the bowl and the trowel always, the scoop and the bucket once bought. */
+	/** True if the hand item can be taken: the bowl always, the scoop and the bucket once bought. */
 	bool CanSelectHand(ELotHand NewHand) const;
 	/**
 	 * Takes another item into the hand and clears the pour stream. Returns true at once if it is already in hand;
@@ -125,7 +125,7 @@ public:
 	bool SelectHand(ELotHand NewHand);
 	/** True while a swap is in progress; no hand action works meanwhile. */
 	bool IsHandBusy() const { return SwapRemaining > 0.0; }
-	/** Litres the item holds (each item keeps its own content); 0 for the trowel and an invalid item. */
+	/** Litres the item holds (each item keeps its own content); 0 for an invalid item. */
 	double GetHandLitres(ELotHand Item) const;
 	double GetHandCapacity(ELotHand Item) const;
 
@@ -155,8 +155,6 @@ public:
 	 * from there. Texels that are already covered cost nothing, so the bucket keeps what it could not lay.
 	 */
 	FLotEvents PourBucket(FVector2D Aim, FVector2D From, double Dt);
-	/** Turns the raw asphalt under the strip A->B (TrowelWidthCm wide) into finished asphalt; trowel in hand only. */
-	FLotEvents Trowel(FVector2D A, FVector2D B);
 
 	FLotWorldState& World() { return WorldState; }
 	const FLotWorldState& World() const { return WorldState; }
@@ -174,14 +172,12 @@ public:
 	/** Moves DispenseRateLPerS * Dt from the plant stock into the owned suitcase or cart; the engine decides where it stands. Returns litres moved. */
 	double FillMovable(ELotMovable Movable, double Dt);
 	/**
-	 * The owned, not held suitcase doses raw asphalt into the cell under Mouth for Dt seconds: the dose budget grows by
+	 * The owned, not held suitcase doses asphalt into the cell under Mouth for Dt seconds: the dose budget grows by
 	 * SuitcaseDoseRateLPerS * Dt (at most the content) and the part below one texel's price is carried to the next call.
 	 */
 	FLotEvents DoseSuitcase(FVector2D Mouth, FVector2D From, double Dt);
-	/** The held cart lays a raw strip CartStripWidthCm wide along A->B; its content is the budget. */
+	/** The held cart lays a strip CartStripWidthCm wide along A->B; its content is the budget. */
 	FLotEvents LayCartStrip(FVector2D A, FVector2D B);
-	/** The held finisher turns the raw asphalt of the strip A->B (FinisherWidthCm wide) into finished asphalt. */
-	FLotEvents FinisherPass(FVector2D A, FVector2D B);
 
 	/** Auto paver level by upgrades bought: 0..2; -1 without the auto paver. */
 	int32 GetAutoPaverLevel() const;
@@ -204,14 +200,14 @@ public:
 	/** Car level: 0 plain bar, 1 wide bar; -1 without the car. */
 	int32 GetCarLevel() const;
 	/**
-	 * The car lays asphalt under its bar along A->B (CarWidthCm of the level wide): raw asphalt is finished for free,
-	 * the rest is paved as finished asphalt straight from the plant stock. Nothing without the car.
+	 * The car lays asphalt under its bar along A->B (CarWidthCm of the level wide) straight from the plant stock.
+	 * Nothing without the car.
 	 */
 	FLotEvents PourFromCar(FVector2D A, FVector2D B);
 
 	/** First four bytes of a save ("DIA2" in little-endian order). */
 	static constexpr uint32 SaveMagic = 0x32414944;
-	static constexpr int32 SaveVersion = 1;
+	static constexpr int32 SaveVersion = 2;
 
 	/**
 	 * Serialises the whole game state (little-endian, fixed order, exact length) for the autosave slot. The pour
@@ -233,7 +229,7 @@ public:
 	FLotEvents DebugCompleteCell(int32 Cell);
 	/** Completes the first Count incomplete cells by index, reported as one event. */
 	FLotEvents DebugCompleteCells(int32 Count);
-	/** Fills the item in hand to its capacity without touching the stock; the trowel holds nothing. */
+	/** Fills the item in hand to its capacity without touching the stock. */
 	void DebugFillHand();
 
 private:
