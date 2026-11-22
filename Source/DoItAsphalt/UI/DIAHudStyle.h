@@ -44,6 +44,40 @@ namespace AsphaltHud
 	inline const FLinearColor ButtonTextColor{0.08f, 0.06f, 0.03f, 1.f};
 	inline const FLinearColor ButtonTextDisabledColor{0.78f, 0.80f, 0.84f, 0.45f};
 
+	// Hazard signage palette: yellow and black signs. Written as sRGB bytes; Slate blends gamma-encoded values.
+	inline const FLinearColor SignYellow{FColor(0xFF, 0xC6, 0x1A, 0xFF)};
+	inline const FLinearColor SignBlack{FColor(0x11, 0x12, 0x14, 0xFF)};
+	inline const FLinearColor SignWhite{FColor(0xFF, 0xFF, 0xFF, 0xFF)};
+	inline const FLinearColor SignOrange{FColor(0xFF, 0x7A, 0x1A, 0xFF)};
+	inline const FLinearColor SignOrangeText{FColor(0xFF, 0x9A, 0x4D, 0xFF)};
+	inline const FLinearColor SignLackPrice{FColor(0xFF, 0x9A, 0x80, 0xFF)};
+	inline const FLinearColor SignCardLack{FColor(0x2C, 0x2D, 0x31, 0xFF)};
+	inline const FLinearColor SignCardLocked{FColor(0x1D, 0x1E, 0x21, 0xFF)};
+	inline const FLinearColor SignStripeDark{FColor(0x4A, 0x3F, 0x14, 0xFF)};
+	inline const FLinearColor SignButtonHover{FColor(0x2C, 0x2D, 0x31, 0xFF)};
+	inline const FLinearColor SignButtonPressed{FColor(0x00, 0x00, 0x00, 0xFF)};
+	/** Secondary text: white at 70 % (lies over a dark surface; see Over). */
+	inline const FLinearColor SignDimText{1.f, 1.f, 1.f, 0.70f};
+
+	/** Top laid over the opaque Bottom by Top.A, blended in sRGB space (as Slate does); the result is opaque. */
+	inline FLinearColor Over(const FLinearColor& Top, const FLinearColor& Bottom)
+	{
+		const FColor T = Top.ToFColor(true);
+		const FColor B = Bottom.ToFColor(true);
+		const float A = FMath::Clamp(Top.A, 0.f, 1.f);
+		const auto Mix = [A](uint8 Tc, uint8 Bc) { return static_cast<uint8>(FMath::RoundToInt(Tc * A + Bc * (1.f - A))); };
+		return FLinearColor(FColor(Mix(T.R, B.R), Mix(T.G, B.G), Mix(T.B, B.B), 255));
+	}
+
+	/** WCAG contrast ratio of two colours (1 to 21), from their linear components. */
+	inline float ContrastRatio(const FLinearColor& A, const FLinearColor& B)
+	{
+		const auto Luminance = [](const FLinearColor& C) { return 0.2126f * C.R + 0.7152f * C.G + 0.0722f * C.B; };
+		const float La = Luminance(A);
+		const float Lb = Luminance(B);
+		return (FMath::Max(La, Lb) + 0.05f) / (FMath::Min(La, Lb) + 0.05f);
+	}
+
 	/** Offset of the text shadow. */
 	inline const FVector2D ShadowOffset{1.0, 1.0};
 
