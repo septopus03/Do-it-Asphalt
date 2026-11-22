@@ -3,7 +3,9 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Brushes/SlateRoundedBoxBrush.h"
 #include "Styling/CoreStyle.h"
+#include "UI/DIAHudFont.h"
 #include "UI/DIAHudStyle.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SBorder.h"
@@ -67,5 +69,55 @@ namespace AsphaltHud
 					]
 				]
 			];
+	}
+
+	/** The colour with its alpha multiplied by Alpha (clamped to 0..1). */
+	inline FLinearColor Faded(const FLinearColor& Color, float Alpha)
+	{
+		return FLinearColor(Color.R, Color.G, Color.B, Color.A * FMath::Clamp(Alpha, 0.f, 1.f));
+	}
+
+	/**
+	 * A sign plate: a rounded plate with a thin inset ring line, holding Content. Three nested borders (plate, ring, plate); every
+	 * layer's alpha is multiplied by Opacity.
+	 */
+	inline TSharedRef<SWidget> MakePlate(TAttribute<FLinearColor> Plate, TAttribute<FLinearColor> Ring, const FMargin& Padding, const TSharedRef<SWidget>& Content, float RingWidth = 3.f, TAttribute<float> Opacity = 1.f)
+	{
+		static const FSlateRoundedBoxBrush OuterBrush(FLinearColor::White, 6.f);
+		static const FSlateRoundedBoxBrush RingBrush(FLinearColor::White, 3.f);
+		static const FSlateRoundedBoxBrush InnerBrush(FLinearColor::White, 1.f);
+
+		const TAttribute<FSlateColor> PlateColor = TAttribute<FSlateColor>::CreateLambda([Plate, Opacity]() { return FSlateColor(Faded(Plate.Get(), Opacity.Get())); });
+		const TAttribute<FSlateColor> RingColor = TAttribute<FSlateColor>::CreateLambda([Ring, Opacity]() { return FSlateColor(Faded(Ring.Get(), Opacity.Get())); });
+
+		return SNew(SBorder)
+			.BorderImage(&OuterBrush)
+			.BorderBackgroundColor(PlateColor)
+			.Padding(FMargin(RingWidth))
+			[
+				SNew(SBorder)
+				.BorderImage(&RingBrush)
+				.BorderBackgroundColor(RingColor)
+				.Padding(FMargin(RingWidth))
+				[
+					SNew(SBorder)
+					.BorderImage(&InnerBrush)
+					.BorderBackgroundColor(PlateColor)
+					.Padding(Padding)
+					[
+						Content
+					]
+				]
+			];
+	}
+
+	/** Upper-case text in the HUD typeface, without a shadow. */
+	inline TSharedRef<STextBlock> MakeText(TAttribute<FText> Text, EDIAFontWeight Weight, int32 Size, TAttribute<FSlateColor> Color)
+	{
+		return SNew(STextBlock)
+			.Text(Text)
+			.Font(Font(Weight, Size))
+			.ColorAndOpacity(Color)
+			.TransformPolicy(ETextTransformPolicy::ToUpper);
 	}
 }

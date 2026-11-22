@@ -7,6 +7,8 @@
 #include "Misc/Paths.h"
 #include "UI/DIAHudFont.h"
 #include "UI/DIAHudStyle.h"
+#include "UI/DIAHudWidgets.h"
+#include "UI/SDIAHazardStripes.h"
 
 DIA_TEST(FUiFontFilesTest, "DoItAsphalt.Game.Ui.Font.FilesExist")
 
@@ -49,6 +51,73 @@ bool FUiPaletteContrastTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("same colour is 1"), ContrastRatio(SignWhite, SignWhite), 1.f, 0.001f);
 	TestEqual(TEXT("symmetric"), ContrastRatio(SignYellow, SignBlack), ContrastRatio(SignBlack, SignYellow));
 	TestEqual(TEXT("Over is opaque"), Over(SignDimText, SignCardLocked).A, 1.f);
+	return true;
+}
+
+DIA_TEST(FUiFontSharedCompositeTest, "DoItAsphalt.Game.Ui.Font.SharedComposite")
+
+bool FUiFontSharedCompositeTest::RunTest(const FString& Parameters)
+{
+	const FSlateFontInfo A = AsphaltHud::Font(EDIAFontWeight::Bold, 20);
+	const FSlateFontInfo B = AsphaltHud::Font(EDIAFontWeight::Bold, 30);
+	const FSlateFontInfo C = AsphaltHud::Font(EDIAFontWeight::ExtraBold, 20);
+	TestTrue(TEXT("a weight shares one composite font"), A.CompositeFont == B.CompositeFont);
+	TestTrue(TEXT("the composite font exists"), A.CompositeFont.IsValid());
+	TestTrue(TEXT("another weight has another composite font"), A.CompositeFont != C.CompositeFont);
+	TestEqual(TEXT("size of the first"), A.Size, 20.f);
+	TestEqual(TEXT("size of the second"), B.Size, 30.f);
+	return true;
+}
+
+DIA_TEST(FUiFadedTest, "DoItAsphalt.Game.Ui.Plate.Faded")
+
+bool FUiFadedTest::RunTest(const FString& Parameters)
+{
+	using namespace AsphaltHud;
+	const FLinearColor Half = Faded(SignYellow, 0.5f);
+	TestEqual(TEXT("R"), Half.R, SignYellow.R);
+	TestEqual(TEXT("G"), Half.G, SignYellow.G);
+	TestEqual(TEXT("B"), Half.B, SignYellow.B);
+	TestEqual(TEXT("A"), Half.A, 0.5f);
+	TestEqual(TEXT("alpha is multiplied"), Faded(SignDimText, 0.5f).A, 0.35f, 0.001f);
+	TestEqual(TEXT("above 1 is clamped"), Faded(SignDimText, 2.f).A, SignDimText.A);
+	TestEqual(TEXT("below 0 is clamped"), Faded(SignDimText, -1.f).A, 0.f);
+	return true;
+}
+
+DIA_TEST(FUiStripesTest, "DoItAsphalt.Game.Ui.Stripes.Starts")
+
+bool FUiStripesTest::RunTest(const FString& Parameters)
+{
+	const TArray<float> S = AsphaltHud::HazardStripeStarts(100.f, 12.f, 12.f);
+	if (!TestTrue(TEXT("there are stripes"), S.Num() > 1))
+	{
+		return false;
+	}
+	TestEqual(TEXT("the first starts one height to the left"), S[0], -12.f);
+	for (int32 i = 0; i + 1 < S.Num(); ++i)
+	{
+		TestEqual(TEXT("step is two bands"), S[i + 1] - S[i], 24.f);
+	}
+	TestTrue(TEXT("the last starts inside"), S.Last() < 100.f);
+	TestTrue(TEXT("the next would start outside"), S.Last() + 24.f >= 100.f);
+	return true;
+}
+
+DIA_TEST(FUiStripesDegenerateTest, "DoItAsphalt.Game.Ui.Stripes.Degenerate")
+
+bool FUiStripesDegenerateTest::RunTest(const FString& Parameters)
+{
+	TestEqual(TEXT("no width"), AsphaltHud::HazardStripeStarts(0.f, 12.f, 12.f).Num(), 0);
+	TestEqual(TEXT("no height"), AsphaltHud::HazardStripeStarts(100.f, 0.f, 12.f).Num(), 0);
+	TestEqual(TEXT("no band"), AsphaltHud::HazardStripeStarts(100.f, 12.f, 0.f).Num(), 0);
+	TestEqual(TEXT("negative band"), AsphaltHud::HazardStripeStarts(100.f, 12.f, -3.f).Num(), 0);
+	TestEqual(TEXT("capped"), AsphaltHud::HazardStripeStarts(1.0e6f, 12.f, 0.001f).Num(), 4096);
+
+	const TSharedRef<SDIAHazardStripes> Stripes = SNew(SDIAHazardStripes).Band(12.f).Height(20.f);
+	Stripes->SlatePrepass(1.f);
+	TestEqual(TEXT("desired height"), static_cast<float>(Stripes->GetDesiredSize().Y), 20.f);
+	TestEqual(TEXT("desired width"), static_cast<float>(Stripes->GetDesiredSize().X), 0.f);
 	return true;
 }
 
