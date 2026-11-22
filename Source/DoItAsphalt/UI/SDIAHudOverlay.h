@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Brushes/SlateRoundedBoxBrush.h"
+#include "UI/DIAHudText.h"
 #include "UI/DIAFormat.h"
 #include "UI/DIAHudStyle.h"
 #include "Widgets/SCompoundWidget.h"
@@ -12,7 +13,7 @@ class ADIAHUD;
 class UDIAWorldSubsystem;
 
 /**
- * The HUD layout: credits top left, progress and the next unlock step top right, the vessel in the hand bottom right, the
+ * The HUD layout, drawn as hazard signage (yellow and black plates): credits top left, progress and the next unlock step top right, the vessel in the hand bottom right, the
  * plant's stock (in the refill zone) and the contextual prompt bottom centre, toasts top centre, and the check view's
  * arrow and distance below them while V is held, and the crosshair in the middle of the screen. It owns no game state: the
  * numbers come from the world subsystem through FDIAHudModel, which is refreshed on OnStateChanged but only changes
@@ -48,12 +49,19 @@ private:
 	/** The dot in the middle of the screen that shows where the player looks; gone while a menu, the shop or the win screen has the mouse. */
 	TSharedRef<SWidget> BuildCrosshair();
 
+	/** The prompt cut into key and action lines; re-cut only when the prompt's text changed. */
+	const TArray<FDIAPromptLine>& GetPromptLines();
+	/** The next unlock step without its "Next:" label; re-cut only when the model's text changed. */
+	const FText& GetNextText();
+
 	TWeakObjectPtr<ADIAHUD> Hud;
 	TWeakObjectPtr<UDIAWorldSubsystem> Subsystem;
 	FDelegateHandle StateHandle;
 
 	FDIAHudModel Model;
-	FSlateRoundedBoxBrush PanelBrush{FLinearColor::White, AsphaltHud::HudPanelCornerRadius};
-	FSlateRoundedBoxBrush SlotBrush{FLinearColor::White, AsphaltHud::HudPanelCornerRadius};
+	FString PromptSource;
+	TArray<FDIAPromptLine> PromptLines;
+	FString NextSource;
+	FText NextText;
 	FSlateRoundedBoxBrush DotBrush{FLinearColor::White, AsphaltHud::CrosshairOuterSize * 0.5f};
 };

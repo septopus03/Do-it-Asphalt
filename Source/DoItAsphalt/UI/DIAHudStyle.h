@@ -85,13 +85,13 @@ namespace AsphaltHud
 	inline constexpr int32 BigFontSize = 34;
 	inline constexpr int32 MediumFontSize = 26;
 	inline constexpr int32 CaptionFontSize = 17;
-	inline constexpr float ScreenMargin = 24.f;
+	inline constexpr float ScreenMargin = 28.f;
 	inline constexpr float PanelPaddingH = 18.f;
 	inline constexpr float PanelPaddingV = 10.f;
 	inline constexpr float BarHeight = 12.f;
-	inline constexpr float ProgressBarWidth = 300.f;
+	inline constexpr float ProgressBarWidth = 440.f;
 	/** Distance from the bottom edge of the screen to the lowest widget. */
-	inline constexpr float BottomMargin = 28.f;
+	inline constexpr float BottomMargin = 26.f;
 	inline constexpr float ButtonCornerRadius = 8.f;
 	/** Corner radii: the big panels (win screen, menu), their rows, and the smaller HUD panels (stats, toasts). */
 	inline constexpr float PanelCornerRadius = 12.f;
@@ -121,8 +121,8 @@ namespace AsphaltHud
 	inline const FLinearColor CrosshairRingColor{0.f, 0.f, 0.f, 0.6f};
 	/** The check view's arrow and text, and their distance from the top edge. */
 	inline const FLinearColor CheckColor{1.f, 0.62f, 0.15f, 1.f};
-	inline constexpr int32 CheckArrowFontSize = 48;
-	inline constexpr float CheckTop = 250.f;
+	inline constexpr int32 CheckArrowFontSize = 36;
+	inline constexpr float CheckTop = 268.f;
 	/** The shop: a grid of cards. Columns, the size of a card, the gaps, the padding of the panel, and the fonts. */
 	inline constexpr int32 ShopFontSize = 22;
 	inline constexpr int32 ShopValueFontSize = 17;
@@ -152,14 +152,52 @@ namespace AsphaltHud
 	inline const FLinearColor ShopIconMachineColor{0.52f, 0.52f, 0.95f, 1.f};
 	inline const FLinearColor ShopIconCarColor{0.95f, 0.42f, 0.45f, 1.f};
 	/** The inventory bar at the bottom of the screen: the size of a slot, the gap between slots, the height of a slot's fill gauge. */
-	inline constexpr float HotbarSlotWidth = 112.f;
-	inline constexpr float HotbarSlotHeight = 78.f;
-	inline constexpr float HotbarGap = 8.f;
-	inline constexpr float HotbarGaugeHeight = 6.f;
-	inline constexpr int32 HotbarNameFontSize = 19;
+	inline constexpr float HotbarSlotWidth = 140.f;
+	inline constexpr float HotbarSlotHeight = 94.f;
+	inline constexpr float HotbarGap = 10.f;
+	inline constexpr float HotbarGaugeHeight = 9.f;
+	inline constexpr int32 HotbarNameFontSize = 20;
 	inline const FLinearColor HotbarSlotColor{0.06f, 0.07f, 0.10f, 0.78f};
 	inline const FLinearColor HotbarSelectedColor{0.20f, 0.14f, 0.06f, 0.92f};
 	inline const FLinearColor HotbarOutlineColor{1.f, 1.f, 1.f, 0.10f};
 	/** Distance of the toasts from the top edge. */
 	inline constexpr float ToastTop = 110.f;
+
+	// The signage HUD (the mockup's CSS pixels are Slate units; font sizes are CSS px x 0.75).
+	/** The width of the ring line of a plate. */
+	inline constexpr float HudRingWidth = 3.f;
+	/** Font sizes (Slate points) of the HUD texts. */
+	inline constexpr int32 HudCreditsFont = 46;
+	inline constexpr int32 HudCreditsCaptionFont = 17;
+	inline constexpr int32 HudProgressFont = 33;
+	inline constexpr int32 HudProgressCaptionFont = 16;
+	inline constexpr int32 HudNextTagFont = 14;
+	inline constexpr int32 HudNextFont = 17;
+	inline constexpr int32 HudToastFont = 24;
+	inline constexpr int32 HudCheckFont = 24;
+	inline constexpr int32 HudRefillCaptionFont = 16;
+	inline constexpr int32 HudRefillFont = 23;
+	inline constexpr int32 HudPromptFont = 26;
+	inline constexpr int32 HudHandFont = 20;
+	inline constexpr int32 HotbarKeyFont = 15;
+	/** The toast's text wraps at this width. */
+	inline constexpr float ToastWrapWidth = 900.f;
+	inline constexpr float ToastGap = 8.f;
+	/** The check view's diamond: its side, the ring width of its plate, and the gap to the text plate. */
+	inline constexpr float CheckDiamondSize = 74.f;
+	inline constexpr float CheckDiamondRing = 4.f;
+	inline constexpr float CheckGap = 30.f;
+	/** The progress bar: the width of its yellow frame and the band of the stripes in its track. */
+	inline constexpr float ProgressFrameWidth = 2.f;
+	inline constexpr float ProgressStripeBand = 8.f;
+	/** The stripes under the inventory bar: height and band. */
+	inline constexpr float HotbarStripeHeight = 12.f;
+	inline constexpr float HotbarStripeBand = 12.f;
+	/** The prompt's key plate is this wide. */
+	inline constexpr float PromptKeyWidth = 58.f;
+	/** The gap between the stacked plates at the bottom of the screen. */
+	inline constexpr float BottomStackGap = 10.f;
+	inline constexpr float PromptLineGap = 8.f;
+	/** The key square in a hotbar slot. */
+	inline constexpr float HotbarKeySize = 26.f;
 }
