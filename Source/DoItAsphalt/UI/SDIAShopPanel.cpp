@@ -24,13 +24,6 @@
 
 namespace
 {
-	/** The padding of a plate's content for a CSS padding of the mockup: the mockup measures it from inside the border, so the ring line is part of it. */
-	FMargin Inset(float Left, float Top, float Right, float Bottom)
-	{
-		const float Ring = AsphaltHud::HudRingWidth;
-		return FMargin(Left - Ring, Top - Ring, Right - Ring, Bottom - Ring);
-	}
-
 	/** The look of each state, built once (building one looks its label up). */
 	const FDIAShopLook& LookOf(EDIAShopState State)
 	{
@@ -39,6 +32,10 @@ namespace
 			AsphaltHud::ShopLook(EDIAShopState::NoCredits),
 			AsphaltHud::ShopLook(EDIAShopState::Locked),
 			AsphaltHud::ShopLook(EDIAShopState::Owned)};
+		// Looks is indexed by the state's number; a new or reordered state must fail here, not show a wrong look.
+		static_assert(static_cast<int32>(EDIAShopState::Buy) == 0 && static_cast<int32>(EDIAShopState::NoCredits) == 1
+			&& static_cast<int32>(EDIAShopState::Locked) == 2 && static_cast<int32>(EDIAShopState::Owned) == 3,
+			"LookOf indexes Looks by the numeric value of EDIAShopState");
 		return Looks[FMath::Clamp(static_cast<int32>(State), 0, 3)];
 	}
 
@@ -146,7 +143,7 @@ void SDIAShopPanel::Construct(const FArguments& InArgs)
 							]
 							+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
 							[
-								AsphaltHud::MakePlate(AsphaltHud::SignYellow, AsphaltHud::SignBlack, Inset(24.f, 8.f, 24.f, 10.f),
+								AsphaltHud::MakePlate(AsphaltHud::SignYellow, AsphaltHud::SignBlack, AsphaltHud::Inset(24.f, 8.f, 24.f, 10.f),
 									SNew(SHorizontalBox)
 									+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
 									[
@@ -360,7 +357,7 @@ TSharedRef<SWidget> SDIAShopPanel::BuildCard(int32 Row)
 	// The plate is the card; its content fills the card's height, the bottom line sits at the bottom.
 	return SNew(SBox).HeightOverride(AsphaltHud::ShopCardHeight)
 		[
-			AsphaltHud::MakePlate(Plate, Ring, Inset(AsphaltHud::ShopCardPaddingH, AsphaltHud::ShopCardPaddingV, AsphaltHud::ShopCardPaddingH, AsphaltHud::ShopCardPaddingV),
+			AsphaltHud::MakePlate(Plate, Ring, AsphaltHud::Inset(AsphaltHud::ShopCardPaddingH, AsphaltHud::ShopCardPaddingV, AsphaltHud::ShopCardPaddingH, AsphaltHud::ShopCardPaddingV),
 				SNew(SVerticalBox)
 				+ SVerticalBox::Slot().AutoHeight()
 				[

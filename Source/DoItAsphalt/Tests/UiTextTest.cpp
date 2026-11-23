@@ -91,6 +91,8 @@ bool FUiNextLineTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("empty"), Strip(TEXT("")), FString(TEXT("")));
 	TestEqual(TEXT("nothing after the label"), Strip(TEXT("Next: ")), FString(TEXT("Next: ")));
 	TestEqual(TEXT("paver"), Strip(TEXT("Paver: sector 12 · 143 / 400")), FString(TEXT("sector 12 · 143 / 400")));
+	TestEqual(TEXT("colon later in a line without a label"), Strip(TEXT("Exit – needs: 3 cells")), FString(TEXT("Exit – needs: 3 cells")));
+	TestEqual(TEXT("next step with a dash"), Strip(TEXT("Next: Sprint – entry 0 / 12")), FString(TEXT("Sprint – entry 0 / 12")));
 	return true;
 }
 

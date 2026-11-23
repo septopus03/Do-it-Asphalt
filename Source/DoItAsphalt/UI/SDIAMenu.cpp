@@ -148,7 +148,7 @@ TSharedRef<SWidget> SDIAMenu::MakeQuestionText()
 {
 	// The question is wider than the plate at this size: it wraps and is centred.
 	const TSharedRef<STextBlock> Text = AsphaltHud::MakeText(FDIAMenuModel::GetQuestion(), EDIAFontWeight::Bold, AsphaltHud::MenuQuestionFont, AsphaltHud::SignBlack);
-	Text->SetAutoWrapText(true);
+	Text->SetWrapTextAt(AsphaltHud::MenuContentWidth);
 	Text->SetJustification(ETextJustify::Center);
 	return Text;
 }

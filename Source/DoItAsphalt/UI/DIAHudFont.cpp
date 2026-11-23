@@ -29,15 +29,14 @@ namespace
 			return nullptr;
 		}
 		const TSharedRef<FStandaloneCompositeFont> Composite = MakeShared<FStandaloneCompositeFont>(FName("Default"), Path, EFontHinting::Default, EFontLoadingPolicy::LazyLoad);
-		// Glyphs Barlow Condensed lacks (the arrow "→", the tick "✓") come from the engine's DroidSansFallback.
+		// Glyphs Barlow Condensed lacks (the arrow "→") come from the engine's DroidSansFallback.
 		const FString FallbackPath = FPaths::EngineContentDir() / TEXT("Slate/Fonts/DroidSansFallback.ttf");
 		if (FPaths::FileExists(FallbackPath))
 		{
-			// A sub-typeface limited to the arrows and the dingbats (the tick): the plain fallback is not asked for these.
+			// A sub-typeface limited to the arrows: the plain fallback is not asked for these.
 			FCompositeSubFont& Symbols = Composite->SubTypefaces.AddDefaulted_GetRef();
 			Symbols.Typeface.Fonts.Emplace(FName("Symbols"), FallbackPath, EFontHinting::Default, EFontLoadingPolicy::LazyLoad);
 			Symbols.CharacterRanges.Add(FInt32Range(FInt32RangeBound::Inclusive(0x2190), FInt32RangeBound::Inclusive(0x21FF)));
-			Symbols.CharacterRanges.Add(FInt32Range(FInt32RangeBound::Inclusive(0x2700), FInt32RangeBound::Inclusive(0x27BF)));
 		}
 		return Composite;
 	}

@@ -15,6 +15,7 @@
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
+#include "Widgets/Layout/SSpacer.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SOverlay.h"
 #include "Widgets/Text/STextBlock.h"
@@ -24,13 +25,6 @@ namespace
 	const FSlateBrush* WhiteBrush()
 	{
 		return FCoreStyle::Get().GetBrush("WhiteBrush");
-	}
-
-	/** The padding of a plate's content for a CSS padding of the mockup: the mockup measures it from inside the border, so the ring line is part of it. */
-	FMargin Inset(float Left, float Top, float Right, float Bottom)
-	{
-		const float Ring = AsphaltHud::HudRingWidth;
-		return FMargin(Left - Ring, Top - Ring, Right - Ring, Bottom - Ring);
 	}
 
 	/** HUD text in the given weight, size and colour (capitals, no shadow). */
@@ -161,7 +155,7 @@ const FText& SDIAHudOverlay::GetNextText()
 
 TSharedRef<SWidget> SDIAHudOverlay::BuildTopLeft()
 {
-	return AsphaltHud::MakePlate(AsphaltHud::SignYellow, AsphaltHud::SignBlack, Inset(24.f, 8.f, 24.f, 10.f),
+	return AsphaltHud::MakePlate(AsphaltHud::SignYellow, AsphaltHud::SignBlack, AsphaltHud::Inset(24.f, 8.f, 24.f, 10.f),
 		SNew(SHorizontalBox)
 		+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Bottom)
 		[
@@ -175,7 +169,7 @@ TSharedRef<SWidget> SDIAHudOverlay::BuildTopLeft()
 
 TSharedRef<SWidget> SDIAHudOverlay::BuildTopRight()
 {
-	return AsphaltHud::MakePlate(AsphaltHud::SignBlack, AsphaltHud::SignYellow, Inset(22.f, 12.f, 22.f, 16.f),
+	return AsphaltHud::MakePlate(AsphaltHud::SignBlack, AsphaltHud::SignYellow, AsphaltHud::Inset(22.f, 12.f, 22.f, 16.f),
 		SNew(SVerticalBox)
 		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Right)
 		[
@@ -234,7 +228,7 @@ TSharedRef<SWidget> SDIAHudOverlay::BuildHotbar()
 		// What is in the hands with how much it holds; a movable that is held or the car replaces the tool's name here.
 		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0.f, 0.f, 0.f, AsphaltHud::BottomStackGap)
 		[
-			AsphaltHud::MakePlate(AsphaltHud::SignBlack, AsphaltHud::SignYellow, Inset(22.f, 4.f, 22.f, 6.f),
+			AsphaltHud::MakePlate(AsphaltHud::SignBlack, AsphaltHud::SignYellow, AsphaltHud::Inset(22.f, 4.f, 22.f, 6.f),
 				SNew(SHorizontalBox)
 				+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Bottom)
 				[
@@ -294,7 +288,7 @@ TSharedRef<SWidget> SDIAHudOverlay::BuildHotbarSlot(ELotHand Hand)
 		.WidthOverride(AsphaltHud::HotbarSlotWidth)
 		.HeightOverride(AsphaltHud::HotbarSlotHeight)
 		[
-			AsphaltHud::MakePlate(TAttribute<FLinearColor>::CreateLambda(PlateColor), TAttribute<FLinearColor>::CreateLambda(InkColor), Inset(SidePadding, 9.f, SidePadding, 12.f),
+			AsphaltHud::MakePlate(TAttribute<FLinearColor>::CreateLambda(PlateColor), TAttribute<FLinearColor>::CreateLambda(InkColor), AsphaltHud::Inset(SidePadding, 9.f, SidePadding, 12.f),
 				SNew(SVerticalBox)
 				+ SVerticalBox::Slot().AutoHeight()
 				[
@@ -395,7 +389,7 @@ TSharedRef<SWidget> SDIAHudOverlay::BuildCheckView()
 		]
 		+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(AsphaltHud::CheckGap, 0.f, 0.f, 0.f)
 		[
-			AsphaltHud::MakePlate(AsphaltHud::SignBlack, AsphaltHud::SignOrange, Inset(22.f, 6.f, 22.f, 8.f),
+			AsphaltHud::MakePlate(AsphaltHud::SignBlack, AsphaltHud::SignOrange, AsphaltHud::Inset(22.f, 6.f, 22.f, 8.f),
 				Text(TAttribute<FText>::CreateLambda([View]() { return View().Nearest; }), EDIAFontWeight::Bold, AsphaltHud::HudCheckFont, AsphaltHud::SignOrangeText))
 		];
 }
@@ -419,7 +413,7 @@ TSharedRef<SWidget> SDIAHudOverlay::BuildBottom()
 			+ SHorizontalBox::Slot().AutoWidth().Padding(0.f, 0.f, AsphaltHud::PromptLineGap, 0.f)
 			[
 				SNew(SBox)
-				.WidthOverride(AsphaltHud::PromptKeyWidth)
+				.MinDesiredWidth(AsphaltHud::PromptKeyWidth)
 				.Visibility_Lambda([this, Line]() { return GetPromptLines().IsValidIndex(Line) && !GetPromptLines()[Line].Key.IsEmpty() ? EVisibility::HitTestInvisible : EVisibility::Collapsed; })
 				[
 					AsphaltHud::MakePlate(AsphaltHud::SignYellow, AsphaltHud::SignBlack, FMargin(0.f),
@@ -431,7 +425,7 @@ TSharedRef<SWidget> SDIAHudOverlay::BuildBottom()
 			]
 			+ SHorizontalBox::Slot().AutoWidth()
 			[
-				AsphaltHud::MakePlate(AsphaltHud::SignBlack, AsphaltHud::SignYellow, Inset(24.f, 6.f, 24.f, 8.f),
+				AsphaltHud::MakePlate(AsphaltHud::SignBlack, AsphaltHud::SignYellow, AsphaltHud::Inset(24.f, 6.f, 24.f, 8.f),
 					Text(TAttribute<FText>::CreateLambda([LineText]() { return LineText(false); }), EDIAFontWeight::Bold, AsphaltHud::HudPromptFont, AsphaltHud::SignWhite))
 			]
 		];
@@ -444,7 +438,7 @@ TSharedRef<SWidget> SDIAHudOverlay::BuildBottom()
 			SNew(SBox)
 			.Visibility_Lambda([this]() { return Model.GetView().Refill.IsEmpty() ? EVisibility::Collapsed : EVisibility::HitTestInvisible; })
 			[
-				AsphaltHud::MakePlate(AsphaltHud::SignBlack, AsphaltHud::SignYellow, Inset(22.f, 6.f, 22.f, 8.f),
+				AsphaltHud::MakePlate(AsphaltHud::SignBlack, AsphaltHud::SignYellow, AsphaltHud::Inset(22.f, 6.f, 22.f, 8.f),
 					SNew(SHorizontalBox)
 					+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Bottom).Padding(0.f, 0.f, 14.f, 2.f)
 					[
@@ -511,8 +505,8 @@ TSharedRef<SWidget> SDIAHudOverlay::BuildToasts()
 			TAttribute<FText>::CreateLambda([WeakHud, Index]() { return WeakHud.IsValid() ? WeakHud->GetToasts().GetText(Index) : FText::GetEmpty(); }),
 			EDIAFontWeight::ExtraBold, AsphaltHud::HudToastFont,
 			TAttribute<FSlateColor>::CreateLambda([Alpha]() { return FSlateColor(AsphaltHud::Faded(AsphaltHud::SignBlack, Alpha())); }));
-		// A long toast (an unlock: the step and its effect) wraps and is centred.
-		Label->SetAutoWrapText(true);
+		// A long toast (an unlock: the step and its effect) wraps at a fixed width and is centred. No auto-wrap: it would wrap at the
+		// width the slot was last painted at, and a slot is as wide as its last text.
 		Label->SetWrapTextAt(AsphaltHud::ToastWrapWidth);
 		Label->SetJustification(ETextJustify::Center);
 		Box->AddSlot().AutoHeight().HAlign(HAlign_Center).Padding(0.f, 0.f, 0.f, AsphaltHud::ToastGap)
@@ -520,7 +514,7 @@ TSharedRef<SWidget> SDIAHudOverlay::BuildToasts()
 			SNew(SBox)
 			.Visibility_Lambda([Alpha]() { return Alpha() > 0.f ? EVisibility::HitTestInvisible : EVisibility::Collapsed; })
 			[
-				AsphaltHud::MakePlate(AsphaltHud::SignYellow, AsphaltHud::SignBlack, Inset(22.f, 6.f, 22.f, 8.f), Label, AsphaltHud::HudRingWidth, TAttribute<float>::CreateLambda(Alpha))
+				AsphaltHud::MakePlate(AsphaltHud::SignYellow, AsphaltHud::SignBlack, AsphaltHud::Inset(22.f, 6.f, 22.f, 8.f), Label, AsphaltHud::HudRingWidth, TAttribute<float>::CreateLambda(Alpha))
 			]
 		];
 	}

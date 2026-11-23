@@ -21,6 +21,13 @@ namespace AsphaltHud
 		return FLinearColor(Color.R, Color.G, Color.B, Color.A * FMath::Clamp(Alpha, 0.f, 1.f));
 	}
 
+	/** The padding of a plate's content for a CSS padding of the mockup: the mockup measures it from inside the border, so the ring line is part of it. */
+	inline FMargin Inset(float Left, float Top, float Right, float Bottom)
+	{
+		const float Ring = HudRingWidth;
+		return FMargin(Left - Ring, Top - Ring, Right - Ring, Bottom - Ring);
+	}
+
 	/**
 	 * A sign plate: a rounded plate with a thin inset ring line, holding Content. Three nested borders (plate, ring, plate); every
 	 * layer's alpha is multiplied by Opacity.

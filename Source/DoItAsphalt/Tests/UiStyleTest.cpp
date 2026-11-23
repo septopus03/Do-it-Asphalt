@@ -205,6 +205,12 @@ bool FUiFontFallbackGlyphsTest::RunTest(const FString& Parameters)
 		{
 			TestTrue(TEXT("the symbol font is DroidSansFallback"), Symbols[0].Font.GetFontFilename().EndsWith(TEXT("DroidSansFallback.ttf")));
 		}
+		bool bCoversArrow = false;
+		for (const FInt32Range& Range : F.CompositeFont->SubTypefaces[0].CharacterRanges)
+		{
+			bCoversArrow |= Range.Contains(0x2192);
+		}
+		TestTrue(TEXT("the symbol ranges contain the arrow U+2192"), bCoversArrow);
 	}
 	return true;
 }

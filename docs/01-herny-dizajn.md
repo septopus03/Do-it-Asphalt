@@ -129,7 +129,7 @@ Hra nemá hladidlo ani finišer. Asfalt sa nehladí: každý vyliaty asfalt je h
 
 ## 6. Obrazovka (HUD)
 
-Celé rozhranie (HUD, obchod, menu, nastavenia aj výhra) je štylizované ako žlto-čierne výstražné tabule: žlté alebo čierne zaoblené tabule s tenkou čiarou vo vnútri, text písmom Barlow Condensed veľkými písmenami, bez tieňov. Pruhy (šrafovaný pás žltej a čiernej) zdobia panel obchodu, obrazovku výhry a spodok lišty predmetov.
+Celé rozhranie (HUD, obchod, menu, nastavenia aj výhra) je štylizované ako žlto-čierne výstražné tabule: žlté alebo čierne zaoblené tabule s tenkou čiarou vo vnútri, text písmom Barlow Condensed veľkými písmenami (výnimkou sú riadky s hodnotou a dôvodom na kartách obchodu, ktoré ostávajú v pôvodnej veľkosti písmen), bez tieňov. Pruhy (šrafovaný pás žltej a čiernej) zdobia panel obchodu, obrazovku výhry a spodok lišty predmetov.
 
 - **Vľavo hore:** žltá tabuľa s kreditmi (čierne číslo) a popisom „credits".
 - **V strede obrazovky:** malý zameriavač (biela bodka v tmavom kruhu, bez zmeny); pri otvorenom menu, obchode a obrazovke výhry sa skryje.
@@ -141,7 +141,7 @@ Celé rozhranie (HUD, obchod, menu, nastavenia aj výhra) je štylizované ako �
 - **Výzva** je pre každý riadok žltá štvorcová tabuľa s klávesom a vedľa nej čierna tabuľa s činnosťou (napríklad `E` a „Push"). Pri držanom kufri sú dva riadky pod sebou (`E` a `F`); riadok bez klávesa má len čiernu tabuľu. Kým je výzva prázdna, nezobrazí sa.
 - **Riadok ruky** je čierna tabuľa nad lištou predmetov: názov bielou a obsah žltou (napríklad „Bowl" a „0 / 2.5 L"); platí aj pre držaný kufor či vozík.
 - **Lišta predmetov:** tri políčka (`1` miska, `2` lopatka, `3` vedro) s medzerou 10. Políčko je čierna tabuľa so žltou linkou, žltým štvorčekom s číslom klávesu, názvom bielou a (pri nádobách) ukazovateľom naplnenia. Vybrané políčko je opačne: žltá tabuľa s čiernou linkou, čiernym štvorčekom, čiernym názvom a čiernou výplňou. Políčko, ktoré sa nedá vziať, má názov stlmený na 70 % bielej a ukazovateľ skrytý.
-- **Obchod (`Tab`):** čierny panel široký 1300, hore s šrafovaným pásom. Nadpis „SHOP" žltou, pod ním biely podnadpis „Tools and machines for the car park" a vpravo žltá tabuľa s kreditmi. Pod tým mriežka kariet po 4 v riadku (karta je vysoká 172, medzera 12): výrobňa (najprv), potom predmety; kariet je 11, takže v poslednom riadku sú tri, zarovnané vľavo. Dole stojí „Tab / Esc – close". Okolo panela sa obraz nestmavuje a hra ostáva klikateľná. Každý nákup sa ukladá.
+- **Obchod (`Tab`):** čierny panel široký 1300, hore s šrafovaným pásom. Nadpis „SHOP" žltou, pod ním biely podnadpis „Tools and machines for the car park" a vpravo žltá tabuľa s kreditmi. Pod tým mriežka kariet po 4 v riadku (karta je vysoká 172, medzera 12): výrobňa (najprv), potom predmety; kariet je 11, takže v poslednom riadku sú tri, zarovnané vľavo. Dole stojí „Tab / Esc - close" (s obyčajnou pomlčkou). Okolo panela sa obraz nestmavuje a hra ostáva klikateľná. Každý nákup sa ukladá.
 - **Karta obchodu** je tabuľa, ktorej vzhľad závisí od stavu. Vľavo hore je dlaždica (kruh s prvým písmenom názvu), vedľa nej názov, čo vec dáva a prípadná podmienka odomknutia (žltou, napríklad „350 cells + entry 3"), dole vľavo cena a vpravo tlačidlo alebo štítok:
 
 | Stav | Tabuľa | Linka | Dlaždica | Cena | Vpravo dole |
@@ -227,7 +227,7 @@ Rýchlosť výdajne má v kóde vlastnú pomenovanú hodnotu (`StationCarrySpeed
 
 ## 11. Cheaty
 
-Cheaty sú konzolové príkazy `dia.*`. Je ich 27 a existujú len mimo Shipping buildu. Pre prvých 26 reťazcov sa overilo, že v Shipping binárke nie je ani jeden; pre `dia.Screen`, ktorý pribudol neskôr, sa toto overenie nerobilo. Spúšťajú sa v konzole editora alebo cez `-ExecCmds` (skript `Scripts/shot.sh`).
+Cheaty sú konzolové príkazy `dia.*`. Je ich 27 a existujú len mimo Shipping buildu. Skoršia kontrola Shipping binárky nenašla žiadny reťazec `dia.*`; urobila sa ešte predtým, než pribudol `dia.Screen`, a odvtedy sa nezopakovala. Všetky cheaty sa kompilujú len mimo Shipping buildu (`#if !UE_BUILD_SHIPPING`). Spúšťajú sa v konzole editora alebo cez `-ExecCmds` (skript `Scripts/shot.sh`).
 
 | Príkaz | Čo robí |
 |---|---|

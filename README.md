@@ -49,9 +49,9 @@ V aute: `W`/`S` plyn a spiatočka, `A`/`D` zatáčanie, myš otáča hlavou, ľa
 
 ## Cheaty pre vývoj
 
-Konzolové príkazy `dia.*` sú v `Source/DoItAsphalt/Game/DIACheats.cpp` pod `#if !UE_BUILD_SHIPPING`, takže v Shipping builde neexistujú. Skript `shot.sh` na nich stojí, preto sa nedá použiť so Shipping buildom. Je ich 26:
+Konzolové príkazy `dia.*` sú v `Source/DoItAsphalt/Game/DIACheats.cpp` pod `#if !UE_BUILD_SHIPPING`, takže v Shipping builde neexistujú. Skript `shot.sh` na nich stojí, preto sa nedá použiť so Shipping buildom. Je ich 27:
 
-`dia.Give`, `dia.Complete`, `dia.CompleteEntry`, `dia.Item`, `dia.Grab`, `dia.Drop`, `dia.CartStrip`, `dia.Place`, `dia.Plant`, `dia.EnterCar`, `dia.Teleport`, `dia.Prompt`, `dia.Toast`, `dia.SendPaver`, `dia.Save`, `dia.Load`, `dia.NewGame`, `dia.SkipMenu`, `dia.Camera`, `dia.WorkView`, `dia.CheckView`, `dia.Shop`, `dia.Hand`, `dia.Fill`, `dia.TopView`, `dia.ShotAndQuit`.
+`dia.Give`, `dia.Complete`, `dia.CompleteEntry`, `dia.Item`, `dia.Grab`, `dia.Drop`, `dia.CartStrip`, `dia.Place`, `dia.Plant`, `dia.EnterCar`, `dia.Teleport`, `dia.Prompt`, `dia.Toast`, `dia.SendPaver`, `dia.Save`, `dia.Load`, `dia.NewGame`, `dia.SkipMenu`, `dia.Camera`, `dia.WorkView`, `dia.CheckView`, `dia.Shop`, `dia.Hand`, `dia.Fill`, `dia.TopView`, `dia.Screen`, `dia.ShotAndQuit`.
 
 Argumenty a účinok každého sú v [`docs/01-herny-dizajn.md`](docs/01-herny-dizajn.md), kapitola 11. Spustenie s vlastným slotom uloženej hry (aby sa nedotkol skutočného `DoItAsphalt_Slot0`): argument `-DIASlot=<meno>`.
 

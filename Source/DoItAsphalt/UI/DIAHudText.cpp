@@ -49,7 +49,8 @@ FText DIAHudText::StripLabel(const FText& Line)
 {
 	const FString Text = Line.ToString();
 	const int32 At = Text.Find(TEXT(": "));
-	if (At == INDEX_NONE || At + 2 >= Text.Len())
+	// Only a label ("Next: ", "Paver: ") is cut off: the first ": " must end the first word (no space before it).
+	if (At == INDEX_NONE || At + 2 >= Text.Len() || Text.Left(At).Contains(TEXT(" ")))
 	{
 		return Line;
 	}

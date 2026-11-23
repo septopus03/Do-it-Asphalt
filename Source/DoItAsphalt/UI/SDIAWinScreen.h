@@ -12,8 +12,8 @@
 #include "Widgets/SCompoundWidget.h"
 
 /**
- * The win screen (GDD chapter 9): a dimmed backdrop that takes the mouse, the title "Parking lot complete!", the four
- * statistics (time, asphalt poured, money earned, upgrades bought) and the buttons New Game and Quit. The widget tree is built
+ * The win screen (GDD chapter 9): a dimmed backdrop that takes the mouse, the title "Parking lot complete!", the five
+ * statistics (time, cells paved, asphalt poured, credits earned, items bought) and the buttons New Game and Quit. The widget tree is built
  * once, hidden; Show takes a snapshot of the statistics into FDIAWinModel (the labels read it through attribute lambdas) and
  * makes it visible. The buttons only call the delegates given by the HUD.
  */

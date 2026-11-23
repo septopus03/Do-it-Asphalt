@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 
-/** Every colour, size and timing of the HUD in one place. Slate units (the viewport's DPI scaling applies on top). */
+/** The shared colours, sizes and timings of the HUD (most paddings and two gauge-track colours live in the widgets). Slate units (the viewport's DPI scaling applies on top). */
 namespace AsphaltHud
 {
 	// Behaviour.
