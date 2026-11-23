@@ -39,28 +39,31 @@ namespace
 		constexpr int32 TotalLitres = 32;
 		constexpr int32 PlantLevel = 40;
 		constexpr int32 PlantStock = 44;
-		constexpr int32 Owned = 52; // 10 bytes in ELotItem order
-		constexpr int32 Hand = 62;
-		constexpr int32 Bowl = 66;
-		constexpr int32 Scoop = 74;
-		constexpr int32 Bucket = 82;
-		constexpr int32 Swap = 90;
-		constexpr int32 Suitcase = 98;
-		constexpr int32 Cart = 106;
-		constexpr int32 Held = 114;
-		constexpr int32 PaverSector = 118;
-		constexpr int32 PaverStep = 122;
-		constexpr int32 PaverPos = 126;
-		constexpr int32 PaverTravelling = 142;
-		constexpr int32 PaverBudget = 143;
-		constexpr int32 Won = 151;
-		constexpr int32 PlayerPos = 152;
-		constexpr int32 PlayerYaw = 168;
-		constexpr int32 Movables = 176; // 3 x (position 16 bytes, yaw 8 bytes)
-		constexpr int32 CarPos = 248;
-		constexpr int32 CarYaw = 264;
-		constexpr int32 InCar = 272;
-		constexpr int32 Grid = 273;
+		constexpr int32 Owned = 52; // 11 bytes in ELotItem order
+		constexpr int32 Hand = 63;
+		constexpr int32 Bowl = 67;
+		constexpr int32 Bucket = 75;
+		constexpr int32 Canister = 83;
+		constexpr int32 Tub = 91;
+		constexpr int32 Swap = 99;
+		constexpr int32 Suitcase = 107;
+		constexpr int32 Cart = 115;
+		constexpr int32 Held = 123;
+		constexpr int32 PaverSector = 127;
+		constexpr int32 PaverStep = 131;
+		constexpr int32 PaverPos = 135;
+		constexpr int32 PaverPhase = 151;
+		constexpr int32 PaverBudget = 155;
+		constexpr int32 PaverTank = 163;
+		constexpr int32 CarTank = 171;
+		constexpr int32 Won = 179;
+		constexpr int32 PlayerPos = 180;
+		constexpr int32 PlayerYaw = 196;
+		constexpr int32 Movables = 204; // 3 x (position 16 bytes, yaw 8 bytes)
+		constexpr int32 CarPos = 276;
+		constexpr int32 CarYaw = 292;
+		constexpr int32 InCar = 300;
+		constexpr int32 Grid = 301;
 		constexpr int32 CompleteBitsBytes = 3750;
 		constexpr int32 InProgressCount = Grid + CompleteBitsBytes;
 		constexpr int32 Records = InProgressCount + 4;
@@ -143,7 +146,7 @@ namespace
 		G.DebugGive(777.5);
 		G.DebugSetPlantLevel(2);
 		G.DebugSetPlantStock(G.GetPlantStorage());
-		for (ELotItem Item : {ELotItem::Scoop, ELotItem::Bucket, ELotItem::Suitcase, ELotItem::Cart, ELotItem::Station,
+		for (ELotItem Item : {ELotItem::Canister, ELotItem::Bucket, ELotItem::Tub, ELotItem::Suitcase, ELotItem::Cart, ELotItem::Station,
 			ELotItem::AutoPaver, ELotItem::AutoPaverFast, ELotItem::Car})
 		{
 			G.DebugGrantItem(Item);
@@ -156,10 +159,11 @@ namespace
 		AddInProgressCells(G);
 
 		G.ScoopFromTrough(1.3);
-		G.SelectHand(ELotHand::Scoop);
+		G.SelectHand(ELotHand::Canister);
 		G.Tick(2.0);
 		G.ScoopFromTrough(1.3);
-		G.FillBucket(ELotSource::Plant, 1.0);
+		G.FillVessel(ELotHand::Bucket, ELotSource::Plant, 1.0);
+		G.DebugFillTanks();
 		G.FillMovable(ELotMovable::Suitcase, 2.0);
 		G.FillMovable(ELotMovable::Cart, 6.0);
 
@@ -451,8 +455,8 @@ bool FLotSaveDerivedStateTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("nearest incomplete cell"), Loaded.FindNearestIncomplete(FVector2D::ZeroVector), Source.FindNearestIncomplete(FVector2D::ZeroVector));
 
 	// Quick swap is open: a swap is instant in the loaded game.
-	Loaded.DebugGrantItem(ELotItem::Scoop);
-	TestTrue(TEXT("scoop"), Loaded.SelectHand(ELotHand::Scoop));
+	Loaded.DebugGrantItem(ELotItem::Canister);
+	TestTrue(TEXT("scoop"), Loaded.SelectHand(ELotHand::Canister));
 	TestFalse(TEXT("no swap time"), Loaded.IsHandBusy());
 	return true;
 }
@@ -487,7 +491,7 @@ bool FLotSaveRejectsCorruptDataTest::RunTest(const FString& Parameters)
 	// Header.
 	ExpectPatchRejected(*this, Target, Base, TEXT("bad magic"), [](TArray<uint8>& B) { PatchU8(B, Off::Magic, 'X'); });
 	ExpectPatchRejected(*this, Target, Base, TEXT("version 1"), [](TArray<uint8>& B) { PatchI32(B, Off::Version, 1); });
-	ExpectPatchRejected(*this, Target, Base, TEXT("version 3"), [](TArray<uint8>& B) { PatchI32(B, Off::Version, 3); });
+	ExpectPatchRejected(*this, Target, Base, TEXT("version 2"), [](TArray<uint8>& B) { PatchI32(B, Off::Version, 2); });
 	ExpectPatchRejected(*this, Target, Base, TEXT("version 0"), [](TArray<uint8>& B) { PatchI32(B, Off::Version, 0); });
 	ExpectPatchRejected(*this, Target, Base, TEXT("wrong number of cells"), [](TArray<uint8>& B) { PatchI32(B, Off::NumCells, 29999); });
 	ExpectPatchRejected(*this, Target, Base, TEXT("wrong grid size"), [](TArray<uint8>& B) { PatchI32(B, Off::GridSize, 2000); });
@@ -514,12 +518,13 @@ bool FLotSaveRejectsCorruptDataTest::RunTest(const FString& Parameters)
 	ExpectPatchRejected(*this, Target, Base, TEXT("owned flag 255"), [](TArray<uint8>& B) { PatchU8(B, Off::Owned, 255); });
 
 	// Hand and vessels.
-	ExpectPatchRejected(*this, Target, Base, TEXT("hand 3"), [](TArray<uint8>& B) { PatchI32(B, Off::Hand, 3); });
+	ExpectPatchRejected(*this, Target, Base, TEXT("hand 4"), [](TArray<uint8>& B) { PatchI32(B, Off::Hand, 4); });
 	ExpectPatchRejected(*this, Target, Base, TEXT("hand -1"), [](TArray<uint8>& B) { PatchI32(B, Off::Hand, -1); });
 	ExpectPatchRejected(*this, Target, Base, TEXT("bowl 3 l"), [](TArray<uint8>& B) { PatchDouble(B, Off::Bowl, 3.0); });
 	ExpectPatchRejected(*this, Target, Base, TEXT("bowl -0.5 l"), [](TArray<uint8>& B) { PatchDouble(B, Off::Bowl, -0.5); });
 	ExpectPatchRejected(*this, Target, Base, TEXT("bowl NaN"), [](TArray<uint8>& B) { PatchDouble(B, Off::Bowl, NaN); });
-	ExpectPatchRejected(*this, Target, Base, TEXT("scoop 1.5 l"), [](TArray<uint8>& B) { PatchDouble(B, Off::Scoop, 1.5); });
+	ExpectPatchRejected(*this, Target, Base, TEXT("canister 20.5 l"), [](TArray<uint8>& B) { PatchDouble(B, Off::Canister, 20.5); });
+	ExpectPatchRejected(*this, Target, Base, TEXT("tub 36.5 l"), [](TArray<uint8>& B) { PatchDouble(B, Off::Tub, 36.5); });
 	ExpectPatchRejected(*this, Target, Base, TEXT("bucket 10.5 l"), [](TArray<uint8>& B) { PatchDouble(B, Off::Bucket, 10.5); });
 	ExpectPatchRejected(*this, Target, Base, TEXT("swap remainder above the swap time"), [](TArray<uint8>& B) { PatchDouble(B, Off::Swap, LotBalance::SwapSeconds + 0.5); });
 	ExpectPatchRejected(*this, Target, Base, TEXT("swap remainder negative"), [](TArray<uint8>& B) { PatchDouble(B, Off::Swap, -0.1); });
@@ -540,7 +545,12 @@ bool FLotSaveRejectsCorruptDataTest::RunTest(const FString& Parameters)
 	ExpectPatchRejected(*this, Target, Base, TEXT("step -1"), [](TArray<uint8>& B) { PatchI32(B, Off::PaverStep, -1); });
 	ExpectPatchRejected(*this, Target, Base, TEXT("paver position NaN"), [](TArray<uint8>& B) { PatchDouble(B, Off::PaverPos, NaN); });
 	ExpectPatchRejected(*this, Target, Base, TEXT("paver position infinite"), [](TArray<uint8>& B) { PatchDouble(B, Off::PaverPos + 8, Infinity); });
-	ExpectPatchRejected(*this, Target, Base, TEXT("travelling flag 2"), [](TArray<uint8>& B) { PatchU8(B, Off::PaverTravelling, 2); });
+	ExpectPatchRejected(*this, Target, Base, TEXT("paver phase 5"), [](TArray<uint8>& B) { PatchI32(B, Off::PaverPhase, 5); });
+	ExpectPatchRejected(*this, Target, Base, TEXT("paver phase -1"), [](TArray<uint8>& B) { PatchI32(B, Off::PaverPhase, -1); });
+	ExpectPatchRejected(*this, Target, Base, TEXT("paver tank above the tank"), [](TArray<uint8>& B) { PatchDouble(B, Off::PaverTank, LotBalance::AutoPaverTankL + 1.0); });
+	ExpectPatchRejected(*this, Target, Base, TEXT("paver tank negative"), [](TArray<uint8>& B) { PatchDouble(B, Off::PaverTank, -1.0); });
+	ExpectPatchRejected(*this, Target, Base, TEXT("car tank above the tank"), [](TArray<uint8>& B) { PatchDouble(B, Off::CarTank, LotBalance::CarTankL[0] + 1.0); });
+	ExpectPatchRejected(*this, Target, Base, TEXT("car tank NaN"), [](TArray<uint8>& B) { PatchDouble(B, Off::CarTank, NaN); });
 	ExpectPatchRejected(*this, Target, Base, TEXT("budget above the cap"), [](TArray<uint8>& B) { PatchDouble(B, Off::PaverBudget, LotBalance::AutoPaverBudgetCapL + 1.0); });
 	ExpectPatchRejected(*this, Target, Base, TEXT("budget negative"), [](TArray<uint8>& B) { PatchDouble(B, Off::PaverBudget, -1.0); });
 	ExpectPatchRejected(*this, Target, Base, TEXT("budget NaN"), [](TArray<uint8>& B) { PatchDouble(B, Off::PaverBudget, NaN); });
@@ -573,8 +583,12 @@ bool FLotSaveRejectsInconsistentTest::RunTest(const FString& Parameters)
 
 	// Things that need an item the fresh game does not own.
 	ExpectPatchRejected(*this, Target, Fresh, TEXT("bucket in hand, not owned"), [](TArray<uint8>& B) { PatchI32(B, Off::Hand, static_cast<int32>(ELotHand::Bucket)); });
-	ExpectPatchRejected(*this, Target, Fresh, TEXT("scoop in hand, not owned"), [](TArray<uint8>& B) { PatchI32(B, Off::Hand, static_cast<int32>(ELotHand::Scoop)); });
-	ExpectPatchRejected(*this, Target, Fresh, TEXT("scoop content, not owned"), [](TArray<uint8>& B) { PatchDouble(B, Off::Scoop, 0.5); });
+	ExpectPatchRejected(*this, Target, Fresh, TEXT("canister in hand, not owned"), [](TArray<uint8>& B) { PatchI32(B, Off::Hand, static_cast<int32>(ELotHand::Canister)); });
+	ExpectPatchRejected(*this, Target, Fresh, TEXT("tub in hand, not owned"), [](TArray<uint8>& B) { PatchI32(B, Off::Hand, static_cast<int32>(ELotHand::Tub)); });
+	ExpectPatchRejected(*this, Target, Fresh, TEXT("canister content, not owned"), [](TArray<uint8>& B) { PatchDouble(B, Off::Canister, 0.5); });
+	ExpectPatchRejected(*this, Target, Fresh, TEXT("tub content, not owned"), [](TArray<uint8>& B) { PatchDouble(B, Off::Tub, 0.5); });
+	ExpectPatchRejected(*this, Target, Fresh, TEXT("paver tank without the paver"), [](TArray<uint8>& B) { PatchDouble(B, Off::PaverTank, 5.0); });
+	ExpectPatchRejected(*this, Target, Fresh, TEXT("car tank without the car"), [](TArray<uint8>& B) { PatchDouble(B, Off::CarTank, 5.0); });
 	ExpectPatchRejected(*this, Target, Fresh, TEXT("bucket content, not owned"), [](TArray<uint8>& B) { PatchDouble(B, Off::Bucket, 0.5); });
 	ExpectPatchRejected(*this, Target, Fresh, TEXT("suitcase content, not owned"), [](TArray<uint8>& B) { PatchDouble(B, Off::Suitcase, 1.0); });
 	ExpectPatchRejected(*this, Target, Fresh, TEXT("cart content, not owned"), [](TArray<uint8>& B) { PatchDouble(B, Off::Cart, 1.0); });
@@ -583,7 +597,7 @@ bool FLotSaveRejectsInconsistentTest::RunTest(const FString& Parameters)
 	ExpectPatchRejected(*this, Target, Fresh, TEXT("in the car, no car"), [](TArray<uint8>& B) { PatchU8(B, Off::InCar, 1); });
 	ExpectPatchRejected(*this, Target, Fresh, TEXT("sector, no auto paver"), [](TArray<uint8>& B) { PatchI32(B, Off::PaverSector, 3); });
 	ExpectPatchRejected(*this, Target, Fresh, TEXT("step without sector"), [](TArray<uint8>& B) { PatchI32(B, Off::PaverStep, 5); });
-	ExpectPatchRejected(*this, Target, Fresh, TEXT("travelling without sector"), [](TArray<uint8>& B) { PatchU8(B, Off::PaverTravelling, 1); });
+	ExpectPatchRejected(*this, Target, Fresh, TEXT("a phase without sector"), [](TArray<uint8>& B) { PatchI32(B, Off::PaverPhase, 1); });
 	ExpectPatchRejected(*this, Target, Fresh, TEXT("budget without sector"), [](TArray<uint8>& B) { PatchDouble(B, Off::PaverBudget, 1.0); });
 	ExpectPatchRejected(*this, Target, Fresh, TEXT("won on a fresh lot"), [](TArray<uint8>& B) { PatchU8(B, Off::Won, 1); });
 

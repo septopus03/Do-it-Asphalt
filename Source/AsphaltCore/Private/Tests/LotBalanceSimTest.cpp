@@ -23,13 +23,14 @@ DIA_TEST(FLotBalanceSimPlaythroughTest, "DoItAsphalt.Lot.BalanceSim.Playthrough"
  * finished strips on its own and the game is shorter than it was with the finisher):
  *   milestone      measured   allowed
  *   1st cell       0:42 min   40 - 80 s
- *   10 cells       1:54       up to 6:00
- *   100 cells      6:26       up to 18:00
- *   350 cells      13:21      (logged only)
- *   800 cells      21:42      up to 42:00
- *   6 000 cells    44:32      up to 78:00
- *   30 000 cells   111:05     105 - 165 min (the exit opens at the same moment)
- *   Unlock steps: quick swap 1:59, sprint 6:28, strip work 13:24, auto paver 23:23, car 45:32, exit 111:05.
+ *   10 cells       1:55       up to 6:00
+ *   100 cells      6:34       up to 18:00
+ *   350 cells      13:33      (logged only)
+ *   800 cells      23:04      up to 42:00
+ *   6 000 cells    48:41      up to 78:00
+ *   30 000 cells   141:12     105 - 165 min (the exit opens at the same moment)
+ *   Unlock steps: quick swap 2:01, sprint 6:38, strip work 13:38, auto paver 23:05, car 49:39, exit 141:12.
+ *   The auto paver and the car draw from tanks that they refill at the stations, which makes the second half longer than it was.
  *
  * Player policy
  *  - Buying: after every step it buys the cheapest offered thing it can afford (items and plant levels).
@@ -71,6 +72,8 @@ namespace
 	constexpr double StationOffsetCm = 500.0;
 	/** The station is moved when the target lies farther than this from it. */
 	constexpr double StationRelocateCm = 1200.0;
+	/** With the car the station is moved only when the target lies farther than this from it (the driver has to leave the car for it). */
+	constexpr double CarStationRelocateCm = 8000.0;
 	/** The cart goes on with another strip when the next target is nearer than this to where it stands. */
 	constexpr double CartContinueCm = 3000.0;
 	/** Longest run of cells the car lays in one band. */
@@ -83,7 +86,7 @@ namespace
 	constexpr int32 NumItems = static_cast<int32>(ELotItem::Count);
 	constexpr int32 NumUnlocks = static_cast<int32>(ELotUnlock::Count);
 
-	const TCHAR* const ItemNames[NumItems] = {TEXT("Scoop"), TEXT("Bucket"), TEXT("Suitcase"), TEXT("Cart"), TEXT("Station"),
+	const TCHAR* const ItemNames[NumItems] = {TEXT("Bucket"), TEXT("Canister"), TEXT("Tub"), TEXT("Suitcase"), TEXT("Cart"), TEXT("Station"),
 		TEXT("AutoPaver"), TEXT("AutoPaverFast"), TEXT("AutoPaverFaster"), TEXT("Car"), TEXT("CarWideBar")};
 	const TCHAR* const UnlockNames[NumUnlocks] = {TEXT("QuickSwap"), TEXT("Sprint"), TEXT("StripWork"), TEXT("AutoPaver"), TEXT("Car"), TEXT("Exit")};
 	/** Cell counts at which the time is recorded; the test asserts those named in the brief. */
@@ -149,10 +152,7 @@ namespace
 					break;
 				}
 				WorkSector = AsphaltLot::SectorOf(Target);
-				if (!G.Owns(ELotItem::Car))
-				{
-					PlaceStation(Centres[Target]);
-				}
+				PlaceStation(Centres[Target], G.Owns(ELotItem::Car) ? CarStationRelocateCm : StationRelocateCm);
 				RunJob(Target);
 				IdleJobs = (G.GetCompletedCells() > CellsBefore || G.GetTotalLitres() > LitresBefore) ? 0 : IdleJobs + 1;
 				if (IdleJobs >= MaxIdleJobs)
@@ -477,7 +477,7 @@ namespace
 		}
 
 		/** Moves the station to 5 m from a far target (the player walks to it, carries it and puts it down). */
-		void PlaceStation(FVector2D Target)
+		void PlaceStation(FVector2D Target, double RelocateCm)
 		{
 			if (!G.Owns(ELotItem::Station))
 			{
@@ -485,9 +485,15 @@ namespace
 			}
 			const FVector2D Station = G.World().Movables[static_cast<int32>(ELotMovable::Station)].Pos;
 			const double Distance = FVector2D::Distance(Station, Target);
-			if (Distance <= StationRelocateCm)
+			if (Distance <= RelocateCm)
 			{
 				return;
+			}
+			if (G.World().bPlayerInCar)
+			{
+				// Out of the car, where it stands.
+				G.World().CarPos = Pos;
+				G.World().bPlayerInCar = false;
 			}
 			ReleaseHeld();
 			GoWithin(Station, LotBalance::InteractionRangeCm, WalkSpeed());
@@ -592,7 +598,7 @@ namespace
 				Cur = EAct::Fill;
 				while (!bAborted && G.GetHandLitres(ELotHand::Bucket) < G.GetHandCapacity(ELotHand::Bucket) - 1e-9)
 				{
-					G.FillBucket(ELotSource::Plant, HandStep);
+					G.FillVessel(ELotHand::Bucket, ELotSource::Plant, HandStep);
 					Advance(HandStep);
 				}
 				DumpInto(Cell);
@@ -603,7 +609,7 @@ namespace
 		{
 			EnsureHand(ELotHand::Bucket);
 			GoWithin(Centres[Cell], WorkReach(), WalkSpeed());
-			G.DumpBucket(Centres[Cell], Pos);
+			G.DumpVessel(Centres[Cell], Pos);
 			Advance(0.0);
 		}
 
@@ -676,7 +682,7 @@ namespace
 				Cur = EAct::Fill;
 				while (!bAborted && G.GetMovableLitres(Suitcase) > 1e-9 && G.GetHandLitres(ELotHand::Bucket) < G.GetHandCapacity(ELotHand::Bucket) - 1e-9)
 				{
-					G.FillBucket(ELotSource::Suitcase, HandStep);
+					G.FillVessel(ELotHand::Bucket, ELotSource::Suitcase, HandStep);
 					Advance(HandStep);
 				}
 				DumpInto(Cell);
@@ -784,11 +790,24 @@ namespace
 			const double Y = Strip.RowBottom + Width * 0.5;
 			Strip.A.Y = Y;
 			Strip.B.Y = Y;
+			// A band needs about this much; with less in the tank the car drives to a station first.
+			const double Needed = Strip.Cells * Width / AsphaltLot::CellCm * LotBalance::LitresPerCell;
+			if (G.GetCarTank() < FMath::Min(Needed, G.GetCarTankCapacity()))
+			{
+				LoadCarAtStation();
+			}
 			Travel(Strip.A, LotBalance::CarSpeedCmS);
 			MoveAlong(Strip.B, Speed, [this, Width, Speed](double Dt)
 			{
-				// A step is taken only when the stock can pay for all of it.
-				const bool bReady = G.GetPlantStock() >= Width * Speed * Dt / (AsphaltLot::CellCm * AsphaltLot::CellCm) * LotBalance::LitresPerCell;
+				// A step is taken only when the tank can pay for all of it; an empty tank is filled at a station and the band goes on from where it stopped.
+				const double Cost = Width * Speed * Dt / (AsphaltLot::CellCm * AsphaltLot::CellCm) * LotBalance::LitresPerCell;
+				if (G.GetCarTank() < Cost)
+				{
+					const FVector2D Back = Pos;
+					LoadCarAtStation();
+					Travel(Back, LotBalance::CarSpeedCmS);
+				}
+				const bool bReady = G.GetCarTank() >= Cost;
 				Cur = bReady ? EAct::CarLay : EAct::CarWait;
 				return bReady;
 			}, [this](FVector2D From, FVector2D To)
@@ -796,6 +815,19 @@ namespace
 				G.PourFromCar(From, To);
 			});
 			G.World().CarPos = Pos;
+		}
+
+		/** Drives to the nearest station and waits there until the tank is full. */
+		void LoadCarAtStation()
+		{
+			Travel(G.GetStationPos(G.FindNearestStation(Pos)), LotBalance::CarSpeedCmS);
+			Cur = EAct::CarWait;
+			while (!bAborted && G.GetCarTank() < G.GetCarTankCapacity() - 1e-9)
+			{
+				G.World().CarPos = Pos;
+				G.LoadCar(HandStep);
+				Advance(HandStep);
+			}
 		}
 
 		TArray<FVector2D> Centres;

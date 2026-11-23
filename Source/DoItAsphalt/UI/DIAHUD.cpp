@@ -16,6 +16,7 @@
 #include "World/DIAGroundActor.h"
 #include "UI/SDIAHudOverlay.h"
 #include "UI/SDIAMenu.h"
+#include "UI/SDIAPaverMap.h"
 #include "UI/SDIAShopPanel.h"
 #include "UI/SDIAWinScreen.h"
 
@@ -52,6 +53,10 @@ void ADIAHUD::SetShopOpen(bool bOpen)
 	{
 		return;
 	}
+	if (bOpen)
+	{
+		SetPaverMapOpen(false);
+	}
 	bShopOpen = bOpen;
 	if (ShopPanel.IsValid())
 	{
@@ -61,10 +66,42 @@ void ADIAHUD::SetShopOpen(bool bOpen)
 		}
 		ShopPanel->SetVisibility(bShopOpen ? EVisibility::SelfHitTestInvisible : EVisibility::Collapsed);
 	}
+	UpdatePanelInput();
+}
+
+void ADIAHUD::TogglePaverMap()
+{
+	SetPaverMapOpen(!bPaverMapOpen);
+}
+
+void ADIAHUD::SetPaverMapOpen(bool bOpen)
+{
+	if (bPaverMapOpen == bOpen || (bOpen && (bWinShown || IsMenuOpen())))
+	{
+		return;
+	}
+	if (bOpen)
+	{
+		SetShopOpen(false);
+	}
+	bPaverMapOpen = bOpen;
+	if (PaverMap.IsValid())
+	{
+		if (bPaverMapOpen)
+		{
+			PaverMap->Refresh();
+		}
+		PaverMap->SetVisibility(bPaverMapOpen ? EVisibility::Visible : EVisibility::Collapsed);
+	}
+	UpdatePanelInput();
+}
+
+void ADIAHUD::UpdatePanelInput()
+{
 	// The cursor and the mouse go to the panel (and back to the camera); the controller also lets go of what is held.
 	if (ADIAPlayerController* Controller = Cast<ADIAPlayerController>(GetOwningPlayerController()))
 	{
-		Controller->SetShopInput(bShopOpen);
+		Controller->SetShopInput(bShopOpen || bPaverMapOpen);
 	}
 }
 
@@ -95,6 +132,7 @@ void ADIAHUD::ShowWinScreen()
 		return;
 	}
 	SetShopOpen(false);
+	SetPaverMapOpen(false);
 	bWinShown = true;
 	if (const UDIAWorldSubsystem* Subsystem = BoundSubsystem.Get())
 	{
@@ -170,6 +208,7 @@ void ADIAHUD::OpenMenu(EDIAMenuMode Mode)
 		return;
 	}
 	SetShopOpen(false);
+	SetPaverMapOpen(false);
 	MenuMode = Mode;
 	if (Menu.IsValid())
 	{
@@ -237,6 +276,11 @@ bool ADIAHUD::DebugShowScreen(const FString& Name)
 		ShowWinScreen();
 		return true;
 	}
+	if (Name.Equals(TEXT("Map"), ESearchCase::IgnoreCase))
+	{
+		SetPaverMapOpen(true);
+		return true;
+	}
 	const bool bSettings = Name.Equals(TEXT("Settings"), ESearchCase::IgnoreCase);
 	const bool bQuestion = Name.Equals(TEXT("Question"), ESearchCase::IgnoreCase);
 	if (!bSettings && !bQuestion && !Name.Equals(TEXT("Pause"), ESearchCase::IgnoreCase))
@@ -296,6 +340,7 @@ void ADIAHUD::EndPlay(const EEndPlayReason::Type Reason)
 	// The controller outlives the HUD's panels: give back what they took (the cursor, the input mode, the pause).
 	// A win screen that is still up releases its input too.
 	SetShopOpen(false);
+	SetPaverMapOpen(false);
 	SetCheckView(false);
 	HideWinScreen();
 	DismissMenu();
@@ -333,6 +378,10 @@ void ADIAHUD::CreateOverlay(UDIAWorldSubsystem* Subsystem)
 	ShopPanel->SetVisibility(bShopOpen ? EVisibility::SelfHitTestInvisible : EVisibility::Collapsed);
 	GEngine->GameViewport->AddViewportWidgetContent(ShopPanel.ToSharedRef(), AsphaltHud::ShopZOrder);
 
+	PaverMap = SNew(SDIAPaverMap).Hud(this).Subsystem(Subsystem);
+	PaverMap->SetVisibility(bPaverMapOpen ? EVisibility::Visible : EVisibility::Collapsed);
+	GEngine->GameViewport->AddViewportWidgetContent(PaverMap.ToSharedRef(), AsphaltHud::ShopZOrder);
+
 	WinScreen = SNew(SDIAWinScreen)
 		.OnNewGame(FSimpleDelegate::CreateUObject(this, &ADIAHUD::NewGame))
 		.OnQuit(FSimpleDelegate::CreateUObject(this, &ADIAHUD::QuitGame));
@@ -367,6 +416,14 @@ void ADIAHUD::DestroyOverlay()
 			GEngine->GameViewport->RemoveViewportWidgetContent(WinScreen.ToSharedRef());
 		}
 		WinScreen.Reset();
+	}
+	if (PaverMap.IsValid())
+	{
+		if (GEngine && GEngine->GameViewport)
+		{
+			GEngine->GameViewport->RemoveViewportWidgetContent(PaverMap.ToSharedRef());
+		}
+		PaverMap.Reset();
 	}
 	if (ShopPanel.IsValid())
 	{

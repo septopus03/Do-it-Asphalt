@@ -86,7 +86,7 @@ namespace AsphaltHud
 	inline constexpr float ShopIconSize = 46.f;
 	inline constexpr float ShopButtonWidth = 108.f;
 	/** The inventory bar at the bottom of the screen: the size of a slot, the gap between slots, the height of a slot's fill gauge. */
-	inline constexpr float HotbarSlotWidth = 140.f;
+	inline constexpr float HotbarSlotWidth = 168.f;
 	inline constexpr float HotbarSlotHeight = 94.f;
 	inline constexpr float HotbarGap = 10.f;
 	inline constexpr float HotbarGaugeHeight = 9.f;
@@ -182,6 +182,9 @@ namespace AsphaltHud
 	inline constexpr int32 MenuSettingCaptionFont = 20;
 	inline constexpr int32 MenuSettingValueFont = 30;
 	inline constexpr float MenuSettingSliderHeight = 44.f;
+	/** The settings list scrolls when it is taller than this; the width of the button of a switch or choice. */
+	inline constexpr float MenuSettingsMaxHeight = 420.f;
+	inline constexpr float MenuChoiceButtonWidth = 120.f;
 	inline constexpr float SliderBarThickness = 8.f;
 	inline constexpr float SliderThumbWidth = 14.f;
 	inline constexpr float SliderThumbHeight = 34.f;

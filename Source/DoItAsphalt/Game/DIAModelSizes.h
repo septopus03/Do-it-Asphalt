@@ -82,12 +82,14 @@ namespace DIAModelSizes
 
 	/**
 	 * Asphalt-self models (docs/04-plan-zmien-asphalt-self.md, chapter 4.1; envelopes in Tools/ModelGen/manifest.json). Hand tools:
-	 * spoon and scoop have the origin at the centre of the handle (the working edge towards +X), the bowl and the bucket at the
+	 * the spoon has the origin at the centre of the handle (the working edge towards +X), the bowl and the vessels at the
 	 * centre of the bottom.
 	 */
 	inline const FVector SpoonCm(20.0, 4.5, 1.8);
 	inline const FVector BowlCm(25.0, 25.0, 9.0);
-	inline const FVector ScoopCm(34.0, 12.0, 7.0);
+	/** Canister (open round pail with a pouring beak on +X and a grip on -X) and the tub (round basin with a lip on +X and a handle on each side); origin at the centre of the bottom. */
+	inline const FVector CanisterCm(29.0, 23.0, 40.0);
+	inline const FVector TubCm(51.0, 58.0, 22.0);
 	inline const FVector BucketCm(29.0, 31.0, 38.5);
 	/** Points of the bucket (model axes, cm): the bail handle at the top of the arc. */
 	inline const FVector BucketBailCm(0.0, 0.0, 37.0);
@@ -102,6 +104,13 @@ namespace DIAModelSizes
 	inline const FVector CartCm(126.0, 67.0, 99.0);
 	inline const FVector CartHandleCm(-63.0, 0.0, 97.0);
 	inline const FVector CartMouthCm(58.5, 0.0, 6.0);
+
+	/**
+	 * Vehicle station (a gantry pad; origin at the centre of the pad footprint on the ground, vehicles drive through along X). The nozzle of the
+	 * hopper hangs at NozzleCm over the middle of the lane.
+	 */
+	inline const FVector VehicleStationCm(800.0, 545.0, 460.0);
+	inline const FVector VehicleStationNozzleCm(0.0, 0.0, 290.0);
 
 	/** The trough (origin at the centre of the footprint on the ground). */
 	inline const FVector TroughCm(128.0, 60.0, 50.0);

@@ -27,6 +27,9 @@ struct ASPHALTCORE_API FLotEvents
 	void Append(const FLotEvents& Other);
 };
 
+/** What the auto paver is doing: it works a sector from its tank, and drives to a vehicle station when the tank is empty. */
+enum class ELotPaverPhase : uint8 { Idle, ToSector, Working, ToStation, Loading, Count };
+
 /** Where one movable stands. The engine layer moves it; the core only keeps the position so it can be saved. */
 struct ASPHALTCORE_API FLotMovable
 {
@@ -116,7 +119,7 @@ public:
 	void SetWon();
 
 	ELotHand GetHand() const { return Hand; }
-	/** True if the hand item can be taken: the bowl always, the scoop and the bucket once bought. */
+	/** True if the hand item can be taken: the bowl always, a vessel once bought. */
 	bool CanSelectHand(ELotHand NewHand) const;
 	/**
 	 * Takes another item into the hand and clears the pour stream. Returns true at once if it is already in hand;
@@ -130,31 +133,28 @@ public:
 	double GetHandCapacity(ELotHand Item) const;
 
 	/**
-	 * Holding the scoop button for Dt seconds: every ScoopCycleSeconds one stroke moves litres from the plant stock
-	 * into the bowl (SpoonLitres, ScoopLitres once the scoop is owned) or the scoop in hand, as much as fits and as
-	 * the stock allows. A stroke that moves nothing resets the stroke timer. Returns the litres moved by this call.
+	 * Holding the scoop button for Dt seconds: every ScoopCycleSeconds one spoon stroke moves SpoonLitres from the plant stock
+	 * into the bowl in hand, as much as fits and as the stock allows. A stroke that moves nothing resets the stroke timer. Returns the litres moved by this call.
 	 */
 	double ScoopFromTrough(double Dt);
+	/** True for the hand items that are filled at a tap and poured as a stream: the bucket, the canister and the tub. */
+	static bool IsVessel(ELotHand Item);
+	/** The shop item behind a vessel; ELotItem::Count for the bowl. */
+	static ELotItem VesselItem(ELotHand Vessel);
 	/**
-	 * Moves litres from the source into the bucket: DispenseRateLPerS * Dt from the plant stock, TapRateLPerS * Dt from
-	 * the content of the suitcase or the cart. The bucket must be owned (it is filled while in hand or not), a movable source must be owned
-	 * and not held. Limited by the source content and the free room in the bucket. Returns litres moved.
+	 * Moves litres from the source into the vessel: DispenseRateLPerS * Dt from the plant stock, TapRateLPerS * Dt from
+	 * the content of the suitcase or the cart. The vessel must be owned (it is filled while in hand or not), a movable source must be owned
+	 * and not held. Limited by the source content and the free room in the vessel. Returns litres moved.
 	 */
-	double FillBucket(ELotSource Source, double Dt);
+	double FillVessel(ELotHand Vessel, ELotSource Source, double Dt);
 	/**
-	 * Pours from the bowl or the scoop in hand for Dt seconds: the stream budget grows by HandPourRateLPerS * Dt (at
-	 * most the content), is spent on PourDisc around Aim (nearest to From first) and the part below one texel's
-	 * price is carried to the next call.
+	 * Pours the item in hand as a stream for Dt seconds, where Aim is: the stream budget grows by HandPourRateLPerS * Dt (at most the
+	 * content) and is spent on a disc of PourRadiusCm around Aim (nearest to From first). With the fluid on the asphalt is laid at the aim point and runs
+	 * from there. Texels that are already covered cost nothing, so the vessel keeps what it could not lay; the part below one texel's price is carried to the next call.
 	 */
 	FLotEvents PourHand(FVector2D Aim, FVector2D From, double Dt);
-	/** Empties the bucket in hand into the cell under Aim; what does not fit stays in the bucket. */
-	FLotEvents DumpBucket(FVector2D Aim, FVector2D From);
-	/**
-	 * Pours the bucket in hand as a stream for Dt seconds, where Aim is: the stream budget grows by BucketPourRateLPerS * Dt (at most the
-	 * content) and is spent on a disc of BucketPourRadiusCm around Aim. With the fluid on the asphalt is laid at the aim point and runs
-	 * from there. Texels that are already covered cost nothing, so the bucket keeps what it could not lay.
-	 */
-	FLotEvents PourBucket(FVector2D Aim, FVector2D From, double Dt);
+	/** Empties the vessel in hand into the cell under Aim; what does not fit stays in the vessel. */
+	FLotEvents DumpVessel(FVector2D Aim, FVector2D From);
 
 	FLotWorldState& World() { return WorldState; }
 	const FLotWorldState& World() const { return WorldState; }
@@ -194,20 +194,39 @@ public:
 	/** Cell of the sector being worked on (0..399). */
 	int32 GetAutoPaverStep() const { return AutoPaverStep; }
 	FVector2D GetAutoPaverPos() const { return AutoPaverPos; }
-	/** True while the auto paver drives to the first cell of its sector. */
-	bool IsAutoPaverTravelling() const { return bAutoPaverTravelling; }
+	/** True while the auto paver drives (to its sector or to a station). */
+	bool IsAutoPaverTravelling() const { return AutoPaverPhase == ELotPaverPhase::ToSector || AutoPaverPhase == ELotPaverPhase::ToStation; }
+	ELotPaverPhase GetAutoPaverPhase() const { return AutoPaverPhase; }
+	/** Litres in the tank of the auto paver, and the size of the tank. */
+	double GetAutoPaverTank() const { return AutoPaverTank; }
+	double GetAutoPaverTankCapacity() const { return LotBalance::AutoPaverTankL; }
+	/** Where the vehicles load: the fixed station and, once bought and set down, the portable one. */
+	int32 GetNumStations() const;
+	FVector2D GetStationPos(int32 Index) const;
+	/** The station nearest to From (index into GetNumStations); the fixed station is 0. */
+	int32 FindNearestStation(FVector2D From) const;
+	/** True if Pos is within VehicleStationRadiusCm of a station. */
+	bool IsAtStation(FVector2D Pos) const;
 
 	/** Car level: 0 plain bar, 1 wide bar; -1 without the car. */
 	int32 GetCarLevel() const;
+	/** Litres in the tank of the car, and the size of the tank (0 without the car). */
+	double GetCarTank() const { return CarTank; }
+	double GetCarTankCapacity() const;
 	/**
-	 * The car lays asphalt under its bar along A->B (CarWidthCm of the level wide) straight from the plant stock.
+	 * The car stands in a station for Dt seconds: VehicleLoadRateLPerS * Dt litres move from the plant stock into the tank,
+	 * as much as fits. Nothing unless the car is owned and its position (World().CarPos) is within a station's radius. Returns litres moved.
+	 */
+	double LoadCar(double Dt);
+	/**
+	 * The car lays asphalt under its bar along A->B (CarWidthCm of the level wide) from its tank.
 	 * Nothing without the car.
 	 */
 	FLotEvents PourFromCar(FVector2D A, FVector2D B);
 
 	/** First four bytes of a save ("DIA2" in little-endian order). */
 	static constexpr uint32 SaveMagic = 0x32414944;
-	static constexpr int32 SaveVersion = 2;
+	static constexpr int32 SaveVersion = 3;
 
 	/**
 	 * Serialises the whole game state (little-endian, fixed order, exact length) for the autosave slot. The pour
@@ -231,6 +250,8 @@ public:
 	FLotEvents DebugCompleteCells(int32 Count);
 	/** Fills the item in hand to its capacity without touching the stock. */
 	void DebugFillHand();
+	/** Fills the tanks of the auto paver and the car (a car or paver that is not owned stays empty). */
+	void DebugFillTanks();
 
 private:
 	/** True if hand actions are allowed: no swap in progress. */
@@ -242,7 +263,7 @@ private:
 	 * and drops a rest the grid could still pay for. Shared by the hand pour and the suitcase dose.
 	 */
 	FLotPour SpendStream(double& Budget, double& Content, double Earned, TFunctionRef<FLotPour(double)> Spend);
-	/** Advances the auto paver by one sub-step: travel, or work through the sector; appends what it pours to Events. */
+	/** Advances the auto paver by one sub-step: drive, work through the sector from its tank, or load at a station; appends what it pours to Events. */
 	void TickAutoPaver(double Step, FLotEvents& Events);
 	/** Books a pour: pays credits, adds litres, compares the unlock state before and after. */
 	FLotEvents ApplyPour(const FLotPour& Pour);
@@ -276,7 +297,10 @@ private:
 	/** Cell of the sector being worked on. */
 	int32 AutoPaverStep = 0;
 	FVector2D AutoPaverPos = FVector2D::ZeroVector;
-	bool bAutoPaverTravelling = false;
+	ELotPaverPhase AutoPaverPhase = ELotPaverPhase::Idle;
 	/** Litres the auto paver has earned but not yet spent. */
 	double AutoPaverBudget = 0.0;
+	/** Litres in the tank of the auto paver and of the car. */
+	double AutoPaverTank = 0.0;
+	double CarTank = 0.0;
 };

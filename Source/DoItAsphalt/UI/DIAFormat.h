@@ -34,8 +34,8 @@ namespace DIAFormat
 	/** What the player holds: the movable pulled or pushed along, else the item in the hand ("Bowl"); "Car" while driving. */
 	DOITASPHALT_API FText HandLabel(const FLotGame& Game);
 	/**
-	 * The vessel in the hand: "1.3 / 2.5 l"; the suitcase or the cart while one is held (their content); empty for the trowel,
-	 * for any other held movable and while driving.
+	 * The vessel in the hand: "1.3 / 2.5 l"; the suitcase or the cart while one is held (their content); the car's tank while driving;
+	 * empty for the trowel and for any other held movable.
 	 */
 	DOITASPHALT_API FText HandGauge(const FLotGame& Game);
 	/** True if the player stands where asphalt can be drawn by hand. A held suitcase or cart does not count: only a standing one fills. */
@@ -80,7 +80,7 @@ namespace DIAFormat
 	DOITASPHALT_API FText PaverOffLotToast();
 	/** The toast of SendPaver to the sector the paver works in already. */
 	DOITASPHALT_API FText PaverAlreadyHereToast();
-	/** The HUD line of the auto paver: "Paver: sector 12 · 143 / 400" or "Paver: waiting – press G"; empty without the auto paver. */
+	/** The HUD line of the auto paver: "Paver: sector 12 · 143 / 400 · tank 1,200 / 2,000 l", "Paver → station", "Paver: waiting – press G for the map"; empty without the auto paver. */
 	DOITASPHALT_API FText PaverLine(const FLotGame& Game);
 
 	/**
@@ -104,6 +104,8 @@ struct FDIAHudView
 	FText HandGauge;
 	/** The plant stock, in the refill zone only. */
 	FText Refill;
+	/** The small caption in front of Refill: the plant on foot, the car's tank behind the wheel. */
+	FText RefillCaption;
 	/** The next unlock step and how far it is. */
 	FText Next;
 	/** The auto paver's line; empty without the auto paver. */
@@ -148,6 +150,11 @@ private:
 		/** The auto paver: -2 while not owned, INDEX_NONE while waiting, else its sector; and the step of that sector (0 while waiting). */
 		int32 PaverSector = -2;
 		int32 PaverStep = 0;
+		/** The paver's phase (ELotPaverPhase) and its tank in tenths of litres. */
+		int32 PaverPhase = -1;
+		int32 PaverTankTenths = -1;
+		/** The car's line: -1 outside the car, 0 nothing, 1 "tank low", 2 at a station. */
+		int32 CarLine = -1;
 
 		bool operator==(const FKey& Other) const = default;
 	};

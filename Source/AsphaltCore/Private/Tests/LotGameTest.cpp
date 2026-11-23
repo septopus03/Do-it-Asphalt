@@ -193,8 +193,8 @@ bool FLotPlantLevelsTest::RunTest(const FString& Parameters)
 bool FLotShopPricesTest::RunTest(const FString& Parameters)
 {
 	FLotGame G;
-	const double Expected[10] = {10, 35, 110, 340, 900, 3000, 9000, 22000, 12000, 24000};
-	for (int32 I = 0; I < 10; ++I)
+	const double Expected[11] = {35, 70, 160, 110, 340, 900, 3000, 9000, 22000, 12000, 24000};
+	for (int32 I = 0; I < 11; ++I)
 	{
 		TestNearlyEqual(FString::Printf(TEXT("price %d"), I), G.GetItemPrice(static_cast<ELotItem>(I)), Expected[I], Tolerance);
 	}
@@ -249,7 +249,7 @@ bool FLotShopPrerequisitesTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("car"), G.BuyItem(ELotItem::Car));
 	TestTrue(TEXT("wide bar"), G.BuyItem(ELotItem::CarWideBar));
 	TestEqual(TEXT("owned count"), G.GetNumItemsOwned(), 5);
-	G.DebugGrantItem(ELotItem::Scoop);
+	G.DebugGrantItem(ELotItem::Canister);
 	G.DebugGrantItem(ELotItem::Count);
 	TestEqual(TEXT("granted count"), G.GetNumItemsOwned(), 6);
 	return true;
@@ -259,15 +259,15 @@ bool FLotShopBuyRejectedTest::RunTest(const FString& Parameters)
 {
 	FLotGame G;
 	G.DebugGive(9.0);
-	TestFalse(TEXT("cannot afford"), G.CanBuyItem(ELotItem::Scoop));
-	TestFalse(TEXT("scoop rejected"), G.BuyItem(ELotItem::Scoop));
-	TestFalse(TEXT("not owned"), G.Owns(ELotItem::Scoop));
+	TestFalse(TEXT("cannot afford"), G.CanBuyItem(ELotItem::Bucket));
+	TestFalse(TEXT("bucket rejected"), G.BuyItem(ELotItem::Bucket));
+	TestFalse(TEXT("not owned"), G.Owns(ELotItem::Bucket));
 	TestNearlyEqual(TEXT("credits unchanged"), G.GetCredits(), 9.0, Tolerance);
-	G.DebugGive(21.0);
-	TestTrue(TEXT("scoop"), G.BuyItem(ELotItem::Scoop));
-	TestNearlyEqual(TEXT("credits after"), G.GetCredits(), 20.0, Tolerance);
-	TestFalse(TEXT("second purchase rejected"), G.BuyItem(ELotItem::Scoop));
-	TestNearlyEqual(TEXT("credits not charged twice"), G.GetCredits(), 20.0, Tolerance);
+	G.DebugGive(26.0);
+	TestTrue(TEXT("bucket"), G.BuyItem(ELotItem::Bucket));
+	TestNearlyEqual(TEXT("credits after"), G.GetCredits(), 0.0, Tolerance);
+	TestFalse(TEXT("second purchase rejected"), G.BuyItem(ELotItem::Bucket));
+	TestNearlyEqual(TEXT("credits not charged twice"), G.GetCredits(), 0.0, Tolerance);
 	TestEqual(TEXT("owned count"), G.GetNumItemsOwned(), 1);
 	return true;
 }

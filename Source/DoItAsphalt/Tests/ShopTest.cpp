@@ -43,7 +43,7 @@ bool FShopRowsTest::RunTest(const FString& Parameters)
 	FLotGame Game;
 	FDIAShopModel Model;
 	TestTrue(TEXT("the first update builds the rows"), Model.Update(Game));
-	if (!TestEqual(TEXT("the plant and ten items"), FDIAShopModel::NumRows, 11))
+	if (!TestEqual(TEXT("the plant and eleven items"), FDIAShopModel::NumRows, 12))
 	{
 		return false;
 	}
@@ -65,27 +65,30 @@ bool FShopRowsTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("its name"), Row.Name.ToString(), DIAFormat::ItemName(static_cast<ELotItem>(I)).ToString());
 		TestFalse(TEXT("it has a value"), Row.Value.IsEmpty());
 	}
-	Is(TEXT("scoop price"), Model.GetRow(1).Price, TEXT("10"));
-	Is(TEXT("suitcase value"), Model.GetRow(3).Value, TEXT("60 l"));
-	Is(TEXT("cart value"), Model.GetRow(4).Value, TEXT("200 l"));
-	Is(TEXT("auto paver upgrade"), Model.GetRow(7).Value, TEXT("120 → 170 cells/min"));
-	Is(TEXT("auto paver upgrade price"), Model.GetRow(7).Price, TEXT("9,000"));
-	Is(TEXT("wide bar value"), Model.GetRow(10).Value, TEXT("260 → 300 cells/min"));
-	TestTrue(TEXT("the scoop is too expensive for nothing"), Model.GetRow(1).State == EDIAShopState::NoCredits);
+	Is(TEXT("bucket price"), Model.GetRow(1).Price, TEXT("35"));
+	Is(TEXT("canister price"), Model.GetRow(2).Price, TEXT("70"));
+	Is(TEXT("tub price"), Model.GetRow(3).Price, TEXT("160"));
+	Is(TEXT("suitcase value"), Model.GetRow(4).Value, TEXT("60 l"));
+	Is(TEXT("cart value"), Model.GetRow(5).Value, TEXT("200 l"));
+	Is(TEXT("auto paver upgrade"), Model.GetRow(8).Value, TEXT("120 → 170 cells/min"));
+	Is(TEXT("auto paver upgrade price"), Model.GetRow(8).Price, TEXT("9,000"));
+	Is(TEXT("wide bar value"), Model.GetRow(11).Value, TEXT("260 → 300 cells/min"));
+	TestTrue(TEXT("the bucket is too expensive for nothing"), Model.GetRow(1).State == EDIAShopState::NoCredits);
 
-	// The machines are visible and locked, with the reason.
-	TestTrue(TEXT("the station is locked"), Model.GetRow(5).State == EDIAShopState::Locked);
-	Is(TEXT("the station's reason"), Model.GetRow(5).Reason, TEXT("350 cells + entry 3"));
-	Is(TEXT("the auto paver's reason"), Model.GetRow(6).Reason, TEXT("800 cells + entry 4"));
-	Is(TEXT("the car's reason"), Model.GetRow(9).Reason, TEXT("6,000 cells + entry 5"));
+	// The machines and the big vessels are visible and locked, with the reason.
+	TestTrue(TEXT("the station is locked"), Model.GetRow(6).State == EDIAShopState::Locked);
+	Is(TEXT("the station's reason"), Model.GetRow(6).Reason, TEXT("350 cells + entry 3"));
+	Is(TEXT("the auto paver's reason"), Model.GetRow(7).Reason, TEXT("800 cells + entry 4"));
+	Is(TEXT("the car's reason"), Model.GetRow(10).Reason, TEXT("6,000 cells + entry 5"));
 	TestTrue(TEXT("the unlocked rows have no reason"), Model.GetRow(1).Reason.IsEmpty());
+	TestTrue(TEXT("the tub needs the sprint step"), Model.GetRow(3).State == EDIAShopState::Locked);
 
-	// With money the first four items and the plant can be bought.
+	// With money the first items and the plant can be bought.
 	Game.DebugGive(1000.0);
 	TestTrue(TEXT("money changes the buttons"), Model.Update(Game));
 	TestTrue(TEXT("the plant can be bought"), Model.GetRow(0).State == EDIAShopState::Buy);
-	TestTrue(TEXT("the cart can be bought"), Model.GetRow(4).State == EDIAShopState::Buy);
-	TestTrue(TEXT("the station stays locked however rich"), Model.GetRow(5).State == EDIAShopState::Locked);
+	TestTrue(TEXT("the cart can be bought"), Model.GetRow(5).State == EDIAShopState::Buy);
+	TestTrue(TEXT("the station stays locked however rich"), Model.GetRow(6).State == EDIAShopState::Locked);
 	return true;
 }
 
@@ -181,36 +184,36 @@ bool FShopBuyThroughModelTest::RunTest(const FString& Parameters)
 		return false;
 	}
 	FLotGame& Game = Subsystem->GetGame();
-	Game.DebugGive(10.0 - Game.GetCredits());
-	TestEqual(TEXT("ten credits"), Game.GetCredits(), 10.0);
+	Game.DebugGive(35.0 - Game.GetCredits());
+	TestEqual(TEXT("exactly the price of a bucket"), Game.GetCredits(), 35.0);
 
 	int32 Broadcasts = 0;
-	Subsystem->OnItemBought.AddLambda([&Broadcasts](ELotItem Item) { Broadcasts += Item == ELotItem::Scoop ? 1 : 0; });
+	Subsystem->OnItemBought.AddLambda([&Broadcasts](ELotItem Item) { Broadcasts += Item == ELotItem::Bucket ? 1 : 0; });
 
 	FDIAShopModel Model;
 	Model.Update(Game);
-	const int32 Scoop = RowOfItem(Model, ELotItem::Scoop);
-	TestEqual(TEXT("the scoop is the first item row"), Scoop, 1);
+	const int32 Scoop = RowOfItem(Model, ELotItem::Bucket);
+	TestEqual(TEXT("the bucket is the first item row"), Scoop, 1);
 	TestTrue(TEXT("it can be bought"), Model.GetRow(Scoop).State == EDIAShopState::Buy);
-	TestFalse(TEXT("the plant row cannot be bought with ten credits"), Model.Buy(Model.TargetOf(0, Game), *Subsystem));
+	TestFalse(TEXT("the plant row cannot be bought with the price of a bucket"), Model.Buy(Model.TargetOf(0, Game), *Subsystem));
 
 	TestTrue(TEXT("bought through the row"), Model.Buy(Model.TargetOf(Scoop, Game), *Subsystem));
 	TestEqual(TEXT("the credits are spent"), Game.GetCredits(), 0.0);
-	TestTrue(TEXT("the scoop is owned"), Game.Owns(ELotItem::Scoop));
+	TestTrue(TEXT("the bucket is owned"), Game.Owns(ELotItem::Bucket));
 	TestEqual(TEXT("the purchase was broadcast"), Broadcasts, 1);
 	TestTrue(TEXT("the rows are refreshed"), Model.Update(Game));
-	TestEqual(TEXT("the owned row stays where it was"), RowOfItem(Model, ELotItem::Scoop), Scoop);
+	TestEqual(TEXT("the owned row stays where it was"), RowOfItem(Model, ELotItem::Bucket), Scoop);
 	TestTrue(TEXT("it is owned"), Model.GetRow(Scoop).State == EDIAShopState::Owned);
 	TestTrue(TEXT("owned rows have no price"), Model.GetRow(Scoop).Price.IsEmpty());
 	TestFalse(TEXT("a row cannot be bought twice"), Model.Buy(Model.TargetOf(Scoop, Game), *Subsystem));
-	TestEqual(TEXT("the bucket did not move up"), Model.GetRow(Scoop + 1).Item, ELotItem::Bucket);
+	TestEqual(TEXT("the canister did not move up"), Model.GetRow(Scoop + 1).Item, ELotItem::Canister);
 
 	// Owned rows stay where they are, however many there are.
-	Game.DebugGrantItem(ELotItem::Bucket);
+	Game.DebugGrantItem(ELotItem::Suitcase);
 	Model.Update(Game);
-	TestEqual(TEXT("the scoop stays"), RowOfItem(Model, ELotItem::Scoop), Scoop);
-	TestEqual(TEXT("the bucket also stays"), RowOfItem(Model, ELotItem::Bucket), Scoop + 1);
-	TestTrue(TEXT("both are owned"), Model.GetRow(Scoop).State == EDIAShopState::Owned && Model.GetRow(Scoop + 1).State == EDIAShopState::Owned);
+	TestEqual(TEXT("the bucket stays"), RowOfItem(Model, ELotItem::Bucket), Scoop);
+	TestEqual(TEXT("the suitcase also stays"), RowOfItem(Model, ELotItem::Suitcase), Scoop + 3);
+	TestTrue(TEXT("both are owned"), Model.GetRow(Scoop).State == EDIAShopState::Owned && Model.GetRow(Scoop + 3).State == EDIAShopState::Owned);
 
 	// The plant goes through the subsystem as well.
 	Game.DebugGive(1000.0);
@@ -245,37 +248,37 @@ bool FShopRowsStayPutTest::RunTest(const FString& Parameters)
 		Before[I] = Model.GetRow(I).Item;
 	}
 
-	// Buy the scoop through its row.
-	const int32 Row = RowOfItem(Model, ELotItem::Scoop);
+	// Buy the bucket through its row.
+	const int32 Row = RowOfItem(Model, ELotItem::Bucket);
 	const FDIAShopTarget Pressed = Model.TargetOf(Row, Game);
-	TestTrue(TEXT("the scoop can be bought"), Pressed.bValid && Pressed.Item == ELotItem::Scoop);
+	TestTrue(TEXT("the bucket can be bought"), Pressed.bValid && Pressed.Item == ELotItem::Bucket);
 	TestTrue(TEXT("bought"), Model.Buy(Pressed, *Subsystem));
 	Model.Update(Game);
-	TestTrue(TEXT("the same row is Owned"), Model.GetRow(Row).State == EDIAShopState::Owned && Model.GetRow(Row).Item == ELotItem::Scoop);
+	TestTrue(TEXT("the same row is Owned"), Model.GetRow(Row).State == EDIAShopState::Owned && Model.GetRow(Row).Item == ELotItem::Bucket);
 	for (int32 I = 0; I < FDIAShopModel::NumRows; ++I)
 	{
 		TestTrue(*FString::Printf(TEXT("row %d did not move"), I), Model.GetRow(I).Item == Before[I]);
 	}
 
-	// Pressing the same spot again meets the owned scoop: nothing to buy, and the bucket next to it is not touched.
+	// Pressing the same spot again meets the owned bucket: nothing to buy, and the rows next to it are not touched.
 	TestFalse(TEXT("the same index offers nothing"), Model.TargetOf(Row, Game).bValid);
 	TestFalse(TEXT("so nothing is bought"), Model.Buy(Model.TargetOf(Row, Game), *Subsystem));
-	TestFalse(TEXT("the bucket is not owned"), Game.Owns(ELotItem::Bucket));
-	TestEqual(TEXT("only the scoop was paid"), Game.GetCredits(), 490.0);
+	TestFalse(TEXT("the suitcase is not owned"), Game.Owns(ELotItem::Suitcase));
+	TestEqual(TEXT("only the bucket was paid"), Game.GetCredits(), 465.0);
 
 	// A different row right after the first purchase is a legitimate click.
-	const FDIAShopTarget Bucket = Model.TargetOf(RowOfItem(Model, ELotItem::Bucket), Game);
-	TestTrue(TEXT("the bucket row offers the bucket"), Bucket.bValid && Bucket.Item == ELotItem::Bucket);
-	TestTrue(TEXT("a quick second purchase of another row works"), Model.Buy(Bucket, *Subsystem));
-	TestTrue(TEXT("the bucket is owned"), Game.Owns(ELotItem::Bucket));
+	const FDIAShopTarget Suitcase = Model.TargetOf(RowOfItem(Model, ELotItem::Suitcase), Game);
+	TestTrue(TEXT("the suitcase row offers the suitcase"), Suitcase.bValid && Suitcase.Item == ELotItem::Suitcase);
+	TestTrue(TEXT("a quick second purchase of another row works"), Model.Buy(Suitcase, *Subsystem));
+	TestTrue(TEXT("the suitcase is owned"), Game.Owns(ELotItem::Suitcase));
 
 	// A request that is not valid any more buys nothing (not affordable, not offered, no target).
 	Game.DebugGive(-Game.GetCredits());
 	Model.Update(Game);
-	FDIAShopTarget Suitcase;
-	Suitcase.bValid = true;
-	Suitcase.Item = ELotItem::Suitcase;
-	TestFalse(TEXT("not affordable"), Model.Buy(Suitcase, *Subsystem));
+	FDIAShopTarget Cart;
+	Cart.bValid = true;
+	Cart.Item = ELotItem::Cart;
+	TestFalse(TEXT("not affordable"), Model.Buy(Cart, *Subsystem));
 	Game.DebugGive(100000.0);
 	FDIAShopTarget Station;
 	Station.bValid = true;
@@ -293,7 +296,7 @@ bool FShopRowsStayPutTest::RunTest(const FString& Parameters)
 
 	// Whatever was bought, nothing has moved.
 	Model.Update(Game);
-	TestEqual(TEXT("the bucket is still where it was"), RowOfItem(Model, ELotItem::Bucket), 2);
+	TestEqual(TEXT("the suitcase is still where it was"), RowOfItem(Model, ELotItem::Suitcase), 4);
 	return true;
 }
 
@@ -412,8 +415,8 @@ bool FShopOnlyChangesTest::RunTest(const FString& Parameters)
 	// Credits that change nothing about what can be bought: no rebuild; crossing a price: rebuild.
 	Game.DebugGive(5.0);
 	TestFalse(TEXT("five credits buy nothing new"), Model.Update(Game));
-	Game.DebugGive(5.0);
-	TestTrue(TEXT("ten credits buy the scoop"), Model.Update(Game));
+	Game.DebugGive(30.0);
+	TestTrue(TEXT("35 credits buy the bucket"), Model.Update(Game));
 	TestEqual(TEXT("one rebuild more"), Model.GetRebuildCount(), Rebuilds + 1);
 
 	// An unchanged key formats nothing: the rebuild counter counts the passes that format the rows.

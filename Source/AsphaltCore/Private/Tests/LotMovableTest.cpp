@@ -88,7 +88,7 @@ bool FLotMovableGrabRulesTest::RunTest(const FString& Parameters)
 	G.DebugGrantItem(ELotItem::Cart);
 	G.DebugGrantItem(ELotItem::Suitcase);
 	G.DebugGrantItem(ELotItem::Bucket);
-	G.DebugGrantItem(ELotItem::Scoop);
+	G.DebugGrantItem(ELotItem::Canister);
 	TestFalse(TEXT("invalid movable"), G.Grab(ELotMovable::Count));
 	G.ScoopFromTrough(10.0);
 	const double BowlBefore = G.GetHandLitres(ELotHand::Bowl);
@@ -105,13 +105,13 @@ bool FLotMovableGrabRulesTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("no scooping while holding"), G.ScoopFromTrough(10.0), 0.0);
 	TestNearlyEqual(TEXT("bowl untouched"), G.GetHandLitres(ELotHand::Bowl), BowlBefore, Tolerance);
 	TestNearlyEqual(TEXT("stock untouched"), G.GetPlantStock(), StockBefore, Tolerance);
-	TestEqual(TEXT("no bucket filling while holding"), G.FillBucket(ELotSource::Plant, 1.0), 0.0);
-	TestEqual(TEXT("no dumping while holding"), G.DumpBucket(Aim, From).LitresPoured, 0.0);
+	TestEqual(TEXT("no bucket filling while holding"), G.FillVessel(ELotHand::Bucket, ELotSource::Plant, 1.0), 0.0);
+	TestEqual(TEXT("no dumping while holding"), G.DumpVessel(Aim, From).LitresPoured, 0.0);
 	TestEqual(TEXT("nothing was poured"), G.GetTotalLitres(), 0.0);
 
 	G.Release(FVector2D(10.0, 20.0), 30.0);
 	TestEqual(TEXT("hands free again"), G.GetHeld(), ELotMovable::Count);
-	TestTrue(TEXT("scooping works again"), G.FillBucket(ELotSource::Plant, 1.0) > 0.0);
+	TestTrue(TEXT("scooping works again"), G.FillVessel(ELotHand::Bucket, ELotSource::Plant, 1.0) > 0.0);
 
 	FLotGame InCar;
 	InCar.DebugGrantItem(ELotItem::Cart);
@@ -255,25 +255,25 @@ bool FLotMovableBucketFromSuitcaseTest::RunTest(const FString& Parameters)
 	FLotGame G;
 	Equip(G, ELotItem::Suitcase);
 	G.DebugGrantItem(ELotItem::Bucket);
-	TestEqual(TEXT("empty suitcase gives nothing"), G.FillBucket(ELotSource::Suitcase, 1.0), 0.0);
+	TestEqual(TEXT("empty suitcase gives nothing"), G.FillVessel(ELotHand::Bucket, ELotSource::Suitcase, 1.0), 0.0);
 	FillFull(G, ELotMovable::Suitcase);
-	TestNearlyEqual(TEXT("one second of tapping"), G.FillBucket(ELotSource::Suitcase, 1.0), 5.0, Tolerance);
+	TestNearlyEqual(TEXT("one second of tapping"), G.FillVessel(ELotHand::Bucket, ELotSource::Suitcase, 1.0), 5.0, Tolerance);
 	TestNearlyEqual(TEXT("bucket content"), G.GetHandLitres(ELotHand::Bucket), 5.0, Tolerance);
 	TestNearlyEqual(TEXT("suitcase lost it"), G.GetMovableLitres(ELotMovable::Suitcase), 55.0, Tolerance);
-	TestNearlyEqual(TEXT("only what fits"), G.FillBucket(ELotSource::Suitcase, 10.0), 5.0, Tolerance);
-	TestEqual(TEXT("full bucket takes nothing"), G.FillBucket(ELotSource::Suitcase, 1.0), 0.0);
+	TestNearlyEqual(TEXT("only what fits"), G.FillVessel(ELotHand::Bucket, ELotSource::Suitcase, 10.0), 5.0, Tolerance);
+	TestEqual(TEXT("full bucket takes nothing"), G.FillVessel(ELotHand::Bucket, ELotSource::Suitcase, 1.0), 0.0);
 	TestNearlyEqual(TEXT("suitcase"), G.GetMovableLitres(ELotMovable::Suitcase), 50.0, Tolerance);
 
-	TestEqual(TEXT("cart not owned"), G.FillBucket(ELotSource::Cart, 1.0), 0.0);
+	TestEqual(TEXT("cart not owned"), G.FillVessel(ELotHand::Bucket, ELotSource::Cart, 1.0), 0.0);
 	G.DebugGrantItem(ELotItem::Cart);
-	TestEqual(TEXT("empty cart gives nothing"), G.FillBucket(ELotSource::Cart, 1.0), 0.0);
+	TestEqual(TEXT("empty cart gives nothing"), G.FillVessel(ELotHand::Bucket, ELotSource::Cart, 1.0), 0.0);
 
 	FLotGame H;
 	Equip(H, ELotItem::Suitcase);
 	H.DebugGrantItem(ELotItem::Bucket);
 	FillFull(H, ELotMovable::Suitcase);
 	H.Grab(ELotMovable::Suitcase);
-	TestEqual(TEXT("a held suitcase cannot be tapped"), H.FillBucket(ELotSource::Suitcase, 1.0), 0.0);
+	TestEqual(TEXT("a held suitcase cannot be tapped"), H.FillVessel(ELotHand::Bucket, ELotSource::Suitcase, 1.0), 0.0);
 
 	FLotGame K;
 	Equip(K, ELotItem::Suitcase);
@@ -281,7 +281,7 @@ bool FLotMovableBucketFromSuitcaseTest::RunTest(const FString& Parameters)
 	FillFull(K, ELotMovable::Suitcase);
 	K.SelectHand(ELotHand::Bucket);
 	K.Tick(LotBalance::SwapSeconds);
-	TestNearlyEqual(TEXT("the bucket in hand is tapped too"), K.FillBucket(ELotSource::Suitcase, 1.0), 5.0, Tolerance);
+	TestNearlyEqual(TEXT("the bucket in hand is tapped too"), K.FillVessel(ELotHand::Bucket, ELotSource::Suitcase, 1.0), 5.0, Tolerance);
 	TestNearlyEqual(TEXT("... and holds it"), K.GetHandLitres(ELotHand::Bucket), 5.0, Tolerance);
 	return true;
 }
@@ -324,7 +324,7 @@ bool FLotMovableLitresConservedTest::RunTest(const FString& Parameters)
 		{
 			Sum += G.GetMovableLitres(Movable);
 		}
-		for (ELotHand Item : {ELotHand::Bowl, ELotHand::Scoop, ELotHand::Bucket})
+		for (ELotHand Item : {ELotHand::Bowl, ELotHand::Canister, ELotHand::Bucket})
 		{
 			Sum += G.GetHandLitres(Item);
 		}
@@ -347,8 +347,8 @@ bool FLotMovableLitresConservedTest::RunTest(const FString& Parameters)
 	G.FillMovable(ELotMovable::Suitcase, 2.0);
 	G.FillMovable(ELotMovable::Cart, 3.0);
 	Check(TEXT("after filling"));
-	G.FillBucket(ELotSource::Suitcase, 1.0);
-	G.FillBucket(ELotSource::Plant, 0.5);
+	G.FillVessel(ELotHand::Bucket, ELotSource::Suitcase, 1.0);
+	G.FillVessel(ELotHand::Bucket, ELotSource::Plant, 0.5);
 	Check(TEXT("after tapping"));
 
 	const FVector2D Mouth = AsphaltLot::CellCentre(MiddleCell());

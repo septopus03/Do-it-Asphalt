@@ -2,6 +2,7 @@
 
 #include "UI/SDIAMenu.h"
 #include "Game/DIASettings.h"
+#include "Widgets/Layout/SScrollBox.h"
 #include "UI/DIAButtonStyle.h"
 #include "UI/DIAHudStyle.h"
 #include "UI/DIAHudWidgets.h"
@@ -96,42 +97,25 @@ void SDIAMenu::Construct(const FArguments& InArgs)
 					FOnClicked::CreateSP(this, &SDIAMenu::HandleNo), [this]() { return Model.ShowsQuestion(); })
 			]
 		]
-		// The settings take the place of the buttons: the caption with the value on one line, the slider, Back.
+		// The settings take the place of the buttons: a scrolling list of sliders and switches, then Defaults and Back.
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 0.f, 0.f, AsphaltHud::MenuGap)
 		[
 			SNew(SBox)
 			.Visibility_Lambda([this]() { return Model.ShowsSettings() ? EVisibility::Visible : EVisibility::Collapsed; })
+			.MaxDesiredHeight(AsphaltHud::MenuSettingsMaxHeight)
 			[
-				SNew(SVerticalBox)
-				+ SVerticalBox::Slot().AutoHeight()
+				SNew(SScrollBox)
+				.ScrollBarVisibility(EVisibility::Collapsed)
+				+ SScrollBox::Slot()
 				[
-					SNew(SHorizontalBox)
-					+ SHorizontalBox::Slot().FillWidth(1.f).VAlign(VAlign_Bottom)
-					[
-						AsphaltHud::MakeText(NSLOCTEXT("DIAHud", "MenuSensitivityLabel", "Mouse sensitivity"), EDIAFontWeight::Bold, AsphaltHud::MenuSettingCaptionFont, AsphaltHud::SignBlack)
-					]
-					+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Bottom)
-					[
-						AsphaltHud::MakeText(
-							TAttribute<FText>::CreateLambda([]() { return FText::FromString(FString::Printf(TEXT("%.2f"), DIASettings::GetMouseSensitivity())); }),
-							EDIAFontWeight::ExtraBold, AsphaltHud::MenuSettingValueFont, AsphaltHud::SignBlack)
-					]
-				]
-				+ SVerticalBox::Slot().AutoHeight().Padding(0.f, AsphaltHud::MenuGap, 0.f, 0.f)
-				[
-					SNew(SBox).HeightOverride(AsphaltHud::MenuSettingSliderHeight)
-					[
-						SNew(SSlider)
-						.Style(&SliderStyle)
-						.MinValue(DIASettings::MinMouseSensitivity)
-						.MaxValue(DIASettings::MaxMouseSensitivity)
-						.StepSize(0.05f)
-						.Value_Lambda([]() { return DIASettings::GetMouseSensitivity(); })
-						.OnValueChanged_Lambda([](float Value) { DIASettings::SetMouseSensitivity(Value); })
-						.OnMouseCaptureEnd_Lambda([]() { DIASettings::Save(); })
-					]
+					BuildSettingsList()
 				]
 			]
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 0.f, 0.f, AsphaltHud::MenuGap)
+		[
+			BuildButton(NSLOCTEXT("DIAHud", "MenuDefaults", "Defaults"), AsphaltHud::MenuContentWidth, EDIAMenuButton::None,
+				FOnClicked::CreateSP(this, &SDIAMenu::HandleDefaults), [this]() { return Model.ShowsSettings(); })
 		]
 		+ SVerticalBox::Slot().AutoHeight()
 		[
@@ -224,6 +208,129 @@ FReply SDIAMenu::HandleSettings()
 {
 	Model.OpenSettings();
 	return FReply::Handled();
+}
+
+FReply SDIAMenu::HandleDefaults()
+{
+	DIASettings::ResetToDefaults();
+	DIASettings::Apply();
+	DIASettings::Save();
+	return FReply::Handled();
+}
+
+TSharedRef<SWidget> SDIAMenu::MakeSliderRow(const FText& Label, DIASettings::EFloat Setting, TFunction<FText(float)> Format)
+{
+	const DIASettings::FFloatSpec& Spec = DIASettings::Spec(Setting);
+	return SNew(SVerticalBox)
+		+ SVerticalBox::Slot().AutoHeight()
+		[
+			SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot().FillWidth(1.f).VAlign(VAlign_Bottom)
+			[
+				AsphaltHud::MakeText(Label, EDIAFontWeight::Bold, AsphaltHud::MenuSettingCaptionFont, AsphaltHud::SignBlack)
+			]
+			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Bottom)
+			[
+				AsphaltHud::MakeText(
+					TAttribute<FText>::CreateLambda([Setting, Format]() { return Format(DIASettings::GetFloat(Setting)); }),
+					EDIAFontWeight::ExtraBold, AsphaltHud::MenuSettingValueFont, AsphaltHud::SignBlack)
+			]
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 4.f, 0.f, AsphaltHud::MenuGap)
+		[
+			SNew(SBox).HeightOverride(AsphaltHud::MenuSettingSliderHeight)
+			[
+				SNew(SSlider)
+				.Style(&SliderStyle)
+				.MinValue(Spec.Min)
+				.MaxValue(Spec.Max)
+				.StepSize(Spec.Step)
+				.Value_Lambda([Setting]() { return DIASettings::GetFloat(Setting); })
+				.OnValueChanged_Lambda([Setting](float Value)
+				{
+					DIASettings::SetFloat(Setting, Value);
+					// The master volume and the like are heard while the slider moves.
+					DIASettings::Apply();
+				})
+				.OnMouseCaptureEnd_Lambda([]() { DIASettings::Save(); })
+			]
+		];
+}
+
+TSharedRef<SWidget> SDIAMenu::MakeChoiceRow(const FText& Label, TFunction<FText()> Value, TFunction<void()> OnClick)
+{
+	return SNew(SHorizontalBox)
+		+ SHorizontalBox::Slot().FillWidth(1.f).VAlign(VAlign_Center)
+		[
+			AsphaltHud::MakeText(Label, EDIAFontWeight::Bold, AsphaltHud::MenuSettingCaptionFont, AsphaltHud::SignBlack)
+		]
+		+ SHorizontalBox::Slot().AutoWidth().Padding(0.f, 0.f, 0.f, AsphaltHud::MenuGap)
+		[
+			AsphaltHud::MakeMenuButton(TAttribute<FText>::CreateLambda([Value]() { return Value(); }), AsphaltHud::MenuChoiceButtonWidth,
+				FOnClicked::CreateLambda([OnClick]()
+				{
+					OnClick();
+					DIASettings::Apply();
+					DIASettings::Save();
+					return FReply::Handled();
+				}), &ButtonStyle)
+		];
+}
+
+TSharedRef<SWidget> SDIAMenu::BuildSettingsList()
+{
+	const auto Percent = [](float V) { return FText::FromString(FString::Printf(TEXT("%d%%"), FMath::RoundToInt(V * 100.f))); };
+	const auto OnOff = [](DIASettings::EToggle T)
+	{
+		return TFunction<FText()>([T]() { return DIASettings::GetToggle(T) ? NSLOCTEXT("DIAHud", "On", "On") : NSLOCTEXT("DIAHud", "Off", "Off"); });
+	};
+	const auto Flip = [](DIASettings::EToggle T)
+	{
+		return TFunction<void()>([T]() { DIASettings::SetToggle(T, !DIASettings::GetToggle(T)); });
+	};
+	using DIASettings::EFloat;
+	using DIASettings::EToggle;
+	return SNew(SVerticalBox)
+		+ SVerticalBox::Slot().AutoHeight()
+		[
+			MakeSliderRow(NSLOCTEXT("DIAHud", "MenuSensitivityLabel", "Mouse sensitivity"), EFloat::MouseSensitivity,
+				[](float V) { return FText::FromString(FString::Printf(TEXT("%.2f"), V)); })
+		]
+		+ SVerticalBox::Slot().AutoHeight()
+		[
+			MakeChoiceRow(NSLOCTEXT("DIAHud", "MenuInvertY", "Invert Y axis"), OnOff(EToggle::InvertY), Flip(EToggle::InvertY))
+		]
+		+ SVerticalBox::Slot().AutoHeight()
+		[
+			MakeSliderRow(NSLOCTEXT("DIAHud", "MenuFov", "Field of view"), EFloat::FieldOfView,
+				[](float V) { return FText::FromString(FString::Printf(TEXT("%d°"), FMath::RoundToInt(V))); })
+		]
+		+ SVerticalBox::Slot().AutoHeight()
+		[
+			MakeSliderRow(NSLOCTEXT("DIAHud", "MenuMaster", "Master volume"), EFloat::MasterVolume, Percent)
+		]
+		+ SVerticalBox::Slot().AutoHeight()
+		[
+			MakeSliderRow(NSLOCTEXT("DIAHud", "MenuSfx", "Effects volume"), EFloat::SfxVolume, Percent)
+		]
+		+ SVerticalBox::Slot().AutoHeight()
+		[
+			MakeSliderRow(NSLOCTEXT("DIAHud", "MenuAmbient", "Ambience volume"), EFloat::AmbientVolume, Percent)
+		]
+		+ SVerticalBox::Slot().AutoHeight()
+		[
+			MakeChoiceRow(NSLOCTEXT("DIAHud", "MenuFullscreen", "Fullscreen"), OnOff(EToggle::Fullscreen), Flip(EToggle::Fullscreen))
+		]
+		+ SVerticalBox::Slot().AutoHeight()
+		[
+			MakeChoiceRow(NSLOCTEXT("DIAHud", "MenuVsync", "V-Sync"), OnOff(EToggle::VSync), Flip(EToggle::VSync))
+		]
+		+ SVerticalBox::Slot().AutoHeight()
+		[
+			MakeChoiceRow(NSLOCTEXT("DIAHud", "MenuQuality", "Graphics quality"),
+				[]() { return DIASettings::QualityName(DIASettings::GetQuality()); },
+				[]() { DIASettings::SetQuality((DIASettings::GetQuality() + 1) % DIASettings::NumQualityLevels); })
+		];
 }
 
 FReply SDIAMenu::HandleBack()

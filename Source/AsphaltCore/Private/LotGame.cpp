@@ -309,8 +309,47 @@ bool FLotGame::AssignAutoPaverSector(int32 Sector)
 	AutoPaverSector = Sector;
 	AutoPaverStep = 0;
 	AutoPaverBudget = 0.0;
-	bAutoPaverTravelling = true;
+	// An empty tank goes to a station first; with something in it the paver starts at once and fetches more when it runs dry.
+	AutoPaverPhase = AutoPaverTank > LotBalance::AutoPaverTankEmptyL ? ELotPaverPhase::ToSector : ELotPaverPhase::ToStation;
 	return true;
+}
+
+int32 FLotGame::GetNumStations() const
+{
+	return 1 + ((OwnsMovable(ELotMovable::Station) && Held != ELotMovable::Station) ? 1 : 0);
+}
+
+FVector2D FLotGame::GetStationPos(int32 Index) const
+{
+	return (Index == 1 && GetNumStations() == 2) ? WorldState.Movables[static_cast<int32>(ELotMovable::Station)].Pos : LotLayout::VehicleStationPos;
+}
+
+int32 FLotGame::FindNearestStation(FVector2D From) const
+{
+	int32 Best = 0;
+	double BestDistance = FVector2D::DistSquared(From, GetStationPos(0));
+	for (int32 I = 1; I < GetNumStations(); ++I)
+	{
+		const double Distance = FVector2D::DistSquared(From, GetStationPos(I));
+		if (Distance < BestDistance)
+		{
+			BestDistance = Distance;
+			Best = I;
+		}
+	}
+	return Best;
+}
+
+bool FLotGame::IsAtStation(FVector2D Pos) const
+{
+	for (int32 I = 0; I < GetNumStations(); ++I)
+	{
+		if (FVector2D::Distance(Pos, GetStationPos(I)) <= LotBalance::VehicleStationRadiusCm)
+		{
+			return true;
+		}
+	}
+	return false;
 }
 
 int32 FLotGame::GetCarLevel() const
@@ -322,6 +361,24 @@ int32 FLotGame::GetCarLevel() const
 	return Owns(ELotItem::CarWideBar) ? 1 : 0;
 }
 
+double FLotGame::GetCarTankCapacity() const
+{
+	const int32 Level = GetCarLevel();
+	return Level >= 0 ? LotBalance::CarTankL[Level] : 0.0;
+}
+
+double FLotGame::LoadCar(double Dt)
+{
+	if (GetCarLevel() < 0 || !(Dt > 0.0) || !FMath::IsFinite(Dt) || !IsAtStation(WorldState.CarPos))
+	{
+		return 0.0;
+	}
+	const double Moved = FMath::Max(0.0, FMath::Min3(LotBalance::VehicleLoadRateLPerS * FMath::Min(Dt, MaxTickSeconds), GetCarTankCapacity() - CarTank, PlantStock));
+	CarTank += Moved;
+	PlantStock -= Moved;
+	return Moved;
+}
+
 FLotEvents FLotGame::PourFromCar(FVector2D A, FVector2D B)
 {
 	const int32 Level = GetCarLevel();
@@ -331,36 +388,66 @@ FLotEvents FLotGame::PourFromCar(FVector2D A, FVector2D B)
 	}
 	const double Width = LotBalance::CarWidthCm[Level];
 	const FInstantPour Instant(Grid);
-	const FLotPour Pour = Grid.Stamp(A, B, Width, PlantStock);
-	PlantStock = FMath::Max(0.0, PlantStock - Pour.LitresUsed);
+	const FLotPour Pour = Grid.Stamp(A, B, Width, CarTank);
+	CarTank = FMath::Max(0.0, CarTank - Pour.LitresUsed);
 	return ApplyPour(Pour);
+}
+
+namespace
+{
+	/** Moves Pos towards Target by Reach; true once it is there. */
+	bool DriveTowards(FVector2D& Pos, const FVector2D& Target, double Reach)
+	{
+		const double Distance = FVector2D::Distance(Pos, Target);
+		if (Reach >= Distance)
+		{
+			Pos = Target;
+			return true;
+		}
+		Pos += (Target - Pos) * (Reach / Distance);
+		return false;
+	}
 }
 
 void FLotGame::TickAutoPaver(double Step, FLotEvents& Events)
 {
-	if (AutoPaverSector == INDEX_NONE)
+	const double Reach = LotBalance::AutoPaverSpeedCmS * Step;
+	switch (AutoPaverPhase)
 	{
+	case ELotPaverPhase::Idle:
+	case ELotPaverPhase::Count:
+		return;
+	case ELotPaverPhase::ToStation:
+		if (DriveTowards(AutoPaverPos, GetStationPos(FindNearestStation(AutoPaverPos)), Reach))
+		{
+			AutoPaverPhase = ELotPaverPhase::Loading;
+		}
+		return;
+	case ELotPaverPhase::Loading:
+	{
+		const double Capacity = LotBalance::AutoPaverTankL;
+		const double Moved = FMath::Max(0.0, FMath::Min3(LotBalance::VehicleLoadRateLPerS * Step, Capacity - AutoPaverTank, PlantStock));
+		AutoPaverTank += Moved;
+		PlantStock -= Moved;
+		if (AutoPaverTank >= Capacity - LoadSlackL)
+		{
+			AutoPaverPhase = ELotPaverPhase::ToSector;
+		}
 		return;
 	}
-	if (bAutoPaverTravelling)
-	{
-		const FVector2D Target = AsphaltLot::CellCentre(AsphaltLot::SectorCell(AutoPaverSector, 0));
-		const double Distance = FVector2D::Distance(AutoPaverPos, Target);
-		const double Reach = LotBalance::AutoPaverSpeedCmS * Step;
-		if (Reach >= Distance)
+	case ELotPaverPhase::ToSector:
+		// After a trip to the station it carries on with the cell it left.
+		if (DriveTowards(AutoPaverPos, AsphaltLot::CellCentre(AsphaltLot::SectorCell(AutoPaverSector, AutoPaverStep)), Reach))
 		{
-			AutoPaverPos = Target;
-			bAutoPaverTravelling = false;
-		}
-		else
-		{
-			AutoPaverPos += (Target - AutoPaverPos) * (Reach / Distance);
+			AutoPaverPhase = ELotPaverPhase::Working;
 		}
 		return;
+	case ELotPaverPhase::Working:
+		break;
 	}
 
 	const double Earned = GetAutoPaverRateCellsPerMin() * LotBalance::LitresPerCell * LotBalance::CompletionThreshold / 60.0 * Step;
-	AutoPaverBudget = FMath::Min3(AutoPaverBudget + Earned, LotBalance::AutoPaverBudgetCapL, PlantStock);
+	AutoPaverBudget = FMath::Min3(AutoPaverBudget + Earned, LotBalance::AutoPaverBudgetCapL, AutoPaverTank);
 	while (AutoPaverStep < AsphaltLot::CellsPerSector)
 	{
 		const int32 Cell = AsphaltLot::SectorCell(AutoPaverSector, AutoPaverStep);
@@ -375,11 +462,17 @@ void FLotGame::TickAutoPaver(double Step, FLotEvents& Events)
 				const FInstantPour Instant(Grid);
 				const FLotPour Pour = Grid.DepositIntoCell(Cell, AutoPaverBudget, From);
 				AutoPaverBudget = FMath::Max(0.0, AutoPaverBudget - Pour.LitresUsed);
-				PlantStock = FMath::Max(0.0, PlantStock - Pour.LitresUsed);
+				AutoPaverTank = FMath::Max(0.0, AutoPaverTank - Pour.LitresUsed);
 				Events.Append(ApplyPour(Pour));
 			}
 			if (!Grid.IsCellComplete(Cell))
 			{
+				if (AutoPaverTank <= LotBalance::AutoPaverTankEmptyL)
+				{
+					// Dry: back to the nearest station for more.
+					AutoPaverBudget = 0.0;
+					AutoPaverPhase = ELotPaverPhase::ToStation;
+				}
 				return;
 			}
 		}
@@ -388,6 +481,7 @@ void FLotGame::TickAutoPaver(double Step, FLotEvents& Events)
 	AutoPaverSector = INDEX_NONE;
 	AutoPaverStep = 0;
 	AutoPaverBudget = 0.0;
+	AutoPaverPhase = ELotPaverPhase::Idle;
 }
 
 void FLotGame::DebugGive(double CreditsToAdd)
@@ -456,18 +550,43 @@ void FLotGame::DebugFillHand()
 	HandLitres[static_cast<int32>(Hand)] = GetHandCapacity(Hand);
 }
 
+void FLotGame::DebugFillTanks()
+{
+	if (Owns(ELotItem::AutoPaver))
+	{
+		AutoPaverTank = LotBalance::AutoPaverTankL;
+	}
+	CarTank = GetCarTankCapacity();
+}
+
 bool FLotGame::CanSelectHand(ELotHand NewHand) const
 {
 	switch (NewHand)
 	{
 	case ELotHand::Bowl:
 		return true;
-	case ELotHand::Scoop:
-		return Owns(ELotItem::Scoop);
 	case ELotHand::Bucket:
-		return Owns(ELotItem::Bucket);
+	case ELotHand::Canister:
+	case ELotHand::Tub:
+		return Owns(VesselItem(NewHand));
 	default:
 		return false;
+	}
+}
+
+bool FLotGame::IsVessel(ELotHand Item)
+{
+	return Item == ELotHand::Bucket || Item == ELotHand::Canister || Item == ELotHand::Tub;
+}
+
+ELotItem FLotGame::VesselItem(ELotHand Vessel)
+{
+	switch (Vessel)
+	{
+	case ELotHand::Bucket: return ELotItem::Bucket;
+	case ELotHand::Canister: return ELotItem::Canister;
+	case ELotHand::Tub: return ELotItem::Tub;
+	default: return ELotItem::Count;
 	}
 }
 
@@ -508,11 +627,10 @@ double FLotGame::ScoopFromTrough(double Dt)
 	{
 		return 0.0;
 	}
-	const bool bVessel = Hand == ELotHand::Bowl || Hand == ELotHand::Scoop;
-	// The scoop in hand lifts a full scoop; the bowl is filled with the spoon, or with the scoop once it is owned.
-	const double Stroke = (Hand == ELotHand::Scoop || Owns(ELotItem::Scoop)) ? LotBalance::ScoopLitres : LotBalance::SpoonLitres;
+	// Only the bowl is filled with the spoon; the vessels are filled at a tap.
+	const double Stroke = LotBalance::SpoonLitres;
 	double& Content = HandLitres[static_cast<int32>(Hand)];
-	if (!bVessel || !HandsFree() || Content >= GetHandCapacity(Hand) || !(PlantStock > 0.0))
+	if (Hand != ELotHand::Bowl || !HandsFree() || Content >= GetHandCapacity(Hand) || !(PlantStock > 0.0))
 	{
 		StrokeTimer = 0.0;
 		return 0.0;
@@ -536,9 +654,9 @@ double FLotGame::ScoopFromTrough(double Dt)
 	return Moved;
 }
 
-double FLotGame::FillBucket(ELotSource Source, double Dt)
+double FLotGame::FillVessel(ELotHand Vessel, ELotSource Source, double Dt)
 {
-	if (!(Dt > 0.0) || !FMath::IsFinite(Dt) || !Owns(ELotItem::Bucket) || !HandsFree())
+	if (!IsVessel(Vessel) || !(Dt > 0.0) || !FMath::IsFinite(Dt) || !Owns(VesselItem(Vessel)) || !HandsFree())
 	{
 		return 0.0;
 	}
@@ -569,8 +687,8 @@ double FLotGame::FillBucket(ELotSource Source, double Dt)
 	{
 		return 0.0;
 	}
-	double& Content = HandLitres[static_cast<int32>(ELotHand::Bucket)];
-	const double Moved = FMath::Max(0.0, FMath::Min3(Rate * FMath::Min(Dt, MaxTickSeconds), GetHandCapacity(ELotHand::Bucket) - Content, *SourceLitres));
+	double& Content = HandLitres[static_cast<int32>(Vessel)];
+	const double Moved = FMath::Max(0.0, FMath::Min3(Rate * FMath::Min(Dt, MaxTickSeconds), GetHandCapacity(Vessel) - Content, *SourceLitres));
 	Content += Moved;
 	*SourceLitres -= Moved;
 	return Moved;
@@ -578,38 +696,25 @@ double FLotGame::FillBucket(ELotSource Source, double Dt)
 
 FLotEvents FLotGame::PourHand(FVector2D Aim, FVector2D From, double Dt)
 {
-	const double Radius = (Hand == ELotHand::Bowl || Hand == ELotHand::Scoop) ? LotBalance::PourRadiusCm[static_cast<int32>(Hand)] : 0.0;
-	if (!(Radius > 0.0) || !HandsFree() || !(Dt > 0.0) || !FMath::IsFinite(Dt) || !IsFinitePoint(Aim) || !IsFinitePoint(From))
+	if (!HandsFree() || !(Dt > 0.0) || !FMath::IsFinite(Dt) || !IsFinitePoint(Aim) || !IsFinitePoint(From))
 	{
 		return FLotEvents();
 	}
-	double& Content = HandLitres[static_cast<int32>(Hand)];
-	const FLotPour Pour = SpendStream(StreamBudget, Content, LotBalance::HandPourRateLPerS * FMath::Min(Dt, MaxTickSeconds), [&](double Budget)
+	const int32 Index = static_cast<int32>(Hand);
+	const double Radius = LotBalance::PourRadiusCm[Index];
+	double& Content = HandLitres[Index];
+	const FLotPour Pour = SpendStream(StreamBudget, Content, LotBalance::HandPourRateLPerS[Index] * FMath::Min(Dt, MaxTickSeconds), [&](double Budget)
 	{
 		return Grid.PourDisc(Aim, Radius, Budget, From);
 	});
 	return ApplyPour(Pour);
 }
 
-FLotEvents FLotGame::PourBucket(FVector2D Aim, FVector2D From, double Dt)
+FLotEvents FLotGame::DumpVessel(FVector2D Aim, FVector2D From)
 {
-	if (Hand != ELotHand::Bucket || !HandsFree() || !(Dt > 0.0) || !FMath::IsFinite(Dt) || !IsFinitePoint(Aim) || !IsFinitePoint(From))
-	{
-		return FLotEvents();
-	}
-	double& Content = HandLitres[static_cast<int32>(ELotHand::Bucket)];
-	const FLotPour Pour = SpendStream(StreamBudget, Content, LotBalance::BucketPourRateLPerS * FMath::Min(Dt, MaxTickSeconds), [&](double Budget)
-	{
-		return Grid.PourDisc(Aim, LotBalance::BucketPourRadiusCm, Budget, From);
-	});
-	return ApplyPour(Pour);
-}
-
-FLotEvents FLotGame::DumpBucket(FVector2D Aim, FVector2D From)
-{
-	double& Content = HandLitres[static_cast<int32>(ELotHand::Bucket)];
+	double& Content = HandLitres[static_cast<int32>(Hand)];
 	const int32 Cell = IsFinitePoint(Aim) ? AsphaltLot::CellAt(Aim) : INDEX_NONE;
-	if (Hand != ELotHand::Bucket || !HandsFree() || Cell == INDEX_NONE || !(Content > 0.0))
+	if (!IsVessel(Hand) || !HandsFree() || Cell == INDEX_NONE || !(Content > 0.0))
 	{
 		return FLotEvents();
 	}
@@ -835,8 +940,10 @@ TArray<uint8> FLotGame::SaveToBytes() const
 	W.WriteI32(AutoPaverSector);
 	W.WriteI32(AutoPaverStep);
 	W.WriteVector(AutoPaverPos);
-	W.WriteBool(bAutoPaverTravelling);
+	W.WriteI32(static_cast<int32>(AutoPaverPhase));
 	W.WriteDouble(AutoPaverBudget);
+	W.WriteDouble(AutoPaverTank);
+	W.WriteDouble(CarTank);
 
 	W.WriteBool(bWon);
 
@@ -942,16 +1049,26 @@ bool FLotGame::LoadFromBytes(TConstArrayView<uint8> Bytes)
 	}
 	Loaded.Held = static_cast<ELotMovable>(HeldValue);
 
+	int32 PhaseValue = 0;
 	if (!R.ReadI32(Loaded.AutoPaverSector) || (Loaded.AutoPaverSector != INDEX_NONE && (Loaded.AutoPaverSector < 0 || Loaded.AutoPaverSector >= AsphaltLot::NumSectors))
 		|| !R.ReadI32(Loaded.AutoPaverStep) || Loaded.AutoPaverStep < 0 || Loaded.AutoPaverStep >= AsphaltLot::CellsPerSector
 		|| !R.ReadVector(Loaded.AutoPaverPos)
-		|| !R.ReadBool(Loaded.bAutoPaverTravelling)
-		|| !R.ReadFinite(Loaded.AutoPaverBudget) || Loaded.AutoPaverBudget < 0.0 || Loaded.AutoPaverBudget > LotBalance::AutoPaverBudgetCapL)
+		|| !R.ReadI32(PhaseValue) || PhaseValue < 0 || PhaseValue >= static_cast<int32>(ELotPaverPhase::Count)
+		|| !R.ReadFinite(Loaded.AutoPaverBudget) || Loaded.AutoPaverBudget < 0.0 || Loaded.AutoPaverBudget > LotBalance::AutoPaverBudgetCapL
+		|| !R.ReadFinite(Loaded.AutoPaverTank) || Loaded.AutoPaverTank < 0.0 || Loaded.AutoPaverTank > LotBalance::AutoPaverTankL + LoadSlackL
+		|| !R.ReadFinite(Loaded.CarTank) || Loaded.CarTank < 0.0 || Loaded.CarTank > Loaded.GetCarTankCapacity() + LoadSlackL)
 	{
 		return false;
 	}
-	// Without a sector the auto paver idles, and only the owned one can have a sector.
-	if (Loaded.AutoPaverSector == INDEX_NONE ? (Loaded.AutoPaverStep != 0 || Loaded.bAutoPaverTravelling || Loaded.AutoPaverBudget != 0.0) : !Loaded.Owns(ELotItem::AutoPaver))
+	Loaded.AutoPaverPhase = static_cast<ELotPaverPhase>(PhaseValue);
+	// Without a sector the auto paver idles, and only the owned one can have a sector or fuel.
+	if (Loaded.AutoPaverSector == INDEX_NONE
+		? (Loaded.AutoPaverStep != 0 || Loaded.AutoPaverPhase != ELotPaverPhase::Idle || Loaded.AutoPaverBudget != 0.0)
+		: (!Loaded.Owns(ELotItem::AutoPaver) || Loaded.AutoPaverPhase == ELotPaverPhase::Idle || Loaded.AutoPaverBudget > Loaded.AutoPaverTank + LoadSlackL))
+	{
+		return false;
+	}
+	if (Loaded.AutoPaverTank > 0.0 && !Loaded.Owns(ELotItem::AutoPaver))
 	{
 		return false;
 	}

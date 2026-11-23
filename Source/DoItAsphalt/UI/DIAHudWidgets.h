@@ -73,7 +73,7 @@ namespace AsphaltHud
 	}
 
 	/** A black sign button of the given width: the one button builder of the menu and the win screen. The label is yellow while bPrimary says so, otherwise white. */
-	inline TSharedRef<SBox> MakeMenuButton(const FText& Label, float Width, FOnClicked OnClicked, const FButtonStyle* ButtonStyle, TAttribute<bool> bPrimary = false)
+	inline TSharedRef<SBox> MakeMenuButton(TAttribute<FText> Label, float Width, FOnClicked OnClicked, const FButtonStyle* ButtonStyle, TAttribute<bool> bPrimary = false)
 	{
 		const TAttribute<FSlateColor> LabelColor = TAttribute<FSlateColor>::CreateLambda([bPrimary]() { return FSlateColor(bPrimary.Get() ? SignYellow : SignWhite); });
 		return SNew(SBox).WidthOverride(Width).HeightOverride(MenuButtonHeight)

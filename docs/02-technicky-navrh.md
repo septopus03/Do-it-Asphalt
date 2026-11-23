@@ -106,10 +106,12 @@ Uloženie má dve vrstvy.
 ## 7. Vstup, ruky a stroje
 
 - Vstup sa definuje v kóde (`DIAInput.cpp`), nie v assetoch. Ovládač (`DIAPlayerController.cpp`) prekladá vstup na volania jadra.
-- **Ruka** je v jadre stav: miska, lopatka alebo vedro, s kapacitou a hladinou. Ruka lieva tekutinou (`FLotFluid`), hladidlo hra nemá.
+- **Ruka** je v jadre stav: miska, vedro, kanister alebo vaňa (`ELotHand`), s kapacitou a hladinou; lyžica len plní misku. Ruka lieva tekutinou (`FLotFluid`), hladidlo hra nemá.
 - **Predmety** (kufor, vozík, výdajňa) sú aktéri `ADIAMovable`. Jadro pozná ich polohu a či sú držané; držanie sa určuje v jadre, nie v aktérovi.
-- **Auto** (`ADIAPaverCar`) je kinematický pawn bez nádrže. `PourFromCar` zaplatí zo zásoby výrobne a `Stamp`-om položí hotový asfalt pod lištou. Rýchlosť auta pri liatí obmedzuje `CarPaveSpeedCmS = sadzba · 10 000 / (60 · šírka)`.
-- **Robot** (`ADIAAutoPaver`) dostane sektor povelom `AssignAutoPaverSector` (reštartuje postup). `SnapToCore` ho po načítaní postaví na uložené miesto.
+- **Auto** (`ADIAPaverCar`) je kinematický pawn s nádržou (`CarTankL` 6 000 / 8 000 l), ktorú plní len v dosahu výdajne (`FLotGame::LoadCar`, 500 l/s zo zásobníka výrobne, polomer `VehicleStationRadiusCm`); kamera je tretia osoba (`USpringArmComponent`). `PourFromCar` zaplatí z nádrže a `Stamp`-om položí hotový asfalt pod lištou. Rýchlosť auta pri liatí obmedzuje `CarPaveSpeedCmS = sadzba · 10 000 / (60 · šírka)`.
+- **Robot** (`ADIAAutoPaver`) dostane sektor povelom `AssignAutoPaverSector` (reštartuje postup) z mapy `SDIAPaverMap` (`G`) alebo klávesom `H`. Jadro ho vedie fázami `ELotPaverPhase` (`Idle`, `ToSector`, `Working`, `ToStation`, `Loading`); nádrž má 2 000 l a dopĺňa ju v najbližšej výdajni (`GetNumStations`, `FindNearestStation`). `SnapToCore` ho po načítaní postaví na uložené miesto. Výdajne sú dve: pevná (`ADIAVehicleStation` na `LotLayout::VehicleStationPos`) a kúpená presuvná Station.
+- **Zvuk** (`UDIAAudioSubsystem`) vzniká len v hre, ktorá sa dá počuť (nie v testoch). Slučky majú fade a 3D slučky sedia na výrobni, robote a výdajni. Hlasitosť určuje `DIASettings` (Master cez `FApp::SetVolumeMultiplier`, Effects a Ambience v subsystéme).
+- **Nastavenia** (`DIASettings`) sú mimo uloženej hry v `GameUserSettings.ini`; menu ich mení hneď a ukladá pri odchode.
 
 ## 8. Testovanie
 

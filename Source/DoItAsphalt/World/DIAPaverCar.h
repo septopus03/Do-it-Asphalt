@@ -13,6 +13,7 @@
 class ADIACharacter;
 class UBoxComponent;
 class UCameraComponent;
+class USpringArmComponent;
 class UStaticMeshComponent;
 
 /** Handling and presentation of the paver car; its speed, turning and bar position are the core's (LotBalance::Car*). */
@@ -26,23 +27,18 @@ namespace DIAPaverCar
 		return DIAModelSizes::PaverCarBodyCm.Z * 0.5 + GroundLiftCm;
 	}
 
-	/** The eyes in the cabin: this high above the ground and this far ahead of the car's centre. */
-	inline constexpr double CabinEyeHeightCm = 190.0;
-	inline constexpr double CabinEyeAheadCm = 120.0;
-	/** The camera looks this far down at rest, so that the bonnet shows at the bottom of the frame. */
-	inline constexpr double CabinPitchDeg = -8.0;
 	/**
-	 * The cabin view is the inside of the model, whose windscreen and side windows are opaque slabs of the glass colour: seen from the
-	 * cabin they cover the sky. So the body is hidden from the car's own view and this flat yellow bonnet stands in for it: its far edge
-	 * is a little below the frame's bottom edge at rest. Centre of the slab ahead of the car's centre, and the height of its top.
+	 * Third person: the camera hangs on a boom behind the car (ArmLengthCm long, from a pivot PivotHeightCm above the ground over the car's
+	 * centre). The mouse swings the boom round the car (yaw against the car's heading, pitch up and down); the boom is pushed in by whatever
+	 * stands between it and the car.
 	 */
-	inline constexpr double BonnetAheadCm = 190.0;
-	inline constexpr double BonnetTopCm = 105.0;
-	inline const FVector BonnetSizeCm = FVector(120.0, 200.0, 8.0);
-	/** The mouse turns the head by this much at most to each side, up and down (the car does not turn with it). */
-	inline constexpr double LookYawLimitDeg = 100.0;
-	inline constexpr double LookPitchMinDeg = -60.0;
-	inline constexpr double LookPitchMaxDeg = 45.0;
+	inline constexpr double ArmLengthCm = 900.0;
+	inline constexpr double PivotHeightCm = 170.0;
+	inline constexpr double DefaultPitchDeg = -16.0;
+	inline constexpr double LookPitchMinDeg = -70.0;
+	inline constexpr double LookPitchMaxDeg = 10.0;
+	/** How fast the boom swings back behind the car while the mouse is left alone, in degrees per second (0 = never). */
+	inline constexpr double RecentreDegPerSec = 0.0;
 
 	/** The player gets out this far to the side of the car (the door is on the left, -Y; the other side is the second choice). */
 	inline constexpr double ExitSideCm = 200.0;
@@ -55,10 +51,10 @@ namespace DIAPaverCar
 }
 
 /**
- * The paver car: a kinematic vehicle with a spreader bar at the rear that lays finished asphalt straight from the plant stock
- * (there is no tank and nothing to refill). E beside it with free hands gets the player in (the controller possesses the car and
- * the character rides along, hidden); E inside gets the player out at a free spot beside it. The camera sits in the cabin, in
- * first person, with the bonnet at the bottom of the frame. While driven the controller sets throttle and steering (WASD) and
+ * The paver car: a kinematic vehicle with a spreader bar at the rear that lays asphalt from its own tank, which it fills at a
+ * vehicle station (FLotGame::LoadCar: the fixed one or the portable one) by standing in the station's radius. E beside it with free hands gets the player in (the controller possesses the car and
+ * the character rides along, hidden); E inside gets the player out at a free spot beside it. The camera is in third person, on a boom behind the car
+ * that the mouse swings round it. While driven the controller sets throttle and steering (WASD) and
  * pouring (left button).
  *
  * The core owns the state (FLotWorldState::CarPos / CarYawDeg / bPlayerInCar): the car writes its pose into the core every
@@ -93,7 +89,7 @@ public:
 	bool IsPouring() const { return bPouring; }
 	float GetThrottle() const { return Throttle; }
 	float GetSteer() const { return Steer; }
-	/** Input routing, called by the player controller: turns the head in the cabin. */
+	/** Input routing, called by the player controller: swings the camera boom round the car. */
 	void DoLook(float Yaw, float Pitch);
 
 	/** Where the spreader bar lays asphalt: actor XY - forward * LotBalance::CarBarBehindCm. */
@@ -106,10 +102,9 @@ public:
 	UStaticMeshComponent* GetBodyMesh() const { return BodyMesh; }
 	/** The wide bar (SM_PaverCar_WideBar), shown once the car owns it. */
 	UStaticMeshComponent* GetWideBarMesh() const { return WideBarMesh; }
-	/** What the cabin shows at the bottom of the frame instead of the body (only the owner's own view sees it). */
-	UStaticMeshComponent* GetCabinBonnet() const { return CabinBonnet; }
 	UBoxComponent* GetCollision() const { return Collision; }
-	UCameraComponent* GetCabinCamera() const { return CabinCamera; }
+	UCameraComponent* GetCamera() const { return Camera; }
+	USpringArmComponent* GetBoom() const { return Boom; }
 
 	virtual void Tick(float DeltaSeconds) override;
 
@@ -146,9 +141,9 @@ private:
 	UPROPERTY()
 	TObjectPtr<UStaticMeshComponent> WideBarMesh;
 	UPROPERTY()
-	TObjectPtr<UStaticMeshComponent> CabinBonnet;
+	TObjectPtr<USpringArmComponent> Boom;
 	UPROPERTY()
-	TObjectPtr<UCameraComponent> CabinCamera;
+	TObjectPtr<UCameraComponent> Camera;
 
 	/** The character that drives; hidden and carried along while it does. */
 	UPROPERTY()
@@ -161,9 +156,9 @@ private:
 	bool bPouring = false;
 	double Speed = 0.0;
 	FDIAToolPath ToolPath;
-	/** The head's turn against the car's heading. */
+	/** The boom's turn against the car's heading. */
 	double LookYawDeg = 0.0;
-	double LookPitchDeg = DIAPaverCar::CabinPitchDeg;
+	double LookPitchDeg = DIAPaverCar::DefaultPitchDeg;
 	/** The control rotation this actor set last: what the controller added to it since is the player's turning of the head. */
 	FRotator LastControlRotation = FRotator::ZeroRotator;
 	/** The pose this actor wrote into the core last; a core pose that differs from it was written by someone else. */

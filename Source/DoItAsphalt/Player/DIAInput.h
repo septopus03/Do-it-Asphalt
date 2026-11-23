@@ -36,20 +36,25 @@ struct DOITASPHALT_API FDIAInput
 	/** Q: the next item in the hand. */
 	UPROPERTY()
 	TObjectPtr<UInputAction> NextHand = nullptr;
-	/** 1 - 3: bowl, scoop, bucket (the order of ELotHand). */
+	/** 1 - 4: bowl, bucket, canister, tub (the order of ELotHand). */
 	UPROPERTY()
 	TObjectPtr<UInputAction> Hand1 = nullptr;
 	UPROPERTY()
 	TObjectPtr<UInputAction> Hand2 = nullptr;
 	UPROPERTY()
 	TObjectPtr<UInputAction> Hand3 = nullptr;
+	UPROPERTY()
+	TObjectPtr<UInputAction> Hand4 = nullptr;
 	/** F, held: the suitcase flap (not bound to behaviour yet). */
 	UPROPERTY()
 	TObjectPtr<UInputAction> Flap = nullptr;
 	TObjectPtr<UInputAction> Fill = nullptr;
-	/** G: sends the auto paver (not bound to behaviour yet). */
+	/** H: sends the auto paver to the sector the player stands in. */
 	UPROPERTY()
 	TObjectPtr<UInputAction> SendPaver = nullptr;
+	/** G: opens and closes the paver map. */
+	UPROPERTY()
+	TObjectPtr<UInputAction> PaverMap = nullptr;
 	UPROPERTY()
 	TObjectPtr<UInputAction> Sprint = nullptr;
 	UPROPERTY()

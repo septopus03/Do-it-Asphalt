@@ -69,14 +69,16 @@ void ADIAPlayerController::SetupInputComponent()
 	Enhanced->BindAction(Input.WorkView, ETriggerEvent::Canceled, this, &ADIAPlayerController::OnWorkViewCompleted);
 	Enhanced->BindAction(Input.NextHand, ETriggerEvent::Started, this, &ADIAPlayerController::OnNextHand);
 	Enhanced->BindAction(Input.Hand1, ETriggerEvent::Started, this, &ADIAPlayerController::OnSelectHand, ELotHand::Bowl);
-	Enhanced->BindAction(Input.Hand2, ETriggerEvent::Started, this, &ADIAPlayerController::OnSelectHand, ELotHand::Scoop);
-	Enhanced->BindAction(Input.Hand3, ETriggerEvent::Started, this, &ADIAPlayerController::OnSelectHand, ELotHand::Bucket);
+	Enhanced->BindAction(Input.Hand2, ETriggerEvent::Started, this, &ADIAPlayerController::OnSelectHand, ELotHand::Bucket);
+	Enhanced->BindAction(Input.Hand3, ETriggerEvent::Started, this, &ADIAPlayerController::OnSelectHand, ELotHand::Canister);
+	Enhanced->BindAction(Input.Hand4, ETriggerEvent::Started, this, &ADIAPlayerController::OnSelectHand, ELotHand::Tub);
 	Enhanced->BindAction(Input.Interact, ETriggerEvent::Started, this, &ADIAPlayerController::OnInteract);
 	Enhanced->BindAction(Input.Shop, ETriggerEvent::Started, this, &ADIAPlayerController::OnShop);
 	Enhanced->BindAction(Input.CheckView, ETriggerEvent::Started, this, &ADIAPlayerController::OnCheckViewStarted);
 	Enhanced->BindAction(Input.CheckView, ETriggerEvent::Completed, this, &ADIAPlayerController::OnCheckViewCompleted);
 	Enhanced->BindAction(Input.CheckView, ETriggerEvent::Canceled, this, &ADIAPlayerController::OnCheckViewCompleted);
 	Enhanced->BindAction(Input.SendPaver, ETriggerEvent::Started, this, &ADIAPlayerController::OnSendPaver);
+	Enhanced->BindAction(Input.PaverMap, ETriggerEvent::Started, this, &ADIAPlayerController::OnPaverMap);
 	Enhanced->BindAction(Input.Pause, ETriggerEvent::Started, this, &ADIAPlayerController::OnPause);
 }
 
@@ -117,7 +119,11 @@ void ADIAPlayerController::OnMoveStopped()
 void ADIAPlayerController::OnLook(const FInputActionValue& Value)
 {
 	// The setting of the menu scales the mouse (1 is the feel the game had without it).
-	const FVector2D Axis = Value.Get<FVector2D>() * DIASettings::GetMouseSensitivity();
+	FVector2D Axis = Value.Get<FVector2D>() * DIASettings::GetMouseSensitivity();
+	if (DIASettings::GetToggle(DIASettings::EToggle::InvertY))
+	{
+		Axis.Y = -Axis.Y;
+	}
 	if (ADIACharacter* Character = GetDIACharacter())
 	{
 		Character->DoLook(Axis.X, Axis.Y);
@@ -321,6 +327,31 @@ void ADIAPlayerController::OnSendPaver()
 	}
 }
 
+void ADIAPlayerController::OnPaverMap()
+{
+	ADIAHUD* Hud = Cast<ADIAHUD>(GetHUD());
+	const UDIAWorldSubsystem* Subsystem = UDIAWorldSubsystem::Get(this);
+	if (!Hud || !Subsystem)
+	{
+		return;
+	}
+	if (Hud->IsPaverMapOpen())
+	{
+		Hud->SetPaverMapOpen(false);
+		return;
+	}
+	// Without the paver there is nothing to choose; the toast says so.
+	if (!Subsystem->GetGame().Owns(ELotItem::AutoPaver))
+	{
+		Hud->ShowToast(DIAFormat::PaverNoneToast());
+		return;
+	}
+	if (!IsUiInput())
+	{
+		Hud->SetPaverMapOpen(true);
+	}
+}
+
 void ADIAPlayerController::OnShop()
 {
 	if (ADIAHUD* Hud = Cast<ADIAHUD>(GetHUD()))
@@ -354,10 +385,11 @@ void ADIAPlayerController::OnPause()
 	{
 		return;
 	}
-	// Esc closes the shop first; with nothing open it opens or closes the pause menu.
+	// Esc closes the shop or the paver map first; with nothing open it opens or closes the pause menu.
 	if (bShopInput)
 	{
 		Hud->SetShopOpen(false);
+		Hud->SetPaverMapOpen(false);
 		return;
 	}
 	Hud->TogglePause();

@@ -5,9 +5,11 @@
 #include "Components/BoxComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "GameFramework/SpringArmComponent.h"
 #include "Engine/CollisionProfile.h"
 #include "Engine/World.h"
 #include "Game/DIAAssets.h"
+#include "Game/DIASettings.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/PlayerController.h"
 #include "LotBalance.h"
@@ -50,21 +52,24 @@ ADIAPaverCar::ADIAPaverCar()
 	WideBarMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	WideBarMesh->SetVisibility(false);
 
-	CabinBonnet = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("CabinBonnet"));
-	CabinBonnet->SetupAttachment(Collision);
-	CabinBonnet->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	// The view's owner is the view target: the car while it is driven, the character otherwise. So the body (and its glass, an opaque
-	// slab seen from inside) is left out of the cabin view, the bonnet is in it alone, and from outside nothing differs from before.
-	BodyMesh->SetOwnerNoSee(true);
-	CabinBonnet->SetOnlyOwnerSee(true);
+	// Third person: a boom from a pivot over the car's centre; the mouse turns the boom against the car, the camera does not follow the control rotation.
+	Boom = CreateDefaultSubobject<USpringArmComponent>(TEXT("Boom"));
+	Boom->SetupAttachment(Collision);
+	Boom->SetRelativeLocation(FVector(0.0, 0.0, DIAPaverCar::PivotHeightCm - DIAPaverCar::OriginHeightCm()));
+	Boom->SetRelativeRotation(FRotator(DIAPaverCar::DefaultPitchDeg, 0.0, 0.0));
+	Boom->TargetArmLength = DIAPaverCar::ArmLengthCm;
+	Boom->bUsePawnControlRotation = false;
+	Boom->bInheritPitch = false;
+	Boom->bInheritRoll = false;
+	Boom->bDoCollisionTest = true;
+	Boom->ProbeSize = 20.f;
+	Boom->bEnableCameraLag = false;
+	Boom->bEnableCameraRotationLag = false;
 
-	// First person: the eyes in the cabin. The head turns against the car, the camera does not follow the control rotation.
-	CabinCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("CabinCamera"));
-	CabinCamera->SetupAttachment(Collision);
-	CabinCamera->SetRelativeLocation(FVector(DIAPaverCar::CabinEyeAheadCm, 0.0, DIAPaverCar::CabinEyeHeightCm - DIAPaverCar::OriginHeightCm()));
-	CabinCamera->SetRelativeRotation(FRotator(DIAPaverCar::CabinPitchDeg, 0.0, 0.0));
-	CabinCamera->bUsePawnControlRotation = false;
-	CabinCamera->FieldOfView = DIACharacter::NormalFovDeg;
+	Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("Camera"));
+	Camera->SetupAttachment(Boom, USpringArmComponent::SocketName);
+	Camera->bUsePawnControlRotation = false;
+	Camera->FieldOfView = DIACharacter::NormalFovDeg;
 }
 
 void ADIAPaverCar::BeginPlay()
@@ -78,10 +83,6 @@ void ADIAPaverCar::BeginPlay()
 		FVector(-LotBalance::CarBarBehindCm, 0.0, PlaceholderBarHeightCm), TEXT("DIA_Steel"));
 	WideBarMesh->SetVisibility(false);
 	bShowsWideBar = false;
-	// The bonnet is a flat slab at the bottom of the cabin view (the offset is from the collision box's centre).
-	DIAAssets::SetModelOrFallback(CabinBonnet, TEXT("SM_PaverCar_Bonnet"), DIAAssets::EFallback::Cube, DIAPaverCar::BonnetSizeCm,
-		FVector(DIAPaverCar::BonnetAheadCm, 0.0, DIAPaverCar::BonnetTopCm - DIAPaverCar::BonnetSizeCm.Z * 0.5 - DIAPaverCar::OriginHeightCm()), TEXT("DIA_Yellow"));
-
 	if (UDIAWorldSubsystem* Subsystem = UDIAWorldSubsystem::Get(this))
 	{
 		Subsystem->RegisterInteractable(this, this);
@@ -188,7 +189,7 @@ void ADIAPaverCar::UpdateBar()
 
 void ADIAPaverCar::UpdateCamera()
 {
-	CabinCamera->SetRelativeRotation(FRotator(LookPitchDeg, LookYawDeg, 0.0));
+	Boom->SetRelativeRotation(FRotator(LookPitchDeg, LookYawDeg, 0.0));
 }
 
 double ADIAPaverCar::TopSpeed() const
@@ -332,7 +333,7 @@ void ADIAPaverCar::EnterBy(ADIACharacter* Character)
 	Speed = 0.0;
 	ToolPath.Reset();
 	LookYawDeg = 0.0;
-	LookPitchDeg = DIAPaverCar::CabinPitchDeg;
+	LookPitchDeg = DIAPaverCar::DefaultPitchDeg;
 	UpdateCamera();
 
 	FLotWorldState& State = Subsystem->GetGame().World();
@@ -493,12 +494,13 @@ void ADIAPaverCar::Tick(float DeltaSeconds)
 		return;
 	}
 	Drive(DeltaSeconds);
+	Camera->SetFieldOfView(DIASettings::GetFieldOfView());
 
-	// The head turns by what the controller turned since this tick last set its rotation; the view then turns with the car.
+	// The boom turns by what the controller turned since this tick last set its rotation; the view then turns with the car.
 	if (APlayerController* PlayerController = HasDriver() ? Cast<APlayerController>(GetController()) : nullptr)
 	{
 		const FRotator Control = PlayerController->GetControlRotation();
-		LookYawDeg = FMath::Clamp(LookYawDeg + FMath::FindDeltaAngleDegrees(LastControlRotation.Yaw, Control.Yaw), -DIAPaverCar::LookYawLimitDeg, DIAPaverCar::LookYawLimitDeg);
+		LookYawDeg = FMath::UnwindDegrees(LookYawDeg + FMath::FindDeltaAngleDegrees(LastControlRotation.Yaw, Control.Yaw));
 		LookPitchDeg = FMath::Clamp(LookPitchDeg + FMath::FindDeltaAngleDegrees(LastControlRotation.Pitch, Control.Pitch), DIAPaverCar::LookPitchMinDeg, DIAPaverCar::LookPitchMaxDeg);
 		LastControlRotation = FRotator(LookPitchDeg, GetActorRotation().Yaw + LookYawDeg, 0.0);
 		PlayerController->SetControlRotation(LastControlRotation);
@@ -507,6 +509,12 @@ void ADIAPaverCar::Tick(float DeltaSeconds)
 
 	FLotGame& Game = Subsystem->GetGame();
 	WritePose(Game.World());
+
+	// Standing at a station (the fixed one or the portable one) fills the tank from the plant stock; the HUD shows the gauge rise.
+	if (Game.LoadCar(DeltaSeconds) > 0.0)
+	{
+		Subsystem->Dispatch(FLotEvents());
+	}
 
 	if (Game.HasWon())
 	{

@@ -60,19 +60,19 @@ Tento dokument hovorí, ako sa hra hrá: pravidlá, ovládanie, obrazovka, cheat
 
 ### 4.2 Nádoby v ruke
 
-Hráč drží vždy jednu „ruku" a prepína ich klávesmi (kapitola 5).
+Hráč drží vždy jednu „ruku" a prepína ich klávesmi (kapitola 5). Všetky štyri sú nádoby; malá naberačka (Scoop) sa z hry odstránila, lebo nedávala zmysel popri miske.
 
-| Ruka | Kapacita | Poznámka |
-|---|---|---|
-| Miska (Bowl) | 2,5 l | štart; berie sa lyžicou po 0,25 l |
-| Lopatka (Scoop) | 1 l | kúpi sa za 10; záber 1 l |
-| Vedro (Bucket) | 10 l | kúpi sa za 35; leje sa ako prúd 4 l/s presne tam, kam hráč mieri (kruh 30 cm) |
+| Ruka | Kapacita | Liatie | Kruh | Cena |
+|---|---|---|---|---|
+| Miska (Bowl) | 2,5 l | 1 l/s | 15 cm | štart |
+| Vedro (Bucket) | 10 l | 4 l/s | 30 cm | 35 |
+| Kanister (Canister) | 20 l | 6 l/s | 40 cm | 70 (od šprintu) |
+| Vaňa (Tub) | 36 l | 9 l/s | 55 cm | 160 (od šprintu) |
 
-- Naberanie: **`R` (držať)** pri koryte opakuje záber každých 0,5 s. Ľavé tlačidlo nenabera, len leje.
-- Liatie z misky a lopatky: ľavé tlačidlo, 1 l za sekundu, kruh s polomerom 15 cm (miska) alebo 10 cm (lopatka). Vyliaty asfalt je rovno hotový, bez hladenia.
-- Vedro leje, kým je tlačidlo stlačené (4 l/s), a asfalt dopadá na bod pod zameriavačom, odkiaľ sa ako kvapalina rozteká. Zem, ktorá je už pokrytá, nestojí nič, takže čo sa nepoložilo, ostáva vo vedre.
+- Misku plní lyžica: **`R` (držať)** pri koryte opakuje záber 0,25 l každých 0,5 s. V obraze lyžica ide zo strany nad miskou do koryta a späť; ruka (rukavica) ide s ňou.
+- Vedro, kanister a vaňa sa plnia **pod prúdom**: pri výpuste výrobne, kohútiku stojaceho kufra či vozíka alebo pri výdajni (`R` držať). Nádoba sa pri plnení drží vpredu a mierne sa kolíše.
+- Liatie: ľavé tlačidlo (držať). Nádoba sa nakloní o prednú hranu a asfalt dopadá ako prúd na bod pod zameriavačom (`PourHand`); rýchlosť a šírka kruhu sú z tabuľky. Zem, ktorá je už pokrytá, nestojí nič, takže čo sa nepoložilo, ostáva v nádobe.
 - Miska a lyžica sú v **dvoch rukách**: miska v ľavej, lyžica v pravej.
-- Vedro sa plní v ruke zo zásoby: z kohútika stojaceho kufra alebo vozíka, z výpustu výrobne alebo z presuvnej výdajne.
 - Výmena ruky trvá 1,5 s, po odomknutí rýchlej výmeny 0 s.
 - Dosah ruky je 250 cm.
 
@@ -96,35 +96,49 @@ Hra nemá hladidlo ani finišer. Asfalt sa nehladí: každý vyliaty asfalt je h
 - Na úrovniach 2 (750 l/min) a 4 (4 200 l/min) pribudne k výrobni viditeľná prístavba. Kód a oznam „Plant level N" po nákupe číslujú úrovne od 0 (štart, 150 l/min, je úroveň 0); špecifikácia ich číslovala od 1.
 - Naberanie z koryta a plnenie vedra ťahá zo zásobníka. Keď je prázdny, nič sa nenabere.
 
-### 4.6 Stroje
+### 4.6 Stroje a výdajne
 
-- **Presuvná výdajňa** (Station, 900 kreditov, od 350 políčok): hráč ju ťahá za sebou (105 cm) a vedro, kufor aj vozík sa pri nej plnia ako pri výrobni.
-- **Robot** (AutoPaver, 3 000, od 800 políčok): sám asfaltuje pridelený sektor. Hráč sa postaví do sektora a stlačí `G`. Robot najprv dôjde do políčka 0 sektora a potom ide po políčkach sektora od začiatku, hotové preskakuje a ďalej kladie na nehotové. Kladie hotový asfalt rýchlosťou 120 políčok za minútu, pričom čerpá zo zásobníka výrobne (v kuse najviac 10 l). Vylepšenia: **AutoPaverFast** (9 000, 170 políčok/min) a **AutoPaverFaster** (22 000, 220 políčok/min). Pridelený sektor má na zemi oranžový obrys (10 cm). Ak hráč stlačí `G` v sektore, kde robot už je, zobrazí sa „Paver is already here".
-- **Auto** (Car, 12 000, od 6 000 políčok): hráč doň nastúpi (`E`) a jazdí. Auto nemá nádrž; leje hotový asfalt zo zásobníka výrobne, kým hráč drží ľavé tlačidlo, pásom širokým 300 cm (260 políčok/min). **CarWideBar** (24 000) rozšíri pás na 350 cm (300 políčok/min). Pri liatí sa rýchlosť auta obmedzí tak, aby sa nelialo viac, než sa stíha.
+**Výdajne.** Hra má dve výdajne asfaltu pre stroje: **pevnú** (bránový stojan na pruhu pod parkoviskom, vľavo od výrobne, `LotLayout::VehicleStationPos`) a **presuvnú** (Station, 900 kreditov, od 350 políčok). Presuvnú hráč ťahá za sebou (105 cm) a postaví kdekoľvek; kým ju drží, neráta sa. Platí „2 výdajne": pevná je od začiatku, druhú treba kúpiť. Výdajňa núti stroje chodiť si po asfalt:
+
+- Vedro, kanister, vaňa, kufor aj vozík sa pri nej plnia ako pri výpuste výrobne.
+- **Auto** aj **robot** majú **nádrž** a plnia ju len pri výdajni, do vzdialenosti 500 cm od jej stredu, rýchlosťou 500 l/s zo zásobníka výrobne.
+
+**Robot** (AutoPaver, 3 000, od 800 políčok): má nádrž 2 000 l. Hráč otvorí **mapu sektorov** (`G`) a klikne na sektor, ktorý má robot vyasfaltovať (75 sektorov, farba hovorí, koľko je hotové, oranžový rám je pridelený sektor); `H` pošle robota do sektora, v ktorom hráč stojí. Robot potom pracuje v tejto slučke:
+
+1. **ToSector** – ide do sektora (ak má prázdnu nádrž, najprv do výdajne),
+2. **Working** – ide po políčkach sektora od začiatku, hotové preskakuje a ďalej kladí na nehotové (120 / 170 / 220 políčok za minútu podľa vylepšenia); asfalt berie z vlastnej nádrže,
+3. keď sa nádrž minie: **ToStation** – ide k najbližšej výdajni (od seba) a zastaví sa,
+4. **Loading** – plní nádrž (500 l/s, kým nie je plná alebo kým nie je prázdny zásobník),
+5. vráti sa na rozpracované políčko a pokračuje.
+
+Vylepšenia: **AutoPaverFast** (9 000) a **AutoPaverFaster** (22 000). Pridelený sektor má na zemi oranžový obrys (10 cm). Riadok v HUD ukazuje fázu a nádrž.
+
+**Auto** (Car, 12 000, od 6 000 políčok): hráč doň nastúpi (`E`) a jazdí z **pohľadu tretej osoby** (kamera na ramene za autom, myš ju otáča okolo auta). Auto má **nádrž** (6 000 l, s CarWideBar 8 000 l), z ktorej leje, kým hráč drží ľavé tlačidlo, pásom širokým 300 cm (260 políčok/min). Nádrž sa **plní pri výdajni**: hráč do nej zajde (pevná výdajňa je priejazdná bránka dlhá 8 m) a nádrž sa sama plní, kým tam stojí; HUD ukazuje stav nádrže a „Station: loading", resp. „Tank low – drive to a station". **CarWideBar** (24 000) rozšíri pás na 350 cm (300 políčok/min). Pri liatí sa rýchlosť auta obmedzí tak, aby sa nelialo viac, než sa stíha.
 
 ## 5. Ovládanie
 
 | Vstup | Čo robí |
 |---|---|
 | `W` `A` `S` `D` | chôdza; v aute `W`/`S` plyn a spiatočka, `A`/`D` zatáčanie |
-| Myš | pohľad; v aute otáča hlavou (±100° do strán, −60° až +45° hore/dole) |
+| Myš | pohľad; v aute otáča kamerou okolo auta (−70° až +10° hore/dole, do strán dookola) |
 | Ľavé tlačidlo myši | použiť ruku: liať (vedro ako prúd na zameraný bod); podržané s vozíkom kladie pás, v aute leje |
 | Pravé tlačidlo myši (držať) | pracovný pohľad: zorné pole 90° → 60°, naklonenie o 15°, prechod 0,2 s |
 | `Q` | ďalšia ruka |
-| `1` `2` `3` | miska / lopatka / vedro |
+| `1` `2` `3` `4` | miska / vedro / kanister / vaňa |
 | `E` | chytiť predmet, pustiť ho, nastúpiť do auta alebo vystúpiť |
-| `R` (držať) | naberať: z koryta do misky či lopatky, naplniť vedro pri výrobni, kohútiku kufra či vozíka a pri výdajni |
+| `R` (držať) | naberať: z koryta do misky lyžicou, naplniť vedro, kanister či vaňu pri výrobni, kohútiku kufra či vozíka a pri výdajni |
 | `F` (držať) | klapka kufra |
-| `G` | poslať robota do sektora, v ktorom hráč stojí |
+| `G` | mapa sektorov robota (klik na sektor ho tam pošle; `G` / `Esc` zavrie) |
+| `H` | poslať robota do sektora, v ktorom hráč stojí |
 | Ľavý `Shift` | šprint (po odomknutí) |
 | `Tab` | obchod |
 | `V` (držať) | kontrolný pohľad (nie počas jazdy) |
 | `Esc` | zavrie obchod, inak otvorí pauzu; obrazovka výhry ho ignoruje |
 
 - Chôdza je 450 cm/s, šprint 1,6-krát rýchlejší. Kufor sa ťahá rýchlosťou 350 cm/s, vozík sa tlačí 400 cm/s a výdajňa sa nesie 400 cm/s.
-- Počas jazdy fungujú chôdza (plyn, zatáčanie), myš, ľavé tlačidlo, `E`, `Tab` a `Esc`. Klávesy rúk, `R`, `G`, `F`, pracovný pohľad a `V` nerobia nič.
+- Počas jazdy fungujú chôdza (plyn, zatáčanie), myš, ľavé tlačidlo, `E`, `Tab` a `Esc`. Klávesy rúk, `R`, `F`, pracovný pohľad a `V` nerobia nič; `G` otvorí mapu sektorov aj z auta.
 - Ak hráč niečo drží, `E` patrí držanému predmetu (pustí ho). Do auta sa nastupuje len s voľnými rukami.
-- Kamera je v kabíne auta vo výške 190 cm, 120 cm pred stredom auta, v pokoji sklonená o 8° nadol. Karoséria modelu je z pohľadu z kabíny skrytá (jej sklá by zvnútra zakryli výhľad), preto je dole v obraze plochá žltá kapota; zvonku je auto celé.
+- Kamera auta je v tretej osobe: 9 m za pivotom vo výške 170 cm nad stredom auta, sklonená o 16° nadol; myš ňou otáča okolo auta (nevidí cez steny, rameno sa skráti). Auto je vždy celé vidieť.
 - Kontrolný pohľad (`V`) zobrazí šípku k najbližšiemu nedokončenému políčku.
 
 ## 6. Obrazovka (HUD)
@@ -133,15 +147,15 @@ Celé rozhranie (HUD, obchod, menu, nastavenia aj výhra) je štylizované ako �
 
 - **Vľavo hore:** žltá tabuľa s kreditmi (čierne číslo) a popisom „credits".
 - **V strede obrazovky:** malý zameriavač (biela bodka v tmavom kruhu, bez zmeny); pri otvorenom menu, obchode a obrazovke výhry sa skryje.
-- **Vpravo hore:** čierna tabuľa so žltou linkou. Hore biely text „x / 30,000 · n %", pod ním žltý popis „CELLS PAVED" a ukazovateľ postupu (žltý rámik, šrafovaná dráha, žltá výplň). Pod ním riadok ďalšieho kroku: žltý štítok „NEXT" a biely text kroku, napríklad „Quick swap – entry 0 / 12, cells 0 / 10" (ďalší odomykaný krok, koľko z 12 políčok jeho vstupného úseku je hotových a koľko hotových políčok z potrebných je celkovo). Slovo „Next:" na začiatku textu widget odreže, nahrádza ho štítok; po odomknutí všetkých krokov sa riadok skryje. Ak je robot pridelený, pod tým je riadok „Paver: sector N · k / 400", inak „Paver: waiting – press G"; kým hráč robota nevlastní, riadok sa nezobrazí.
+- **Vpravo hore:** čierna tabuľa so žltou linkou. Hore biely text „x / 30,000 · n %", pod ním žltý popis „CELLS PAVED" a ukazovateľ postupu (žltý rámik, šrafovaná dráha, žltá výplň). Pod ním riadok ďalšieho kroku: žltý štítok „NEXT" a biely text kroku, napríklad „Quick swap – entry 0 / 12, cells 0 / 10" (ďalší odomykaný krok, koľko z 12 políčok jeho vstupného úseku je hotových a koľko hotových políčok z potrebných je celkovo). Slovo „Next:" na začiatku textu widget odreže, nahrádza ho štítok; po odomknutí všetkých krokov sa riadok skryje. Riadok robota ukazuje fázu: „Paver: waiting – press G for the map", „Paver → station (tank empty) · sector N", „Paver: loading at the station · nádrž", „Paver → sector N · nádrž" a pri práci „Paver: sector N · k / 400 · tank X / 2,000 l"; kým hráč robota nevlastní, riadok sa nezobrazí.
 - **Oznamy (toasty):** žlté tabule s čiernym textom, najviac 3 naraz, každý 2 s plus 0,5 s dobehu (dobeh priehľadnosti platí pre celú tabuľu). Dlhý oznam sa zalamuje a je na stred. Kredity sa spájajú do jedného bežiaceho súčtu („+40 credits"). Pri odomknutí: „Unlocked: X" a pod tým účinok kroku.
 - **Kontrolný pohľad (`V`):** oranžový kosoštvorec (štvorcová tabuľa otočená o 45°) s čiernou šípkou k najbližšiemu nedokončenému políčku, vedľa čierna tabuľa s oranžovou linkou a oranžovým textom.
 - **Tabule pri vstupoch (vo svete):** názov kroku, „Entry k / 12" (hotové políčka úseku) a „Cells a / b" (hotové políčka z potrebných). Kiosky stoja pri vstupoch 1, 4, 5 a 6; vstupy 2 a 3 majú tabuľu na nákupnom centre.
 - **Dole v strede zhora nadol:** zásoba výrobne (čierna tabuľa, popis „Plant stock" žltou; zobrazí sa, len keď je výrobňa v dosahu), výzva, čo robí `E` pri predmete, riadok ruky, lišta predmetov a pod ňou šrafovaný pás.
 - **Výzva** je pre každý riadok žltá štvorcová tabuľa s klávesom a vedľa nej čierna tabuľa s činnosťou (napríklad `E` a „Push"). Pri držanom kufri sú dva riadky pod sebou (`E` a `F`); riadok bez klávesa má len čiernu tabuľu. Kým je výzva prázdna, nezobrazí sa.
 - **Riadok ruky** je čierna tabuľa nad lištou predmetov: názov bielou a obsah žltou (napríklad „Bowl" a „0 / 2.5 L"); platí aj pre držaný kufor či vozík.
-- **Lišta predmetov:** tri políčka (`1` miska, `2` lopatka, `3` vedro) s medzerou 10. Políčko je čierna tabuľa so žltou linkou, žltým štvorčekom s číslom klávesu, názvom bielou a (pri nádobách) ukazovateľom naplnenia. Vybrané políčko je opačne: žltá tabuľa s čiernou linkou, čiernym štvorčekom, čiernym názvom a čiernou výplňou. Políčko, ktoré sa nedá vziať, má názov stlmený na 70 % bielej a ukazovateľ skrytý.
-- **Obchod (`Tab`):** čierny panel široký 1300, hore s šrafovaným pásom. Nadpis „SHOP" žltou, pod ním biely podnadpis „Tools and machines for the car park" a vpravo žltá tabuľa s kreditmi. Pod tým mriežka kariet po 4 v riadku (karta je vysoká 172, medzera 12): výrobňa (najprv), potom predmety; kariet je 11, takže v poslednom riadku sú tri, zarovnané vľavo. Dole stojí „Tab / Esc - close" (s obyčajnou pomlčkou). Okolo panela sa obraz nestmavuje a hra ostáva klikateľná. Každý nákup sa ukladá.
+- **Lišta predmetov:** štyri políčka (`1` miska, `2` vedro, `3` kanister, `4` vaňa) s medzerou 10. Políčko je čierna tabuľa so žltou linkou, žltým štvorčekom s číslom klávesu, názvom bielou a (pri nádobách) ukazovateľom naplnenia. Vybrané políčko je opačne: žltá tabuľa s čiernou linkou, čiernym štvorčekom, čiernym názvom a čiernou výplňou. Políčko, ktoré sa nedá vziať, má názov stlmený na 70 % bielej a ukazovateľ skrytý.
+- **Obchod (`Tab`):** čierny panel široký 1300, hore s šrafovaným pásom. Nadpis „SHOP" žltou, pod ním biely podnadpis „Tools and machines for the car park" a vpravo žltá tabuľa s kreditmi. Pod tým mriežka kariet po 4 v riadku (karta je vysoká 172, medzera 12): výrobňa (najprv), potom predmety; kariet je 11, takže v poslednom riadku sú tri, zarovnané vľavo; kanister a vaňa stoja hneď za vedrom. Dole stojí „Tab / Esc - close" (s obyčajnou pomlčkou). Okolo panela sa obraz nestmavuje a hra ostáva klikateľná. Každý nákup sa ukladá.
 - **Karta obchodu** je tabuľa, ktorej vzhľad závisí od stavu. Vľavo hore je dlaždica (kruh s prvým písmenom názvu), vedľa nej názov, čo vec dáva a prípadná podmienka odomknutia (žltou, napríklad „350 cells + entry 3"), dole vľavo cena a vpravo tlačidlo alebo štítok:
 
 | Stav | Tabuľa | Linka | Dlaždica | Cena | Vpravo dole |
@@ -153,7 +167,7 @@ Celé rozhranie (HUD, obchod, menu, nastavenia aj výhra) je štylizované ako �
 
   Kúpená vec **ostáva na svojom mieste** a len sa zmení na čiernu kartu so štítkom OWNED. Farba dlaždice nezávisí od druhu predmetu.
 - **Pauza a menu:** žltá tabuľa na stmavenom pozadí s čiernym nadpisom („Do it Asphalt", pri pauze „Paused", v nastaveniach „Settings") a čiernymi tlačidlami s bielym textom. Prvé viditeľné tlačidlo (Continue alebo Resume, bez uloženej hry New Game) má text žltý. V hlavnom menu je mimo Shipping buildu aj tlačidlo Dev Start. Pod kurzorom je tlačidlo svetlejšie, stlačené čierne. Otázka „Start over? Progress will be lost." nahradí nadpis (čierne písmo, na stred) a tlačidlá Yes (žlté) a No stoja vedľa seba.
-- **Nastavenia** (`Esc` ich zavrie) sú na rovnakej žltej tabuli: riadok „Mouse sensitivity" s hodnotou čiernou (ExtraBold) a pod ním posuvník s čiernou dráhou a čiernym jazdcom (0,1 – 3,0, štandardne 1,0), dole tlačidlo Back. Hodnota sa ukladá do `GameUserSettings.ini`, nie do uloženej hry.
+- **Nastavenia** (`Esc` ich zavrie) sú na rovnakej žltej tabuli a posúvajú sa, ak sa nezmestia. Riadky: *Mouse sensitivity* (0,1 – 3,0, štandardne 1,0), *Invert Y* (prepínač), *Field of view* (70 – 110°, štandardne 90°; pracovný pohľad a auto ho sledujú), *Master / Effects / Ambience volume* (0 – 100 %; štandardne 80 / 100 / 70 %), *Fullscreen*, *V-Sync* a *Quality* (Low / Medium / High / Epic, tlačidlo prepína dookola, štandardne High). Dole je tlačidlo *Defaults* a *Back*. Hodnota sa mení hneď, ukladá sa pri pustení posuvníka a pri odchode z nastavení do sekcie `DoItAsphalt.Settings` súboru `GameUserSettings.ini`, nie do uloženej hry. Okno, V-Sync, kvalita a hlasitosť sa odovzdávajú enginu len v hre (nie v editore a nie v testoch). Tlačidlá majú zvuk kliknutia.
 - **Výhra:** žltá tabuľa s hore šrafovaným pásom (čierna a žltá) a čiernym nadpisom „Parking lot complete!". Pod ním riadky Time, Cells paved, Asphalt poured, Credits earned a Items bought: čierny popis vľavo, hodnota vpravo, každý riadok nad čiernou čiarou. Pod poslednou čiarou sú tlačidlá New Game (text žltý) a Quit.
 
 ## 7. Obchod a odomykanie
@@ -162,8 +176,9 @@ Predmety (ceny v kreditoch):
 
 | Predmet | Cena | Potrebuje |
 |---|---|---|
-| Scoop (lopatka) | 10 | – |
 | Bucket (vedro) | 35 | – |
+| Canister (kanister) | 70 | – |
+| Tub (vaňa) | 160 | odomknutie Sprint |
 | Suitcase (kufor) | 110 | – |
 | Cart (vozík) | 340 | – |
 | Station (výdajňa) | 900 | odomknutie StripWork |
@@ -234,7 +249,7 @@ Cheaty sú konzolové príkazy `dia.*`. Je ich 27 a existujú len mimo Shipping 
 | `dia.Give <kredity>` | pridá kredity |
 | `dia.Complete <n>` | dokončí prvých n nedokončených políčok podľa indexu |
 | `dia.CompleteEntry <0..5>` | dokončí vstupný úsek (číslovanie od 0) |
-| `dia.Item <názov>` | dá predmet: Scoop, Bucket, Suitcase, Cart, Station, AutoPaver, AutoPaverFast, AutoPaverFaster, Car, CarWideBar (`CarWideBar` samotný auto nedá) |
+| `dia.Item <názov>` | dá predmet: Bucket, Canister, Tub, Suitcase, Cart, Station, AutoPaver, AutoPaverFast, AutoPaverFaster, Car, CarWideBar (`CarWideBar` samotný auto nedá) |
 | `dia.Grab`, `dia.Drop` | chytí najbližší predmet, pustí držaný |
 | `dia.CartStrip <x> <y> [dĺžka m=4]` | dá a naplní vozík a položí ním pás od bodu smerom na +X |
 | `dia.Place <druh> <x> <y> [yaw]` | dá a postaví kufor, vozík alebo výdajňu |
@@ -248,7 +263,7 @@ Cheaty sú konzolové príkazy `dia.*`. Je ich 27 a existujú len mimo Shipping 
 | `dia.Camera [vzdialenosť] [yaw] [pitch]` | kamera mimo hráča |
 | `dia.WorkView <1\|0>`, `dia.CheckView <1\|0>` | zapne alebo vypne pracovný / kontrolný pohľad |
 | `dia.Shop` | prepne obchod |
-| `dia.Screen <Pause\|Settings\|Question\|Win>` | otvorí danú obrazovku (pauzu, nastavenia, otázku alebo výhru), aby sa dala odfotiť; ladiaca pomôcka |
+| `dia.Screen <Pause\|Settings\|Question\|Win\|Map>` | otvorí danú obrazovku (pauzu, nastavenia, otázku, výhru alebo mapu robota), aby sa dala odfotiť; ladiaca pomôcka |
 | `dia.Hand <názov>` | zmení ruku |
 | `dia.Fill` | naplní ruku |
 | `dia.TopView [výška m=260]` | pohľad zhora |
@@ -256,10 +271,12 @@ Cheaty sú konzolové príkazy `dia.*`. Je ich 27 a existujú len mimo Shipping 
 
 ## 12. Známe obmedzenia
 
-- V prvej osobe nie sú vidieť ruky ani paže a nie je animácia pohybu do strán.
-- Hra nemá zvuk.
+- V prvej osobe nie je animácia pohybu do strán.
+- Zvuky sú syntetizované skriptom (`Tools/Audio/gen_sounds.py`), nie nahrávky; hlasitosť a zmiešanie nikto nepočul. Hrajú: okolie, hum výrobne, motor auta (výška a hlasitosť podľa rýchlosti), liatie, plnenie pod prúdom, lyžica, kroky podľa prejdenej vzdialenosti, hluk pri chytení, pustení a nastupovaní, čerpadlo výdajne, motor robota a zvuky nákupu, odomknutia a výhry.
+- Animácie naberania a liatia (naklonenie nádoby o prednú hranu, kolísanie pod prúdom, pohyb lyžice do koryta a späť) majú pózy nastavené bez ladenia podľa snímok.
+- Uložená hra má verziu 3: staršie uloženia sa nenačítajú.
 - Lišta auta sa pri plnom vychýlení volantu môže pohybovať o niečo rýchlejšie, než dovoľuje strop liatia.
-- Pri liatí z auta hráča nič neupozorní, že zásoba výrobne sa minula.
+- Keď sa minie nádrž auta, auto prestane liať; upozorní len riadok „Tank low – drive to a station" pod 10 % nádrže.
 - Obrys sektora (10 cm) je zďaleka zhora tenký.
 - Kým sú zobrazené tri iné oznamy, oznamy o kreditoch čakajú.
 - Valček, dusadlo a lata s vodováhou zo špecifikácie v hre nie sú (otvorená otázka O1 v `04-plan-zmien-asphalt-self.md`).

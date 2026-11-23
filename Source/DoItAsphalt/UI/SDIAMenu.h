@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Game/DIASettings.h"
 #include "Brushes/SlateRoundedBoxBrush.h"
 #include "Styling/SlateTypes.h"
 #include "UI/DIAHudStyle.h"
@@ -15,7 +16,7 @@
  * takes the mouse. The widget tree is built once, hidden; Open / Close set the model (which the buttons' visibility reads through
  * attribute lambdas) and show or hide the screen. New Game that would throw progress away turns the buttons into the question
  * "Start over? Progress will be lost." with Yes and No; only Yes calls OnNewGame. The Settings button turns the buttons into the
- * settings screen: a slider for the mouse sensitivity (DIASettings, kept at once, written to disk when the slider is let go) and Back.
+ * settings screen: a list of settings (DIASettings: sliders for the mouse, the field of view and the volumes, switches for invert Y, fullscreen and V-Sync, the graphics quality; kept at once, written to disk when a slider is let go or a switch is pressed), Defaults and Back.
  * The main menu of a non-Shipping build also has Dev Start (a new game with credits and every unlock step open; it asks the same question
  * when a save exists). The other buttons only call the delegates given by the HUD.
  */
@@ -60,6 +61,11 @@ private:
 	FReply HandleQuit();
 	FReply HandleSettings();
 	FReply HandleBack();
+	FReply HandleDefaults();
+	/** The list of the settings: a slider with its value on one line, a switch or a choice with its button. */
+	TSharedRef<SWidget> BuildSettingsList();
+	TSharedRef<SWidget> MakeSliderRow(const FText& Label, DIASettings::EFloat Setting, TFunction<FText(float)> Format);
+	TSharedRef<SWidget> MakeChoiceRow(const FText& Label, TFunction<FText()> Value, TFunction<void()> OnClick);
 	/** The "Start over?" question, wrapped to the plate. */
 	static TSharedRef<SWidget> MakeQuestionText();
 	/** A button that is only there while Visible says so; its label is yellow while Which is the model's primary button. */

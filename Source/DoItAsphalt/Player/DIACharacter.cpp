@@ -12,6 +12,7 @@
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "Game/DIAAssets.h"
+#include "Game/DIASettings.h"
 #include "Game/DIAModelSizes.h"
 #include "Game/DIARefill.h"
 #include "Game/DIAWorldSubsystem.h"
@@ -48,8 +49,13 @@ namespace
 		FHandLayout Layout;
 		switch (Hand)
 		{
-		case ELotHand::Scoop:
-			Layout = {TEXT("SM_Scoop"), DIAAssets::EFallback::Cube, DIAModelSizes::ScoopCm, FVector(0.0, 0.0, 6.0), FRotator(-8.0, 0.0, 0.0)};
+		case ELotHand::Canister:
+			// Inner measurements of SM_Canister: floor radius 9.0 cm at 1.5 cm, rim radius 10.5 cm at 40 cm; the pouring beak is on +X.
+			Layout = {TEXT("SM_Canister"), DIAAssets::EFallback::Cylinder, DIAModelSizes::CanisterCm, FVector(12.0, 3.0, -16.0), FRotator(0.0, 0.0, 0.0), 1.5, 9.0, 40.0, 10.5};
+			break;
+		case ELotHand::Tub:
+			// Inner measurements of SM_Tub: floor radius 15.0 cm at 1.5 cm, rim radius 23.5 cm at 22 cm; the lip is on +X.
+			Layout = {TEXT("SM_Tub"), DIAAssets::EFallback::Cylinder, DIAModelSizes::TubCm, FVector(20.0, 0.0, -12.0), FRotator(0.0, 0.0, 0.0), 1.5, 15.0, 22.0, 23.5};
 			break;
 		case ELotHand::Bucket:
 			// Inner measurements of SM_Bucket (docs/04, chapter 4.1): rim radius 13.2 cm, floor radius 9.6 cm; the body ends at about 25 cm, the bail rises above it.
@@ -68,6 +74,11 @@ namespace
 	/** The spoon is held at its handle in the right hand, its working edge dipped towards the bowl in the left. */
 	const FVector SpoonLocationCm(-6.0, -8.0, 14.0);
 	const FRotator SpoonRotation(-30.0, -36.0, 0.0);
+	/** The spoon's other end of the stroke: over the trough, ahead of the player and low (pivot axes); the rest pose above is over the bowl. */
+	const FVector SpoonDipLocationCm(26.0, -4.0, -6.0);
+	const FRotator SpoonDipRotation(-62.0, -8.0, 0.0);
+	/** The vessel under a tap or the outlet is held forward and a little up. */
+	const FVector FillHoldOffsetCm(9.0, 0.0, 4.0);
 	/** The gloves grip the rim of the bowl (left) and the handle of the spoon (right); a sleeve runs from each out of the picture. */
 	const FVector LeftGloveCm(-4.0, -49.0, 8.0);
 	const FVector RightGloveCm(-9.0, -5.0, 14.0);
@@ -416,6 +427,10 @@ void ADIACharacter::RefreshHandMesh()
 		ShownHand = Hand;
 		ShownHeld = Held;
 		ShownLitres = -1.0;
+		AppliedRightHandDelta = FVector::ZeroVector;
+		PourBlend = 0.f;
+		FillBlend = 0.f;
+		StrokePhase = 0.f;
 
 		const FHandLayout Layout = LayoutOf(Hand);
 		// The model's own origin is where the tool is held; a placeholder shape rests on it instead.
@@ -495,7 +510,9 @@ void ADIACharacter::UpdateWorkView(float DeltaSeconds)
 	WorkViewAlpha = FMath::Clamp(WorkViewAlpha + FMath::Clamp(Target - WorkViewAlpha, -Step, Step), 0.f, 1.f);
 
 	const float Blend = GetWorkViewBlend();
-	const float Fov = FMath::Lerp(DIACharacter::NormalFovDeg, DIACharacter::WorkViewFovDeg, Blend);
+	// The player's field of view is the normal one; the work view is narrower by the same factor as before.
+	const float BaseFov = DIASettings::GetFieldOfView();
+	const float Fov = FMath::Lerp(BaseFov, BaseFov * DIACharacter::WorkViewFovDeg / DIACharacter::NormalFovDeg, Blend);
 	FirstPersonCamera->SetFieldOfView(Fov);
 	const FRotator Tilt(-DIACharacter::WorkViewTiltDeg * Blend, 0.0, 0.0);
 	// AddAdditiveOffset accumulates (offset = offset * new), so the old tilt is dropped first: the offset is always exactly the tilt of this tick.
@@ -513,13 +530,59 @@ void ADIACharacter::UpdateWorkView(float DeltaSeconds)
 	HandPivot->SetRelativeScale3D(FVector(Zoom));
 }
 
+void ADIACharacter::UpdateHandAnimation(float DeltaSeconds)
+{
+	const float Step = DIACharacter::AnimBlendPerSec * DeltaSeconds;
+	const auto Approach = [Step](float& Value, bool bOn) { Value = FMath::Clamp(Value + (bOn ? Step : -Step), 0.f, 1.f); };
+	Approach(PourBlend, bPourActive);
+	Approach(FillBlend, bFillActive);
+
+	const UDIAWorldSubsystem* Subsystem = GetSubsystem();
+	if (!Subsystem || ShownHand == ELotHand::Count || !HandMesh->IsVisible())
+	{
+		return;
+	}
+	const ELotHand Hand = ShownHand;
+	const FHandLayout Layout = LayoutOf(Hand);
+	const float Smooth = FMath::SmoothStep(0.f, 1.f, PourBlend);
+	const float FillSmooth = FMath::SmoothStep(0.f, 1.f, FillBlend);
+
+	if (Hand == ELotHand::Bowl)
+	{
+		// The spoon: one stroke per cycle, from over the bowl to the trough and back; it only moves while it fills, and rests over the bowl otherwise.
+		StrokePhase = FMath::Frac(StrokePhase + DeltaSeconds / static_cast<float>(LotBalance::ScoopCycleSeconds) * (bFillActive ? 1.f : 0.f));
+		if (!bFillActive && FillBlend <= 0.f)
+		{
+			StrokePhase = 0.f;
+		}
+		const float Reach = (0.5f - 0.5f * FMath::Cos(StrokePhase * UE_TWO_PI)) * FillSmooth;
+		const FVector SpoonAt = FMath::Lerp(SpoonLocationCm, SpoonDipLocationCm, Reach);
+		SpoonMesh->SetRelativeLocationAndRotation(SpoonAt, FMath::Lerp(SpoonRotation, SpoonDipRotation, Reach));
+		// The right hand follows the spoon.
+		const FVector Delta = SpoonAt - SpoonLocationCm;
+		RightGlove->AddRelativeLocation(Delta - AppliedRightHandDelta);
+		RightSleeve->AddRelativeLocation(Delta - AppliedRightHandDelta);
+		AppliedRightHandDelta = Delta;
+	}
+
+	// The vessel in hand: tipped over its front rim while it pours; held forward and rocked while it fills.
+	const float Tilt = DIACharacter::PourTiltDeg[FMath::Clamp(static_cast<int32>(Hand), 0, 3)] * Smooth;
+	RockTime += DeltaSeconds;
+	const float Rock = Hand == ELotHand::Bowl ? 0.f : DIACharacter::FillRockDeg * FillSmooth * FMath::Sin(RockTime * UE_TWO_PI * DIACharacter::FillRockHz);
+	const FVector Rim = Layout.Location + FVector(Layout.RimRadius, 0.0, Layout.RimZ);
+	const FQuat Turn = FRotator(-Tilt + Rock, 0.0, 0.0).Quaternion();
+	const FVector Held = Layout.Location + (Hand == ELotHand::Bowl ? FVector::ZeroVector : FillHoldOffsetCm * FillSmooth);
+	const FVector Rim2 = Rim + (Held - Layout.Location);
+	const FVector At = Rim2 + Turn.RotateVector(Held - Rim2);
+	HandMesh->SetRelativeLocationAndRotation(At, (Turn * Layout.Rotation.Quaternion()).Rotator());
+}
+
 void ADIACharacter::UseHand(UDIAWorldSubsystem& Subsystem, float DeltaSeconds)
 {
 	FLotGame& Game = Subsystem.GetGame();
 	const FVector2D Aim = GetAimPoint();
 	const FVector Location = GetActorLocation();
 	const FVector2D Player(Location.X, Location.Y);
-	const ELotHand Hand = Game.GetHand();
 
 	if (Game.GetHeld() != ELotMovable::Count)
 	{
@@ -527,19 +590,8 @@ void ADIACharacter::UseHand(UDIAWorldSubsystem& Subsystem, float DeltaSeconds)
 		return;
 	}
 
-	switch (Hand)
-	{
-	case ELotHand::Bowl:
-	case ELotHand::Scoop:
-		Subsystem.Dispatch(Game.PourHand(Aim, Player, DeltaSeconds));
-		break;
-	case ELotHand::Bucket:
-		// The bucket pours as long as the button is held, as a stream where the player aims.
-		Subsystem.Dispatch(Game.PourBucket(Aim, Player, DeltaSeconds));
-		break;
-	default:
-		break;
-	}
+	// The bowl and the vessels pour as long as the button is held, as a stream where the player aims.
+	Subsystem.Dispatch(Game.PourHand(Aim, Player, DeltaSeconds));
 }
 
 void ADIACharacter::FillHand(UDIAWorldSubsystem& Subsystem, float DeltaSeconds)
@@ -550,28 +602,29 @@ void ADIACharacter::FillHand(UDIAWorldSubsystem& Subsystem, float DeltaSeconds)
 		return;
 	}
 	const FVector2D Aim = GetAimPoint();
-	switch (Game.GetHand())
+	const ELotHand Hand = Game.GetHand();
+	const bool bRoom = Game.GetHandLitres(Hand) < Game.GetHandCapacity(Hand) - 1e-6;
+	if (Hand == ELotHand::Bowl)
 	{
-	case ELotHand::Bowl:
-	case ELotHand::Scoop:
 		if (FVector2D::Distance(Aim, LotLayout::TroughPos) <= LotLayout::TroughReachCm)
 		{
 			Game.ScoopFromTrough(DeltaSeconds);
+			bFillActive = bRoom && Game.GetPlantStock() > 0.0;
 		}
-		break;
-	case ELotHand::Bucket:
+	}
+	else if (FLotGame::IsVessel(Hand))
+	{
 		if (ELotSource Source; ADIAMovable::FindTapAt(GetWorld(), Aim, Source))
 		{
-			// The tap of a standing suitcase or cart comes before the outlet: the bucket fills from what stands there.
-			Game.FillBucket(Source, DeltaSeconds);
+			// The tap of a standing suitcase or cart comes before the outlet: the vessel fills from what stands there.
+			Game.FillVessel(Hand, Source, DeltaSeconds);
+			bFillActive = bRoom;
 		}
 		else if (DIARefill::IsAtOutlet(Game, Aim))
 		{
-			Game.FillBucket(ELotSource::Plant, DeltaSeconds);
+			Game.FillVessel(Hand, ELotSource::Plant, DeltaSeconds);
+			bFillActive = bRoom && Game.GetPlantStock() > 0.0;
 		}
-		break;
-	default:
-		break;
 	}
 }
 
@@ -588,6 +641,7 @@ void ADIACharacter::Tick(float DeltaSeconds)
 		State.PlayerPos = FVector2D(Location.X, Location.Y);
 		State.PlayerYawDeg = GetActorRotation().Yaw;
 
+		bFillActive = false;
 		if (bUsing && !bExternalView)
 		{
 			UseHand(*Subsystem, DeltaSeconds);
@@ -596,6 +650,11 @@ void ADIACharacter::Tick(float DeltaSeconds)
 		{
 			FillHand(*Subsystem, DeltaSeconds);
 		}
+		{
+			const FLotGame& Game = Subsystem->GetGame();
+			bPourActive = bUsing && !bExternalView && Game.GetHeld() == ELotMovable::Count && Game.GetHandLitres(Game.GetHand()) > 0.0;
+		}
+		UpdateHandAnimation(DeltaSeconds);
 		// The level of the bowl or bucket follows the scooping and pouring from tick to tick.
 		UpdateLiquid();
 	}

@@ -111,8 +111,8 @@ bool FHudActorTest::RunTest(const FString& Parameters)
 	TickFor(3.0f);
 	TestEqual(TEXT("toasts are gone"), Hud->GetToasts().Num(), 0);
 	Subsystem->GetGame().DebugGive(1000.0);
-	TestTrue(TEXT("the scoop can be bought"), Subsystem->BuyItem(ELotItem::Scoop));
-	TestEqual(TEXT("item toast"), Hud->GetToasts().GetText(0).ToString(), FString(TEXT("Scoop bought")));
+	TestTrue(TEXT("the canister can be bought"), Subsystem->BuyItem(ELotItem::Canister));
+	TestEqual(TEXT("item toast"), Hud->GetToasts().GetText(0).ToString(), FString(TEXT("Canister bought")));
 
 	// Once destroyed the HUD no longer listens.
 	Hud->Destroy();

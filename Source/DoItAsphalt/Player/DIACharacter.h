@@ -27,6 +27,12 @@ namespace DIACharacter
 	inline constexpr float WorkViewBlendSeconds = 0.2f;
 	/** Where the hand pivot hangs in front of the camera (camera axes: X forward, Y right, Z up): lower right of the picture. */
 	inline const FVector HandPivotOffsetCm(58.0, 25.0, -27.0);
+	/** How the vessel in hand moves while it pours (tilt about its front rim), per hand in ELotHand order, and how fast the movement blends in and out (1/s). */
+	inline constexpr float PourTiltDeg[4] = {38.f, 62.f, 66.f, 56.f};
+	inline constexpr float AnimBlendPerSec = 5.f;
+	/** The spoon makes one stroke (trough and back) per LotBalance::ScoopCycleSeconds; the vessels under a tap rock this much (degrees) and this fast (Hz). */
+	inline constexpr float FillRockDeg = 3.5f;
+	inline constexpr float FillRockHz = 7.f;
 	/** Thickness of the disc that shows the level of the asphalt in the bowl and the bucket. */
 	inline constexpr float LiquidThicknessCm = 0.4f;
 	/** The Mannequin mesh faces +Y and its origin is at the feet: rotate -90 yaw and lower by the capsule half height. */
@@ -69,6 +75,12 @@ public:
 	/** Fill (R, held): scoops from the trough with the bowl or scoop, fills the bucket at a tap or the outlet. The left button only pours or dumps. */
 	void SetFilling(bool bFill) { bFilling = bFill; }
 	bool IsFillingHeld() const { return bFilling; }
+	/** What the tool is doing now (for the picture and the sounds): pouring from a vessel with content, taking asphalt from a source. */
+	bool IsPouringNow() const { return bPourActive; }
+	bool IsFillingNow() const { return bFillActive; }
+	/** 0..1 blend of the pour tilt and of the fill movement now shown (tests). */
+	float GetPourBlend() const { return PourBlend; }
+	float GetFillBlend() const { return FillBlend; }
 	/** Work view (right button, held): the field of view narrows and the view tilts down; it eases back on release. */
 	void SetWorkView(bool bWork);
 	bool IsWorkView() const { return bWorkView; }
@@ -115,6 +127,8 @@ private:
 	FQuat GetViewQuat() const;
 	/** Smoothed work view amount, 0..1. */
 	float GetWorkViewBlend() const;
+	/** Moves the tool for the pour (tilt), the fill under a tap (rock) and the spoon's strokes into the trough; only the picture, the core knows nothing of it. */
+	void UpdateHandAnimation(float DeltaSeconds);
 	/** One tick of the held Use button with the item in hand. */
 	void UseHand(UDIAWorldSubsystem& Subsystem, float DeltaSeconds);
 	/** What the Fill key does (scooping, filling the bucket); UseHand is the left button (pouring, dumping, trowel). */
@@ -168,6 +182,15 @@ private:
 	/** The item the pivot shows now and the movable held then; Count before the first refresh. */
 	ELotHand ShownHand = ELotHand::Count;
 	ELotMovable ShownHeld = ELotMovable::Count;
+	/** Set by the tick: the left button pours something, the fill key takes asphalt from where it aims. */
+	bool bPourActive = false;
+	bool bFillActive = false;
+	/** The movement shown: blends (0..1), the spoon's stroke phase (0..1), the time of the rocking and what was added to the right glove and sleeve so far. */
+	float PourBlend = 0.f;
+	float FillBlend = 0.f;
+	float StrokePhase = 0.f;
+	float RockTime = 0.f;
+	FVector AppliedRightHandDelta = FVector::ZeroVector;
 	/** Content of the vessel the disc shows now, to skip the work when nothing changed. */
 	double ShownLitres = -1.0;
 
