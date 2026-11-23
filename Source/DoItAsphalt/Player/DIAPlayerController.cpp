@@ -1,6 +1,7 @@
 // Copyright Do it Asphalt. All Rights Reserved.
 
 #include "Player/DIAPlayerController.h"
+#include "Game/DIASettings.h"
 #include "DoItAsphalt.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
@@ -60,6 +61,9 @@ void ADIAPlayerController::SetupInputComponent()
 	Enhanced->BindAction(Input.Flap, ETriggerEvent::Started, this, &ADIAPlayerController::OnFlapStarted);
 	Enhanced->BindAction(Input.Flap, ETriggerEvent::Completed, this, &ADIAPlayerController::OnFlapCompleted);
 	Enhanced->BindAction(Input.Flap, ETriggerEvent::Canceled, this, &ADIAPlayerController::OnFlapCompleted);
+	Enhanced->BindAction(Input.Fill, ETriggerEvent::Started, this, &ADIAPlayerController::OnFillStarted);
+	Enhanced->BindAction(Input.Fill, ETriggerEvent::Completed, this, &ADIAPlayerController::OnFillCompleted);
+	Enhanced->BindAction(Input.Fill, ETriggerEvent::Canceled, this, &ADIAPlayerController::OnFillCompleted);
 	Enhanced->BindAction(Input.WorkView, ETriggerEvent::Started, this, &ADIAPlayerController::OnWorkViewStarted);
 	Enhanced->BindAction(Input.WorkView, ETriggerEvent::Completed, this, &ADIAPlayerController::OnWorkViewCompleted);
 	Enhanced->BindAction(Input.WorkView, ETriggerEvent::Canceled, this, &ADIAPlayerController::OnWorkViewCompleted);
@@ -67,7 +71,6 @@ void ADIAPlayerController::SetupInputComponent()
 	Enhanced->BindAction(Input.Hand1, ETriggerEvent::Started, this, &ADIAPlayerController::OnSelectHand, ELotHand::Bowl);
 	Enhanced->BindAction(Input.Hand2, ETriggerEvent::Started, this, &ADIAPlayerController::OnSelectHand, ELotHand::Scoop);
 	Enhanced->BindAction(Input.Hand3, ETriggerEvent::Started, this, &ADIAPlayerController::OnSelectHand, ELotHand::Bucket);
-	Enhanced->BindAction(Input.Hand4, ETriggerEvent::Started, this, &ADIAPlayerController::OnSelectHand, ELotHand::Trowel);
 	Enhanced->BindAction(Input.Interact, ETriggerEvent::Started, this, &ADIAPlayerController::OnInteract);
 	Enhanced->BindAction(Input.Shop, ETriggerEvent::Started, this, &ADIAPlayerController::OnShop);
 	Enhanced->BindAction(Input.CheckView, ETriggerEvent::Started, this, &ADIAPlayerController::OnCheckViewStarted);
@@ -113,7 +116,8 @@ void ADIAPlayerController::OnMoveStopped()
 
 void ADIAPlayerController::OnLook(const FInputActionValue& Value)
 {
-	const FVector2D Axis = Value.Get<FVector2D>();
+	// The setting of the menu scales the mouse (1 is the feel the game had without it).
+	const FVector2D Axis = Value.Get<FVector2D>() * DIASettings::GetMouseSensitivity();
 	if (ADIACharacter* Character = GetDIACharacter())
 	{
 		Character->DoLook(Axis.X, Axis.Y);
@@ -162,6 +166,22 @@ void ADIAPlayerController::OnFlapCompleted()
 	if (ADIACharacter* Character = GetDIACharacter())
 	{
 		Character->SetFlap(false);
+	}
+}
+
+void ADIAPlayerController::OnFillStarted()
+{
+	if (ADIACharacter* Character = GetDIACharacter(); Character && !IsUiInput())
+	{
+		Character->SetFilling(true);
+	}
+}
+
+void ADIAPlayerController::OnFillCompleted()
+{
+	if (ADIACharacter* Character = GetDIACharacter())
+	{
+		Character->SetFilling(false);
 	}
 }
 
@@ -416,6 +436,7 @@ void ADIAPlayerController::ReleaseControls()
 		Character->SetSprinting(false);
 		Character->SetUsing(false);
 		Character->SetFlap(false);
+		Character->SetFilling(false);
 		Character->SetWorkView(false);
 	}
 	if (ADIAPaverCar* Car = GetDIACar())

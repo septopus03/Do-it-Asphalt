@@ -17,12 +17,10 @@ DIA_TEST(FLotAutoPaverRatePerMinuteTest, "DoItAsphalt.Lot.AutoPaver.RatePerMinut
 DIA_TEST(FLotAutoPaverStarvedByPlantTest, "DoItAsphalt.Lot.AutoPaver.StarvedByPlant")
 DIA_TEST(FLotAutoPaverFinishesSectorTest, "DoItAsphalt.Lot.AutoPaver.FinishesSector")
 DIA_TEST(FLotAutoPaverSkipsCompletedTest, "DoItAsphalt.Lot.AutoPaver.SkipsCompleted")
-DIA_TEST(FLotAutoPaverFinishesRawTest, "DoItAsphalt.Lot.AutoPaver.FinishesRaw")
 DIA_TEST(FLotAutoPaverReassignTest, "DoItAsphalt.Lot.AutoPaver.Reassign")
 DIA_TEST(FLotCarNothingWithoutCarTest, "DoItAsphalt.Lot.Car.NothingWithoutCar")
 DIA_TEST(FLotCarWidthTest, "DoItAsphalt.Lot.Car.Width")
 DIA_TEST(FLotCarDrawsFromStockTest, "DoItAsphalt.Lot.Car.DrawsFromStock")
-DIA_TEST(FLotCarFinishesRawTest, "DoItAsphalt.Lot.Car.FinishesRaw")
 DIA_TEST(FLotCarSpawnAndLevelTest, "DoItAsphalt.Lot.Car.SpawnAndLevel")
 DIA_TEST(FLotMachinesLitresConservedTest, "DoItAsphalt.Lot.Machines.LitresConserved")
 
@@ -192,7 +190,8 @@ bool FLotAutoPaverRatePerMinuteTest::RunTest(const FString& Parameters)
 		G.Tick(60.0);
 		const int32 Cells = G.GetCompletedCells();
 		TestTrue(*FString::Printf(TEXT("level %d lays %d cells"), Level, Cells), FMath::Abs(Cells - Expected[Level]) <= 2.0);
-		TestNearlyEqual(*FString::Printf(TEXT("level %d credits"), Level), G.GetCredits() - CreditsBefore, Cells * 10.0, Tolerance);
+		TestNearlyEqual(*FString::Printf(TEXT("level %d credits"), Level), G.GetCredits() - CreditsBefore,
+			Cells * static_cast<double>(LotBalance::CreditsPerCell) + G.GetTotalLitres() * LotBalance::CreditsPerLitre, Tolerance);
 	}
 	return true;
 }
@@ -258,36 +257,6 @@ bool FLotAutoPaverSkipsCompletedTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-bool FLotAutoPaverFinishesRawTest::RunTest(const FString& Parameters)
-{
-	FLotGame G;
-	RichPaver(G, 0);
-	const int32 RawStep = 150;
-	const int32 RawCell = AsphaltLot::SectorCell(TestSector, RawStep);
-	for (int32 Step = 0; Step < AsphaltLot::CellsPerSector; ++Step)
-	{
-		if (Step != RawStep)
-		{
-			G.DebugCompleteCell(AsphaltLot::SectorCell(TestSector, Step));
-		}
-	}
-	G.GetGrid().DepositIntoCell(RawCell, 100.0, AsphaltLot::CellCentre(RawCell), ELotTexel::Raw);
-	TestEqual(TEXT("raw cell prepared"), G.GetGrid().GetCellRaw(RawCell), FLotGrid::TexelsPerCell);
-	TestFalse(TEXT("raw is not complete"), G.GetGrid().IsCellComplete(RawCell));
-
-	const double LitresBefore = G.GetTotalLitres();
-	const double StockBefore = G.GetPlantStock();
-	SendAndArrive(G, TestSector);
-	const double StockAfterTravel = G.GetPlantStock();
-	G.Tick(30.0);
-	TestTrue(TEXT("raw cell finished"), G.GetGrid().IsCellComplete(RawCell));
-	TestEqual(TEXT("no raw left"), G.GetGrid().GetCellRaw(RawCell), 0);
-	TestEqual(TEXT("it cost nothing"), G.GetTotalLitres(), LitresBefore);
-	TestTrue(TEXT("stock only grew"), G.GetPlantStock() >= StockAfterTravel - Tolerance && StockAfterTravel >= StockBefore - Tolerance);
-	TestEqual(TEXT("waiting"), G.GetAutoPaverSector(), static_cast<int32>(INDEX_NONE));
-	return true;
-}
-
 bool FLotAutoPaverReassignTest::RunTest(const FString& Parameters)
 {
 	FLotGame G;
@@ -331,7 +300,7 @@ bool FLotCarWidthTest::RunTest(const FString& Parameters)
 	const FLotEvents Events = G.PourFromCar(A, B);
 	TestEqual(TEXT("three rows of ten"), G.GetCompletedCells(), 30);
 	TestEqual(TEXT("reported"), Events.CompletedCells.Num(), 30);
-	TestNearlyEqual(TEXT("credits"), Events.CreditsEarned, 300.0, Tolerance);
+	TestNearlyEqual(TEXT("credits: ten a cell and one a litre"), Events.CreditsEarned, 300.0 + Events.LitresPoured * LotBalance::CreditsPerLitre, Tolerance);
 	TestTrue(TEXT("row above"), G.GetGrid().IsCellComplete(MiddleCell(45, 39)));
 	TestTrue(TEXT("row below"), G.GetGrid().IsCellComplete(MiddleCell(45, 41)));
 	TestEqual(TEXT("no fourth row"), G.GetGrid().GetCellDone(MiddleCell(45, 42)), 0);
@@ -370,22 +339,6 @@ bool FLotCarDrawsFromStockTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("stock used up"), G.GetPlantStock() < FLotGrid::LitresPerTexel);
 	TestEqual(TEXT("second call pours nothing"), G.PourFromCar(A, B).LitresPoured, 0.0);
 	TestTrue(TEXT("bad input is ignored"), G.PourFromCar(FVector2D(NaN, 0.0), B).LitresPoured == 0.0);
-	return true;
-}
-
-bool FLotCarFinishesRawTest::RunTest(const FString& Parameters)
-{
-	FLotGame G;
-	G.DebugGrantItem(ELotItem::Car);
-	FVector2D A, B;
-	RowStrip(40, 40, 10, A, B);
-	G.GetGrid().Stamp(A, B, LotBalance::CarWidthCm[0], 1000.0, ELotTexel::Raw);
-	TestEqual(TEXT("raw strip prepared"), G.GetCompletedCells(), 0);
-	const double Stock = G.GetPlantStock();
-	const FLotEvents Events = G.PourFromCar(A, B);
-	TestEqual(TEXT("raw finished into cells"), G.GetCompletedCells(), 30);
-	TestEqual(TEXT("no litres used"), Events.LitresPoured, 0.0);
-	TestEqual(TEXT("stock untouched"), G.GetPlantStock(), Stock);
 	return true;
 }
 

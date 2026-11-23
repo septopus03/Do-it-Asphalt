@@ -84,8 +84,8 @@ bool FLotGameCreditsOnlyOnCompletionTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("new game playtime"), G.GetPlaytimeSeconds(), 0.0);
 	TestEqual(TEXT("new game litres"), G.GetTotalLitres(), 0.0);
 	const FLotEvents E = G.DebugCompleteCell(0);
-	TestNearlyEqual(TEXT("credits earned"), E.CreditsEarned, 10.0, Tolerance);
-	TestNearlyEqual(TEXT("credits"), G.GetCredits(), 10.0, Tolerance);
+	TestNearlyEqual(TEXT("credits earned: ten for the cell, one a litre"), E.CreditsEarned, 10.0 + 10.0, Tolerance);
+	TestNearlyEqual(TEXT("credits"), G.GetCredits(), 10.0 + 10.0, Tolerance);
 	TestEqual(TEXT("completed cells"), G.GetCompletedCells(), 1);
 	TestTrue(TEXT("event cells"), E.CompletedCells == TArray<int32>({0}));
 	TestNearlyEqual(TEXT("litres poured"), E.LitresPoured, 10.0, Tolerance);
@@ -100,7 +100,7 @@ bool FLotGameCellPaysOnceTest::RunTest(const FString& Parameters)
 	const FLotEvents E = G.DebugCompleteCell(0);
 	TestEqual(TEXT("second credits"), E.CreditsEarned, 0.0);
 	TestTrue(TEXT("second cells"), E.CompletedCells.IsEmpty());
-	TestNearlyEqual(TEXT("credits"), G.GetCredits(), 10.0, Tolerance);
+	TestNearlyEqual(TEXT("credits"), G.GetCredits(), 10.0 + 10.0, Tolerance);
 	TestEqual(TEXT("cells"), G.GetCompletedCells(), 1);
 	const FLotEvents Invalid = G.DebugCompleteCell(INDEX_NONE);
 	TestTrue(TEXT("invalid cell"), Invalid.CompletedCells.IsEmpty());
@@ -193,8 +193,8 @@ bool FLotPlantLevelsTest::RunTest(const FString& Parameters)
 bool FLotShopPricesTest::RunTest(const FString& Parameters)
 {
 	FLotGame G;
-	const double Expected[11] = {10, 35, 110, 340, 900, 1400, 3000, 9000, 22000, 12000, 24000};
-	for (int32 I = 0; I < 11; ++I)
+	const double Expected[10] = {10, 35, 110, 340, 900, 3000, 9000, 22000, 12000, 24000};
+	for (int32 I = 0; I < 10; ++I)
 	{
 		TestNearlyEqual(FString::Printf(TEXT("price %d"), I), G.GetItemPrice(static_cast<ELotItem>(I)), Expected[I], Tolerance);
 	}
@@ -218,7 +218,6 @@ bool FLotShopLockedUntilUnlockTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("step locked without the segment"), G.IsUnlocked(ELotUnlock::StripWork));
 	TestFalse(TEXT("station not offered"), G.IsItemOffered(ELotItem::Station));
 	TestFalse(TEXT("station not bought"), G.BuyItem(ELotItem::Station));
-	TestFalse(TEXT("finisher not bought"), G.BuyItem(ELotItem::Finisher));
 	for (int32 Cell : EntryCells(2))
 	{
 		TestFalse(TEXT("still locked while the segment is incomplete"), G.IsUnlocked(ELotUnlock::StripWork));
@@ -378,7 +377,7 @@ bool FLotExitOpensAtAllTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("opened by the last cell"), Last.bExitOpened);
 	TestTrue(TEXT("exit open"), G.IsExitOpen());
 	TestEqual(TEXT("exit equals unlock"), G.IsExitOpen(), G.IsUnlocked(ELotUnlock::Exit));
-	TestNearlyEqual(TEXT("credits"), G.GetCredits(), 300000.0, Tolerance);
+	TestNearlyEqual(TEXT("credits: ten a cell and ten litres of each"), G.GetCredits(), 600000.0, Tolerance);
 	TestEqual(TEXT("all complete"), G.GetCompletedCells(), AsphaltLot::NumCells);
 	TestFalse(TEXT("never again"), G.DebugCompleteCells(10).bExitOpened);
 	G.SetWon();

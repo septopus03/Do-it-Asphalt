@@ -12,6 +12,7 @@
 #include "Tests/DIATestWorld.h"
 #include "UI/DIAFormat.h"
 #include "UI/DIAHUD.h"
+#include "UI/DIAMenuModel.h"
 #include "UI/SDIAShopPanel.h"
 
 namespace
@@ -42,7 +43,7 @@ bool FShopRowsTest::RunTest(const FString& Parameters)
 	FLotGame Game;
 	FDIAShopModel Model;
 	TestTrue(TEXT("the first update builds the rows"), Model.Update(Game));
-	if (!TestEqual(TEXT("the plant and eleven items"), FDIAShopModel::NumRows, 12))
+	if (!TestEqual(TEXT("the plant and ten items"), FDIAShopModel::NumRows, 11))
 	{
 		return false;
 	}
@@ -67,18 +68,16 @@ bool FShopRowsTest::RunTest(const FString& Parameters)
 	Is(TEXT("scoop price"), Model.GetRow(1).Price, TEXT("10"));
 	Is(TEXT("suitcase value"), Model.GetRow(3).Value, TEXT("60 l"));
 	Is(TEXT("cart value"), Model.GetRow(4).Value, TEXT("200 l"));
-	Is(TEXT("finisher value"), Model.GetRow(6).Value, TEXT("85 cells/min"));
-	Is(TEXT("auto paver upgrade"), Model.GetRow(8).Value, TEXT("120 → 170 cells/min"));
-	Is(TEXT("auto paver upgrade price"), Model.GetRow(8).Price, TEXT("9,000"));
-	Is(TEXT("wide bar value"), Model.GetRow(11).Value, TEXT("260 → 300 cells/min"));
+	Is(TEXT("auto paver upgrade"), Model.GetRow(7).Value, TEXT("120 → 170 cells/min"));
+	Is(TEXT("auto paver upgrade price"), Model.GetRow(7).Price, TEXT("9,000"));
+	Is(TEXT("wide bar value"), Model.GetRow(10).Value, TEXT("260 → 300 cells/min"));
 	TestTrue(TEXT("the scoop is too expensive for nothing"), Model.GetRow(1).State == EDIAShopState::NoCredits);
 
 	// The machines are visible and locked, with the reason.
 	TestTrue(TEXT("the station is locked"), Model.GetRow(5).State == EDIAShopState::Locked);
 	Is(TEXT("the station's reason"), Model.GetRow(5).Reason, TEXT("350 cells + entry 3"));
-	Is(TEXT("the finisher's reason"), Model.GetRow(6).Reason, TEXT("350 cells + entry 3"));
-	Is(TEXT("the auto paver's reason"), Model.GetRow(7).Reason, TEXT("800 cells + entry 4"));
-	Is(TEXT("the car's reason"), Model.GetRow(10).Reason, TEXT("6,000 cells + entry 5"));
+	Is(TEXT("the auto paver's reason"), Model.GetRow(6).Reason, TEXT("800 cells + entry 4"));
+	Is(TEXT("the car's reason"), Model.GetRow(9).Reason, TEXT("6,000 cells + entry 5"));
 	TestTrue(TEXT("the unlocked rows have no reason"), Model.GetRow(1).Reason.IsEmpty());
 
 	// With money the first four items and the plant can be bought.
@@ -157,8 +156,8 @@ bool FShopPlantMaxTest::RunTest(const FString& Parameters)
 	FDIAShopModel Model;
 	Model.Update(Game);
 
-	// The highest level is owned: no price, the rate that is reached, and the row goes to the end with the owned ones.
-	const FDIAShopRow& Plant = Model.GetRow(FDIAShopModel::NumRows - 1);
+	// The highest level is owned: no price, and the rate that is reached; the row stays first.
+	const FDIAShopRow& Plant = Model.GetRow(0);
 	TestTrue(TEXT("the plant row"), Plant.bPlant);
 	TestTrue(TEXT("owned"), Plant.State == EDIAShopState::Owned);
 	TestTrue(TEXT("no price"), Plant.Price.IsEmpty());
@@ -206,13 +205,12 @@ bool FShopBuyThroughModelTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("a row cannot be bought twice"), Model.Buy(Model.TargetOf(Scoop, Game), *Subsystem));
 	TestEqual(TEXT("the bucket did not move up"), Model.GetRow(Scoop + 1).Item, ELotItem::Bucket);
 
-	// Sorting (the shop opening again) puts the owned rows last, in their own order.
+	// Owned rows stay where they are, however many there are.
 	Game.DebugGrantItem(ELotItem::Bucket);
 	Model.Update(Game);
+	TestEqual(TEXT("the scoop stays"), RowOfItem(Model, ELotItem::Scoop), Scoop);
 	TestEqual(TEXT("the bucket also stays"), RowOfItem(Model, ELotItem::Bucket), Scoop + 1);
-	Model.Resort();
-	TestEqual(TEXT("the scoop before the bucket"), RowOfItem(Model, ELotItem::Scoop), FDIAShopModel::NumRows - 2);
-	TestEqual(TEXT("the bucket last"), RowOfItem(Model, ELotItem::Bucket), FDIAShopModel::NumRows - 1);
+	TestTrue(TEXT("both are owned"), Model.GetRow(Scoop).State == EDIAShopState::Owned && Model.GetRow(Scoop + 1).State == EDIAShopState::Owned);
 
 	// The plant goes through the subsystem as well.
 	Game.DebugGive(1000.0);
@@ -240,7 +238,6 @@ bool FShopRowsStayPutTest::RunTest(const FString& Parameters)
 	Game.DebugGive(500.0 - Game.GetCredits());
 	FDIAShopModel Model;
 	Model.Update(Game);
-	Model.Resort(); // the shop opens
 
 	ELotItem Before[FDIAShopModel::NumRows];
 	for (int32 I = 0; I < FDIAShopModel::NumRows; ++I)
@@ -294,10 +291,62 @@ bool FShopRowsStayPutTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("the same request again buys nothing"), Model.Buy(Plant, *Subsystem));
 	TestEqual(TEXT("still level 1"), Game.GetPlantLevel(), 1);
 
-	// Closing and opening again sorts.
+	// Whatever was bought, nothing has moved.
 	Model.Update(Game);
-	Model.Resort();
-	TestEqual(TEXT("the scoop is at the end after opening again"), RowOfItem(Model, ELotItem::Bucket), FDIAShopModel::NumRows - 1);
+	TestEqual(TEXT("the bucket is still where it was"), RowOfItem(Model, ELotItem::Bucket), 2);
+	return true;
+}
+
+DIA_TEST(FShopDevStartTest, "DoItAsphalt.Game.Shop.DevStart")
+
+bool FShopDevStartTest::RunTest(const FString& Parameters)
+{
+	// Dev Start: a new game in which the whole shop can be bought (and the exit is still closed).
+	FTestWorldWrapper Wrapper;
+	if (!DIATest::StartGameWorld(Wrapper, *this))
+	{
+		return false;
+	}
+	UDIAWorldSubsystem* Subsystem = Wrapper.GetTestWorld()->GetSubsystem<UDIAWorldSubsystem>();
+	if (!TestNotNull(TEXT("world subsystem"), Subsystem))
+	{
+		return false;
+	}
+	Subsystem->DevStart();
+	FLotGame& Game = Subsystem->GetGame();
+	TestFalse(TEXT("the exit is closed"), Game.IsExitOpen());
+	TestTrue(TEXT("the unlock cells are done"), Game.GetCompletedCells() >= LotBalance::UnlockCells[static_cast<int32>(ELotUnlock::Car)]);
+
+	for (int32 I = 0; I < static_cast<int32>(ELotItem::Count); ++I)
+	{
+		const ELotItem Item = static_cast<ELotItem>(I);
+		TestTrue(*FString::Printf(TEXT("item %d is offered"), I), Game.IsItemOffered(Item));
+		TestTrue(*FString::Printf(TEXT("item %d can be bought"), I), Game.BuyItem(Item));
+	}
+	for (int32 Level = 1; Level <= static_cast<int32>(std::size(LotBalance::PlantPrice)); ++Level)
+	{
+		TestTrue(*FString::Printf(TEXT("plant level %d can be bought"), Level), Game.BuyPlant());
+	}
+	TestEqual(TEXT("everything is owned"), Game.GetNumItemsOwned(), static_cast<int32>(ELotItem::Count));
+	TestTrue(TEXT("the credits were enough"), Game.GetCredits() >= 0.0);
+	return true;
+}
+
+DIA_TEST(FMenuDevStartTest, "DoItAsphalt.Game.Menu.DevStartButton")
+
+bool FMenuDevStartTest::RunTest(const FString& Parameters)
+{
+	// Only the main menu offers Dev Start, and not while the question or the settings are up.
+	FDIAMenuModel Model;
+	Model.Open(EDIAMenuMode::Main, false);
+	TestEqual(TEXT("the main menu offers it outside Shipping"), Model.ShowsDevStart(), FDIAMenuModel::bDevStartAvailable);
+	Model.bConfirming = true;
+	TestFalse(TEXT("not at the question"), Model.ShowsDevStart());
+	Model.Open(EDIAMenuMode::Pause, false);
+	TestFalse(TEXT("not in the pause menu"), Model.ShowsDevStart());
+	Model.Open(EDIAMenuMode::Main, true);
+	Model.OpenSettings();
+	TestFalse(TEXT("not in the settings"), Model.ShowsDevStart());
 	return true;
 }
 

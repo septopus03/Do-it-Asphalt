@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Engine/World.h"
 #include "Game/DIAGameMode.h"
+#include "Game/DIAWorldSubsystem.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/WorldSettings.h"
 #include "Player/DIACharacter.h"
@@ -13,8 +14,11 @@
 
 namespace DIATest
 {
-	/** Creates a game world that uses ADIAGameMode regardless of the project config and starts play in it. */
-	inline bool StartGameWorld(FTestWorldWrapper& Wrapper, FAutomationTestBase& Test)
+	/**
+	 * Creates a game world that uses ADIAGameMode regardless of the project config and starts play in it. The poured asphalt does not run
+	 * in it (the tests are about the tools, which pour and are measured at once); a test of the fluid asks for it with bFluid.
+	 */
+	inline bool StartGameWorld(FTestWorldWrapper& Wrapper, FAutomationTestBase& Test, bool bFluid = false)
 	{
 		if (!Wrapper.CreateTestWorld(EWorldType::Game))
 		{
@@ -31,6 +35,10 @@ namespace DIATest
 		{
 			Wrapper.ForwardErrorMessages(&Test);
 			return false;
+		}
+		if (UDIAWorldSubsystem* Subsystem = UDIAWorldSubsystem::Get(Wrapper.GetTestWorld()))
+		{
+			Subsystem->GetGame().SetFluidEnabled(bFluid);
 		}
 		return true;
 	}

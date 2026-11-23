@@ -57,8 +57,7 @@ void ADIAHUD::SetShopOpen(bool bOpen)
 	{
 		if (bShopOpen)
 		{
-			// The rows are sorted as the shop opens and keep their places until it closes.
-			ShopPanel->Resort();
+			ShopPanel->Refresh();
 		}
 		ShopPanel->SetVisibility(bShopOpen ? EVisibility::SelfHitTestInvisible : EVisibility::Collapsed);
 	}
@@ -137,6 +136,15 @@ void ADIAHUD::NewGame()
 	CloseMenu();
 }
 
+void ADIAHUD::DevStart()
+{
+	if (UDIAWorldSubsystem* Subsystem = BoundSubsystem.Get())
+	{
+		Subsystem->DevStart();
+	}
+	CloseMenu();
+}
+
 void ADIAHUD::ContinueGame()
 {
 	UDIAWorldSubsystem* Subsystem = BoundSubsystem.Get();
@@ -206,6 +214,11 @@ void ADIAHUD::CloseMenu()
 
 void ADIAHUD::TogglePause()
 {
+	// In the settings Esc goes back to the buttons first (in either menu).
+	if (Menu.IsValid() && Menu->BackFromSettings())
+	{
+		return;
+	}
 	if (MenuMode == EDIAMenuMode::Pause)
 	{
 		CloseMenu();
@@ -215,6 +228,29 @@ void ADIAHUD::TogglePause()
 		OpenMenu(EDIAMenuMode::Pause);
 	}
 }
+
+#if !UE_BUILD_SHIPPING
+bool ADIAHUD::DebugShowScreen(const FString& Name)
+{
+	if (Name.Equals(TEXT("Win"), ESearchCase::IgnoreCase))
+	{
+		ShowWinScreen();
+		return true;
+	}
+	const bool bSettings = Name.Equals(TEXT("Settings"), ESearchCase::IgnoreCase);
+	const bool bQuestion = Name.Equals(TEXT("Question"), ESearchCase::IgnoreCase);
+	if (!bSettings && !bQuestion && !Name.Equals(TEXT("Pause"), ESearchCase::IgnoreCase))
+	{
+		return false;
+	}
+	OpenMenu(EDIAMenuMode::Pause);
+	if (Menu.IsValid())
+	{
+		Menu->DebugSetState(bSettings, bQuestion);
+	}
+	return true;
+}
+#endif
 
 void ADIAHUD::SkipMenu()
 {
@@ -306,6 +342,7 @@ void ADIAHUD::CreateOverlay(UDIAWorldSubsystem* Subsystem)
 		.OnContinue(FSimpleDelegate::CreateUObject(this, &ADIAHUD::ContinueGame))
 		.OnResume(FSimpleDelegate::CreateUObject(this, &ADIAHUD::CloseMenu))
 		.OnNewGame(FSimpleDelegate::CreateUObject(this, &ADIAHUD::NewGame))
+		.OnDevStart(FSimpleDelegate::CreateUObject(this, &ADIAHUD::DevStart))
 		.OnQuit(FSimpleDelegate::CreateUObject(this, &ADIAHUD::QuitGame));
 	GEngine->GameViewport->AddViewportWidgetContent(Menu.ToSharedRef(), AsphaltHud::MenuZOrder);
 

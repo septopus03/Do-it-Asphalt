@@ -39,32 +39,33 @@ namespace
 		constexpr int32 TotalLitres = 32;
 		constexpr int32 PlantLevel = 40;
 		constexpr int32 PlantStock = 44;
-		constexpr int32 Owned = 52; // 11 bytes in ELotItem order
-		constexpr int32 Hand = 63;
-		constexpr int32 Bowl = 67;
-		constexpr int32 Scoop = 75;
-		constexpr int32 Bucket = 83;
-		constexpr int32 Swap = 91;
-		constexpr int32 Suitcase = 99;
-		constexpr int32 Cart = 107;
-		constexpr int32 Held = 115;
-		constexpr int32 PaverSector = 119;
-		constexpr int32 PaverStep = 123;
-		constexpr int32 PaverPos = 127;
-		constexpr int32 PaverTravelling = 143;
-		constexpr int32 PaverBudget = 144;
-		constexpr int32 Won = 152;
-		constexpr int32 PlayerPos = 153;
-		constexpr int32 PlayerYaw = 169;
-		constexpr int32 Movables = 177; // 4 x (position 16 bytes, yaw 8 bytes)
-		constexpr int32 CarPos = 273;
-		constexpr int32 CarYaw = 289;
-		constexpr int32 InCar = 297;
-		constexpr int32 Grid = 298;
+		constexpr int32 Owned = 52; // 10 bytes in ELotItem order
+		constexpr int32 Hand = 62;
+		constexpr int32 Bowl = 66;
+		constexpr int32 Scoop = 74;
+		constexpr int32 Bucket = 82;
+		constexpr int32 Swap = 90;
+		constexpr int32 Suitcase = 98;
+		constexpr int32 Cart = 106;
+		constexpr int32 Held = 114;
+		constexpr int32 PaverSector = 118;
+		constexpr int32 PaverStep = 122;
+		constexpr int32 PaverPos = 126;
+		constexpr int32 PaverTravelling = 142;
+		constexpr int32 PaverBudget = 143;
+		constexpr int32 Won = 151;
+		constexpr int32 PlayerPos = 152;
+		constexpr int32 PlayerYaw = 168;
+		constexpr int32 Movables = 176; // 3 x (position 16 bytes, yaw 8 bytes)
+		constexpr int32 CarPos = 248;
+		constexpr int32 CarYaw = 264;
+		constexpr int32 InCar = 272;
+		constexpr int32 Grid = 273;
 		constexpr int32 CompleteBitsBytes = 3750;
 		constexpr int32 InProgressCount = Grid + CompleteBitsBytes;
 		constexpr int32 Records = InProgressCount + 4;
-		constexpr int32 RecordBytes = 104;
+		/** A cell index and one bit per texel of the cell. */
+		constexpr int32 RecordBytes = 4 + 50;
 	}
 
 	void PatchU8(TArray<uint8>& Blob, int32 At, uint8 Value)
@@ -119,17 +120,17 @@ namespace
 		return AsphaltLot::CellIndex(Col, 150 - 60);
 	}
 
-	/** Three in-progress cells: finished only, raw only, and raw plus finished texels. */
+	/** Three in-progress cells, each part-covered by a different amount. */
 	void AddInProgressCells(FLotGame& G)
 	{
 		FVector2D A, B;
 		CellStrip(FarCell(40), A, B);
-		G.GetGrid().Stamp(A, B, 100.0, 2.0, ELotTexel::Done);
+		G.GetGrid().Stamp(A, B, 100.0, 2.0);
 		CellStrip(FarCell(41), A, B);
-		G.GetGrid().Stamp(A, B, 100.0, 1.5, ELotTexel::Raw);
+		G.GetGrid().Stamp(A, B, 100.0, 1.5);
 		CellStrip(FarCell(42), A, B);
-		G.GetGrid().Stamp(A, B, 100.0, 1.0, ELotTexel::Raw);
-		G.GetGrid().DepositIntoCell(FarCell(42), 0.75, AsphaltLot::CellCentre(FarCell(42)), ELotTexel::Done);
+		G.GetGrid().Stamp(A, B, 100.0, 1.0);
+		G.GetGrid().DepositIntoCell(FarCell(42), 0.75, AsphaltLot::CellCentre(FarCell(42)));
 	}
 
 	/**
@@ -143,7 +144,7 @@ namespace
 		G.DebugSetPlantLevel(2);
 		G.DebugSetPlantStock(G.GetPlantStorage());
 		for (ELotItem Item : {ELotItem::Scoop, ELotItem::Bucket, ELotItem::Suitcase, ELotItem::Cart, ELotItem::Station,
-			ELotItem::Finisher, ELotItem::AutoPaver, ELotItem::AutoPaverFast, ELotItem::Car})
+			ELotItem::AutoPaver, ELotItem::AutoPaverFast, ELotItem::Car})
 		{
 			G.DebugGrantItem(Item);
 		}
@@ -247,7 +248,7 @@ bool FLotSaveRoundTripTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("sector assigned"), Source.GetAutoPaverSector(), 7);
 		TestTrue(TEXT("step reached"), Source.GetAutoPaverStep() >= 123);
 		TestTrue(TEXT("swap in progress"), Source.IsHandBusy());
-		TestEqual(TEXT("three in-progress cells at least"), Source.GetGrid().GetCellRaw(FarCell(41)) > 0 && Source.GetGrid().GetCellDone(FarCell(40)) > 0, true);
+		TestEqual(TEXT("three in-progress cells at least"), Source.GetGrid().GetCellDone(FarCell(41)) > 0 && Source.GetGrid().GetCellDone(FarCell(40)) > 0, true);
 
 		const TArray<uint8> Bytes = Source.SaveToBytes();
 		FLotGame Loaded;
@@ -358,7 +359,6 @@ bool FLotSaveGridRoundTripTest::RunTest(const FString& Parameters)
 	for (int32 Cell : {0, 39, 40, FarCell(40), FarCell(41), FarCell(42)})
 	{
 		TestEqual(FString::Printf(TEXT("done counter of %d"), Cell), Loaded.GetCellDone(Cell), Source.GetGrid().GetCellDone(Cell));
-		TestEqual(FString::Printf(TEXT("raw counter of %d"), Cell), Loaded.GetCellRaw(Cell), Source.GetGrid().GetCellRaw(Cell));
 		TestEqual(FString::Printf(TEXT("complete flag of %d"), Cell), Loaded.IsCellComplete(Cell), Source.GetGrid().IsCellComplete(Cell));
 	}
 
@@ -377,7 +377,7 @@ bool FLotSaveGridRoundTripTest::RunTest(const FString& Parameters)
 
 	// The loaded grid works on: completing the partial cell still takes the right litres.
 	const FLotPour Pour = Loaded.CompleteCell(FarCell(40));
-	TestEqual(TEXT("free part of the half-done cell"), Pour.TexelsChanged, FLotGrid::TexelsPerCell - Source.GetGrid().GetCellDone(FarCell(40)) - Source.GetGrid().GetCellRaw(FarCell(40)));
+	TestEqual(TEXT("free part of the half-done cell"), Pour.TexelsChanged, FLotGrid::TexelsPerCell - Source.GetGrid().GetCellDone(FarCell(40)));
 	return true;
 }
 
@@ -395,16 +395,17 @@ bool FLotSaveGridReadIsAtomicTest::RunTest(const FString& Parameters)
 	FLotGrid Target;
 	FVector2D A, B;
 	CellStrip(FarCell(10), A, B);
-	Target.Stamp(A, B, 100.0, 3.0, ELotTexel::Done);
+	Target.Stamp(A, B, 100.0, 3.0);
 	const TArray<uint8> TexelsBefore(Target.GetTexels().GetData(), Target.GetTexels().Num());
 	TArray<uint8> BytesBefore;
 	Target.Write(BytesBefore);
 
 	// The damage is in the last record, after two good ones.
 	TArray<uint8> Bad = Good;
-	PatchU8(Bad, Off::CompleteBitsBytes + 4 + 2 * Off::RecordBytes + 10, 0xFF);
+	const int32 LastRecord = Off::CompleteBitsBytes + 4 + 2 * Off::RecordBytes;
+	PatchI32(Bad, LastRecord, ReadI32(Bad, LastRecord - Off::RecordBytes));
 	int32 BytesRead = 77;
-	TestFalse(TEXT("texel 3 in the last record"), Target.Read(Bad, BytesRead));
+	TestFalse(TEXT("a repeated index in the last record"), Target.Read(Bad, BytesRead));
 	TestEqual(TEXT("bytes read untouched"), BytesRead, 77);
 	TestTrue(TEXT("texels untouched"), SameBytes(TexelsBefore, Target.GetTexels()));
 	TArray<uint8> BytesAfter;
@@ -450,7 +451,8 @@ bool FLotSaveDerivedStateTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("nearest incomplete cell"), Loaded.FindNearestIncomplete(FVector2D::ZeroVector), Source.FindNearestIncomplete(FVector2D::ZeroVector));
 
 	// Quick swap is open: a swap is instant in the loaded game.
-	TestTrue(TEXT("trowel"), Loaded.SelectHand(ELotHand::Trowel));
+	Loaded.DebugGrantItem(ELotItem::Scoop);
+	TestTrue(TEXT("scoop"), Loaded.SelectHand(ELotHand::Scoop));
 	TestFalse(TEXT("no swap time"), Loaded.IsHandBusy());
 	return true;
 }
@@ -484,7 +486,8 @@ bool FLotSaveRejectsCorruptDataTest::RunTest(const FString& Parameters)
 
 	// Header.
 	ExpectPatchRejected(*this, Target, Base, TEXT("bad magic"), [](TArray<uint8>& B) { PatchU8(B, Off::Magic, 'X'); });
-	ExpectPatchRejected(*this, Target, Base, TEXT("version 2"), [](TArray<uint8>& B) { PatchI32(B, Off::Version, 2); });
+	ExpectPatchRejected(*this, Target, Base, TEXT("version 1"), [](TArray<uint8>& B) { PatchI32(B, Off::Version, 1); });
+	ExpectPatchRejected(*this, Target, Base, TEXT("version 3"), [](TArray<uint8>& B) { PatchI32(B, Off::Version, 3); });
 	ExpectPatchRejected(*this, Target, Base, TEXT("version 0"), [](TArray<uint8>& B) { PatchI32(B, Off::Version, 0); });
 	ExpectPatchRejected(*this, Target, Base, TEXT("wrong number of cells"), [](TArray<uint8>& B) { PatchI32(B, Off::NumCells, 29999); });
 	ExpectPatchRejected(*this, Target, Base, TEXT("wrong grid size"), [](TArray<uint8>& B) { PatchI32(B, Off::GridSize, 2000); });
@@ -511,7 +514,7 @@ bool FLotSaveRejectsCorruptDataTest::RunTest(const FString& Parameters)
 	ExpectPatchRejected(*this, Target, Base, TEXT("owned flag 255"), [](TArray<uint8>& B) { PatchU8(B, Off::Owned, 255); });
 
 	// Hand and vessels.
-	ExpectPatchRejected(*this, Target, Base, TEXT("hand 4"), [](TArray<uint8>& B) { PatchI32(B, Off::Hand, 4); });
+	ExpectPatchRejected(*this, Target, Base, TEXT("hand 3"), [](TArray<uint8>& B) { PatchI32(B, Off::Hand, 3); });
 	ExpectPatchRejected(*this, Target, Base, TEXT("hand -1"), [](TArray<uint8>& B) { PatchI32(B, Off::Hand, -1); });
 	ExpectPatchRejected(*this, Target, Base, TEXT("bowl 3 l"), [](TArray<uint8>& B) { PatchDouble(B, Off::Bowl, 3.0); });
 	ExpectPatchRejected(*this, Target, Base, TEXT("bowl -0.5 l"), [](TArray<uint8>& B) { PatchDouble(B, Off::Bowl, -0.5); });
@@ -651,26 +654,25 @@ bool FLotSaveRejectsCorruptGridTest::RunTest(const FString& Parameters)
 	ExpectPatchRejected(*this, Target, Base, TEXT("descending indices"), [Rec0, Rec1](TArray<uint8>& B) { PatchI32(B, Rec0, ReadI32(B, Rec1) + 1); });
 	ExpectPatchRejected(*this, Target, Base, TEXT("in-progress cell also marked complete"), [Cell0](TArray<uint8>& B) { B[Off::Grid + Cell0 / 8] |= static_cast<uint8>(1 << (Cell0 % 8)); });
 
-	// Texels.
-	ExpectPatchRejected(*this, Target, Base, TEXT("texel value 3 in the first byte"), [Rec0](TArray<uint8>& B) { PatchU8(B, Rec0 + 4, 0x03); });
-	ExpectPatchRejected(*this, Target, Base, TEXT("texel value 3 in the last byte"), [Rec1](TArray<uint8>& B) { PatchU8(B, Rec1 + Off::RecordBytes - 1, 0xC0); });
-	ExpectPatchRejected(*this, Target, Base, TEXT("a cell with every texel finished"), [Rec2](TArray<uint8>& B) { FMemory::Memset(&B[Rec2 + 4], 0xAA, 100); });
+	// Texels: one bit each; any pattern is a texel, but the count must be below the threshold and above nothing.
+	ExpectPatchRejected(*this, Target, Base, TEXT("a cell with every texel covered"), [Rec2](TArray<uint8>& B) { FMemory::Memset(&B[Rec2 + 4], 0xFF, 50); });
 	ExpectPatchRejected(*this, Target, Base, TEXT("a cell at the 95 % threshold"), [Rec2](TArray<uint8>& B)
 	{
-		FMemory::Memset(&B[Rec2 + 4], 0x00, 100);
-		FMemory::Memset(&B[Rec2 + 4], 0xAA, 95); // 380 finished texels
+		FMemory::Memset(&B[Rec2 + 4], 0x00, 50);
+		FMemory::Memset(&B[Rec2 + 4], 0xFF, 47);
+		PatchU8(B, Rec2 + 4 + 47, 0x0F); // 47 * 8 + 4 = 380 covered texels
 	});
-	ExpectPatchRejected(*this, Target, Base, TEXT("a record with only free texels (not canonical)"), [Rec1](TArray<uint8>& B) { FMemory::Memset(&B[Rec1 + 4], 0x00, 100); });
+	ExpectPatchRejected(*this, Target, Base, TEXT("a record with only free texels (not canonical)"), [Rec1](TArray<uint8>& B) { FMemory::Memset(&B[Rec1 + 4], 0x00, 50); });
 
 	// Just below the threshold is a valid in-progress cell.
 	{
 		TArray<uint8> Blob = Base;
-		FMemory::Memset(&Blob[Rec2 + 4], 0x00, 100);
-		FMemory::Memset(&Blob[Rec2 + 4], 0xAA, 94);
-		PatchU8(Blob, Rec2 + 4 + 94, 0x0A); // two more finished texels: 94 * 4 + 2 = 378
+		FMemory::Memset(&Blob[Rec2 + 4], 0x00, 50);
+		FMemory::Memset(&Blob[Rec2 + 4], 0xFF, 47);
+		PatchU8(Blob, Rec2 + 4 + 47, 0x07); // 47 * 8 + 3 = 379
 		FLotGame Probe;
-		TestTrue(TEXT("378 finished texels are valid"), Probe.LoadFromBytes(Blob));
-		TestEqual(TEXT("counted"), Probe.GetGrid().GetCellDone(ReadI32(Blob, Rec2)), 378);
+		TestTrue(TEXT("379 covered texels are valid"), Probe.LoadFromBytes(Blob));
+		TestEqual(TEXT("counted"), Probe.GetGrid().GetCellDone(ReadI32(Blob, Rec2)), 379);
 	}
 
 	return true;

@@ -15,20 +15,21 @@ DIA_TEST(FLotBalanceSimPlaythroughTest, "DoItAsphalt.Lot.BalanceSim.Playthrough"
 
 /*
  * Balance playthrough of the whole game: a scripted, deterministic player plays from the first spoonful to the
- * open exit through the public FLotGame API only (Tick, scooping, pouring, filling, grabbing, strips, passes,
+ * open exit through the public FLotGame API only (Tick, scooping, pouring, filling, grabbing, strips,
  * the auto paver, the car), and the test checks the milestones of the design's pacing curve. No random numbers and
  * no Debug* calls; the only clock is GetPlaytimeSeconds(), and time passes only through Tick.
  *
- * Measured times (game time, with the tunables of LotBalance.h as committed):
+ * Measured times (game time, with the tunables of LotBalance.h as committed; asphalt is not smoothed, so the cart lays
+ * finished strips on its own and the game is shorter than it was with the finisher):
  *   milestone      measured   allowed
  *   1st cell       0:42 min   40 - 80 s
- *   10 cells       2:39       up to 6:00
- *   100 cells      8:07       up to 18:00
- *   350 cells      22:34      (logged only)
- *   800 cells      41:17      up to 42:00
- *   6 000 cells    73:07      up to 78:00
- *   30 000 cells   141:27     105 - 165 min (the exit opens at the same moment)
- *   Unlock steps: quick swap 2:47, sprint 9:26, strip work 22:35, auto paver 43:59, car 75:06, exit 141:27.
+ *   10 cells       1:54       up to 6:00
+ *   100 cells      6:26       up to 18:00
+ *   350 cells      13:21      (logged only)
+ *   800 cells      21:42      up to 42:00
+ *   6 000 cells    44:32      up to 78:00
+ *   30 000 cells   111:05     105 - 165 min (the exit opens at the same moment)
+ *   Unlock steps: quick swap 1:59, sprint 6:28, strip work 13:24, auto paver 23:23, car 45:32, exit 111:05.
  *
  * Player policy
  *  - Buying: after every step it buys the cheapest offered thing it can afford (items and plant levels).
@@ -36,14 +37,12 @@ DIA_TEST(FLotBalanceSimPlaythroughTest, "DoItAsphalt.Lot.BalanceSim.Playthrough"
  *    it paves that segment. Otherwise the nearest incomplete cell to the source (the trough, or the portable station
  *    once owned), not counting the sector the auto paver works in (unless nothing else is left).
  *  - Method: the best one owned: bowl (scoop, walk, pour on a grid of aim points) -> bucket (fill, walk, dump; with
- *    the suitcase as a stock for the bucket when the walk is long) -> cart with the trowel -> cart with the finisher
- *    -> car. The auto paver always gets the nearest incomplete sector that the player is not working in.
+ *    the suitcase as a stock for the bucket when the walk is long) -> cart -> car. The auto paver always gets the nearest incomplete sector that the player is not working in.
  *  - Walking: WalkSpeedCmS, times SprintMultiplier once the sprint is unlocked. A vessel is filled within
  *    RefillRadiusCm of the source; an aim point must lie within ReachCm of the player.
  *
  * Modelling choices the core leaves open (none of them is a game number):
- *  - The trowel moves at TrowelSpeedCmS; the lanes cover the cart strip width.
- *  - Pushing the finisher, carrying the station and the trowel use their own tunables; pulling the suitcase SuitcasePullSpeedCmS.
+ *  - Carrying the station uses its own tunable; pulling the suitcase SuitcasePullSpeedCmS.
  *  - The core has no "enter the car" action; the player walks to the car and sets World().bPlayerInCar.
  *  - The station is moved only when the next target lies farther than StationRelocateCm from it, to 5 m from the target.
  *  - The car (3 m or 3.5 m bar) lays bands along the X axis and waits whenever the stock cannot pay the next step.
@@ -78,16 +77,13 @@ namespace
 	constexpr int32 CarMaxCells = 50;
 	/** Aim points per side of the pouring grid of one cell: spacing 20 cm, so the 15 cm bowl footprint covers every texel. */
 	constexpr int32 PourPointsPerSide = 5;
-	/** Lanes of the trowel across the cart strip, evenly spread so that they cover the whole width. */
-	const int32 TrowelLanes = FMath::CeilToInt(LotBalance::CartStripWidthCm / LotBalance::TrowelWidthCm - 1e-9);
-	const double TrowelLaneSpacingCm = LotBalance::CartStripWidthCm / TrowelLanes;
 	/** Margin that keeps every point of a cell within ReachCm: half a cell diagonal. */
 	constexpr double CellReachMarginCm = AsphaltLot::CellCm * 0.71;
 
 	constexpr int32 NumItems = static_cast<int32>(ELotItem::Count);
 	constexpr int32 NumUnlocks = static_cast<int32>(ELotUnlock::Count);
 
-	const TCHAR* const ItemNames[NumItems] = {TEXT("Scoop"), TEXT("Bucket"), TEXT("Suitcase"), TEXT("Cart"), TEXT("Station"), TEXT("Finisher"),
+	const TCHAR* const ItemNames[NumItems] = {TEXT("Scoop"), TEXT("Bucket"), TEXT("Suitcase"), TEXT("Cart"), TEXT("Station"),
 		TEXT("AutoPaver"), TEXT("AutoPaverFast"), TEXT("AutoPaverFaster"), TEXT("Car"), TEXT("CarWideBar")};
 	const TCHAR* const UnlockNames[NumUnlocks] = {TEXT("QuickSwap"), TEXT("Sprint"), TEXT("StripWork"), TEXT("AutoPaver"), TEXT("Car"), TEXT("Exit")};
 	/** Cell counts at which the time is recorded; the test asserts those named in the brief. */
@@ -105,10 +101,10 @@ namespace
 	}
 
 	/** What the player's time is spent on; only reported, never asserted. */
-	enum class EAct : uint8 { Walk, Transport, Drive, Swap, Scoop, Pour, Fill, Lay, Finish, CarLay, CarWait, Count };
+	enum class EAct : uint8 { Walk, Transport, Drive, Swap, Scoop, Pour, Fill, Lay, CarLay, CarWait, Count };
 	constexpr int32 NumActs = static_cast<int32>(EAct::Count);
 	const TCHAR* const ActNames[NumActs] = {TEXT("walk"), TEXT("transport"), TEXT("drive"), TEXT("swap"), TEXT("scoop"), TEXT("pour"),
-		TEXT("fill"), TEXT("lay"), TEXT("finish"), TEXT("carlay"), TEXT("carwait")};
+		TEXT("fill"), TEXT("lay"), TEXT("carlay"), TEXT("carwait")};
 
 	/** A strip of cells along a row or a column: axis A->B (inset by the stamp pad so that the stamp ends on the cell edges). */
 	struct FStrip
@@ -687,7 +683,7 @@ namespace
 			}
 		}
 
-		/** The cart lays raw strips from its load; the trowel or the finisher finishes each strip. */
+		/** The cart lays finished strips from its load. */
 		void CartJob(int32 Target)
 		{
 			const ELotMovable Cart = ELotMovable::Cart;
@@ -702,7 +698,7 @@ namespace
 			int32 Cell = Target;
 			for (int32 Loop = 0; Loop < MaxJobLoops && !bAborted && Cell != INDEX_NONE && G.GetMovableLitres(Cart) >= LotBalance::LitresPerCell; ++Loop)
 			{
-				LayAndFinish(Cell);
+				LayStrip(Cell);
 				Cell = ChooseTarget(Pos);
 				if (Cell != INDEX_NONE && FVector2D::Distance(Pos, Centres[Cell]) > CartContinueCm)
 				{
@@ -749,7 +745,7 @@ namespace
 			return Strip;
 		}
 
-		void LayAndFinish(int32 Cell)
+		void LayStrip(int32 Cell)
 		{
 			const ELotMovable Cart = ELotMovable::Cart;
 			const int32 MaxCells = FMath::FloorToInt(G.GetMovableLitres(Cart) / LotBalance::LitresPerCell + 1e-9);
@@ -767,60 +763,6 @@ namespace
 			MoveAlong(Strip.B, LotBalance::CartLaySpeedCmS, [](double) { return true; }, [this](FVector2D From, FVector2D To)
 			{
 				G.LayCartStrip(From, To);
-			});
-			G.Release(Pos, 0.0);
-			if (G.Owns(ELotItem::Finisher))
-			{
-				FinishWithFinisher(Strip);
-			}
-			else
-			{
-				FinishWithTrowel(Strip);
-			}
-		}
-
-		void FinishWithTrowel(const FStrip& Strip)
-		{
-			EnsureHand(ELotHand::Trowel);
-			const FVector2D Side(-Strip.Dir.Y, Strip.Dir.X);
-			// The player stands at the end of the strip B; the lanes run back and forth.
-			for (int32 Lane = 0; Lane < TrowelLanes && !bAborted; ++Lane)
-			{
-				// Lane centres lie half a spacing inside the strip edges.
-				const FVector2D Offset = Side * ((Lane - (TrowelLanes - 1) * 0.5) * TrowelLaneSpacingCm);
-				const FVector2D Start = (Lane % 2 == 0 ? Strip.B : Strip.A) + Offset;
-				const FVector2D End = (Lane % 2 == 0 ? Strip.A : Strip.B) + Offset;
-				Travel(Start, WalkSpeed());
-				Cur = EAct::Finish;
-				MoveAlong(End, LotBalance::TrowelSpeedCmS, [](double) { return true; }, [this](FVector2D From, FVector2D To)
-				{
-					G.Trowel(From, To);
-				});
-			}
-		}
-
-		void FinishWithFinisher(const FStrip& Strip)
-		{
-			const ELotMovable Finisher = ELotMovable::Finisher;
-			const FVector2D Machine = G.World().Movables[static_cast<int32>(Finisher)].Pos;
-			const double PassSeconds = FVector2D::Distance(Strip.A, Strip.B) / LotBalance::FinisherSpeedCmS();
-			// Start at the end that costs less: walk to the machine, push it to the start, pass; ending away from the cart costs the walk back.
-			const double ToMachine = FVector2D::Distance(Pos, Machine) / WalkSpeed();
-			const double CostFromA = ToMachine + FVector2D::Distance(Machine, Strip.A) / LotBalance::FinisherPushSpeedCmS + PassSeconds;
-			const double CostFromB = ToMachine + FVector2D::Distance(Machine, Strip.B) / LotBalance::FinisherPushSpeedCmS + PassSeconds
-				+ FVector2D::Distance(Strip.A, Strip.B) / WalkSpeed();
-			const bool bFromA = CostFromA <= CostFromB;
-			ReleaseHeld();
-			GoWithin(Machine, LotBalance::InteractionRangeCm, WalkSpeed());
-			if (!G.Grab(Finisher))
-			{
-				return;
-			}
-			Travel(bFromA ? Strip.A : Strip.B, LotBalance::FinisherPushSpeedCmS);
-			Cur = EAct::Finish;
-			MoveAlong(bFromA ? Strip.B : Strip.A, LotBalance::FinisherSpeedCmS(), [](double) { return true; }, [this](FVector2D From, FVector2D To)
-			{
-				G.FinisherPass(From, To);
 			});
 			G.Release(Pos, 0.0);
 		}
@@ -900,7 +842,7 @@ bool FLotBalanceSimPlaythroughTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("800 cells within 42 min"), Sim->MilestoneSeconds[4] >= 0.0 && Minutes(4) <= 42.0);
 	TestTrue(TEXT("6000 cells within 78 min"), Sim->MilestoneSeconds[5] >= 0.0 && Minutes(5) <= 78.0);
 	TestTrue(TEXT("30000 cells between 105 and 165 min"), Sim->MilestoneSeconds[6] >= 0.0 && Minutes(6) >= 105.0 && Minutes(6) <= 165.0);
-	TestEqual(TEXT("all 11 items are bought"), G.GetNumItemsOwned(), static_cast<int32>(ELotItem::Count));
+	TestEqual(TEXT("all items are bought"), G.GetNumItemsOwned(), static_cast<int32>(ELotItem::Count));
 	TestEqual(TEXT("all 5 plant levels are bought"), G.GetPlantLevel(), 5);
 	TestTrue(TEXT("the stock is never negative"), Sim->MinStock >= 0.0);
 	TestTrue(TEXT("the game ends within the six hour cap"), G.GetPlaytimeSeconds() <= 6.0 * 3600.0);

@@ -14,7 +14,10 @@
  * The main menu (Continue when there is a save, New Game, Quit) and the pause menu (Resume, New Game, Quit) on a dimmed backdrop that
  * takes the mouse. The widget tree is built once, hidden; Open / Close set the model (which the buttons' visibility reads through
  * attribute lambdas) and show or hide the screen. New Game that would throw progress away turns the buttons into the question
- * "Start over? Progress will be lost." with Yes and No; only Yes calls OnNewGame. The buttons only call the delegates given by the HUD.
+ * "Start over? Progress will be lost." with Yes and No; only Yes calls OnNewGame. The Settings button turns the buttons into the
+ * settings screen: a slider for the mouse sensitivity (DIASettings, kept at once, written to disk when the slider is let go) and Back.
+ * The main menu of a non-Shipping build also has Dev Start (a new game with credits and every unlock step open; it asks the same question
+ * when a save exists). The other buttons only call the delegates given by the HUD.
  */
 class SDIAMenu : public SCompoundWidget
 {
@@ -23,6 +26,7 @@ public:
 		SLATE_EVENT(FSimpleDelegate, OnContinue)
 		SLATE_EVENT(FSimpleDelegate, OnResume)
 		SLATE_EVENT(FSimpleDelegate, OnNewGame)
+		SLATE_EVENT(FSimpleDelegate, OnDevStart)
 		SLATE_EVENT(FSimpleDelegate, OnQuit)
 	SLATE_END_ARGS()
 
@@ -34,22 +38,40 @@ public:
 
 	const FDIAMenuModel& GetModel() const { return Model; }
 
+#if !UE_BUILD_SHIPPING
+	/** The dia.Screen cheat: puts the open menu into the settings or the question (or the buttons for neither). */
+	void DebugSetState(bool bSettings, bool bConfirming)
+	{
+		Model.bSettings = bSettings;
+		Model.bConfirming = bConfirming;
+	}
+#endif
+
+	/** Leaves the settings for the buttons (Back, Esc), saving the settings; false when the settings were not up. */
+	bool BackFromSettings();
+
 private:
 	FReply HandleContinue();
 	FReply HandleResume();
 	FReply HandleNewGame();
+	FReply HandleDevStart();
 	FReply HandleYes();
 	FReply HandleNo();
 	FReply HandleQuit();
-	/** A button of the menu's width that is only there while Visible says so. */
-	TSharedRef<SWidget> BuildButton(const FText& Label, float Width, FOnClicked OnClicked, TFunction<bool()> Visible);
+	FReply HandleSettings();
+	FReply HandleBack();
+	/** The "Start over?" question, wrapped to the plate. */
+	static TSharedRef<SWidget> MakeQuestionText();
+	/** A button that is only there while Visible says so; its label is yellow while Which is the model's primary button. */
+	TSharedRef<SWidget> BuildButton(const FText& Label, float Width, EDIAMenuButton Which, FOnClicked OnClicked, TFunction<bool()> Visible);
 
 	FSimpleDelegate OnContinue;
 	FSimpleDelegate OnResume;
 	FSimpleDelegate OnNewGame;
+	FSimpleDelegate OnDevStart;
 	FSimpleDelegate OnQuit;
 
 	FDIAMenuModel Model;
-	FSlateRoundedBoxBrush PanelBrush{FLinearColor::White, AsphaltHud::PanelCornerRadius};
 	FButtonStyle ButtonStyle;
+	FSliderStyle SliderStyle;
 };

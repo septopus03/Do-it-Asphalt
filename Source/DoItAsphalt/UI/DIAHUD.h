@@ -42,6 +42,8 @@ public:
 	bool IsWinScreenShown() const { return bWinShown; }
 	/** New Game (menu, win screen): starts over in the same world (the subsystem's NewGame) and leaves the menu. */
 	void NewGame();
+	/** Dev Start (main menu, not in Shipping): a new game with credits and every unlock step open (the subsystem's DevStart); leaves the menu. */
+	void DevStart();
 	/** Continue of the main menu: loads the saved game and leaves the menu; if the save is unusable the menu stays and offers a new game only. */
 	void ContinueGame();
 	/** Quit (menu, win screen); the game saves itself when the world ends. */
@@ -61,6 +63,10 @@ public:
 	void TogglePause();
 	/** Closes the menu that is open without choosing anything (the dia.SkipMenu cheat for screenshots). */
 	void SkipMenu();
+#if !UE_BUILD_SHIPPING
+	/** The dia.Screen cheat: opens Pause, Settings, Question (the pause menu in that state) or Win, so that the screen can be photographed. False for another name. */
+	bool DebugShowScreen(const FString& Name);
+#endif
 	EDIAMenuMode GetMenuMode() const { return MenuMode; }
 	bool IsMenuOpen() const { return MenuMode != EDIAMenuMode::None; }
 

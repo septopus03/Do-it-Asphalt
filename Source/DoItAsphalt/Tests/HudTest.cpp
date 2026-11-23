@@ -188,11 +188,6 @@ bool FHudHandGaugeTest::RunTest(const FString& Parameters)
 	Model.Update(Game);
 	TestEqual(TEXT("a full bowl"), Model.GetView().HandGauge.ToString(), FString(TEXT("2.5 / 2.5 l")));
 
-	// The trowel holds nothing: no gauge.
-	TestTrue(TEXT("the trowel is taken"), Game.SelectHand(ELotHand::Trowel));
-	Model.Update(Game);
-	TestTrue(TEXT("no gauge for the trowel"), Model.GetView().HandGauge.IsEmpty());
-
 	// A held suitcase shows its content instead.
 	Game.DebugGrantItem(ELotItem::Suitcase);
 	Game.FillMovable(ELotMovable::Suitcase, 4.0);
@@ -202,13 +197,13 @@ bool FHudHandGaugeTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("the content of the suitcase"), Model.GetView().HandGauge.ToString(), FString(TEXT("10 / 60 l")));
 	Game.Release(FVector2D(0.0, 0.0), 0.0);
 	Model.Update(Game);
-	TestTrue(TEXT("set down: the trowel again, no gauge"), Model.GetView().HandGauge.IsEmpty());
+	TestEqual(TEXT("set down: the bowl again"), Model.GetView().HandGauge.ToString(), FString(TEXT("2.5 / 2.5 l")));
 
-	// The held finisher has no content to show.
-	Game.DebugGrantItem(ELotItem::Finisher);
-	TestTrue(TEXT("the finisher is taken"), Game.Grab(ELotMovable::Finisher));
+	// The held station has no content to show.
+	Game.DebugGrantItem(ELotItem::Station);
+	TestTrue(TEXT("the station is taken"), Game.Grab(ELotMovable::Station));
 	Model.Update(Game);
-	TestTrue(TEXT("no gauge for the finisher"), Model.GetView().HandGauge.IsEmpty());
+	TestTrue(TEXT("no gauge for the station"), Model.GetView().HandGauge.IsEmpty());
 	return true;
 }
 

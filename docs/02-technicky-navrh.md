@@ -44,18 +44,31 @@ Modul `DoItAsphalt` sa kompiluje s `bUseUnity = false`. Každý testovací súbo
 
 ## 3. Mriežka pokrytia
 
-`FLotGrid` je štvorec **4 000 × 4 000** texelov. Jeden texel má 5 cm, políčko 1 × 1 m je teda 20 × 20 = 400 texelov. Každý texel je v jednom z troch stavov (`ELotTexel`): voľný (0), surový (1), hotový (2).
+`FLotGrid` je štvorec **4 000 × 4 000** texelov. Jeden texel má 5 cm, políčko 1 × 1 m je teda 20 × 20 = 400 texelov. Každý texel je v jednom z dvoch stavov (`ELotTexel`): voľný (0) alebo hotový (1). Surový asfalt ani hladenie hra nemá.
 
 - Jeden texel nesie 0,025 l asfaltu; 95 % políčka je 380 texelov.
-- Operácie: `Stamp` (razenie pásu), `PourDisc` (kruh z nádoby), `DepositIntoCell` (vsypanie do políčka), `FinishRaw` (uhladenie), `CompleteCell` (dokončenie).
-- Surový asfalt políčko nikdy samo nedokončí. Pri dokončení políčka sa zvyšok uhladí zadarmo. Lialo sa môže len na voľné texely.
+- Operácie: `Stamp` (razenie pásu), `PourDisc` (kruh z nádoby), `DepositIntoCell` (vsypanie do políčka), `CompleteCell` (dokončenie).
+- Vyliaty asfalt je rovno hotový. Políčko je dokončené pri 380 hotových texeloch (95 %); zvyšok sa dolepí zadarmo. Lialo sa môže len na voľné texely.
 - Každý sektor (75 sektorov po 20 × 20 políčok) má vlastný **špinavý obdĺžnik**: najmenší obdĺžnik, ktorý sa zmenil od posledného odovzdania zmien. `ConsumeDirtyRects` vydá najviac jeden obdĺžnik na sektor.
 
 Indexovanie políčok: riadky 0 – 99 majú 200 stĺpcov, index = riadok · 200 + stĺpec; od riadku 100 má riadok 100 stĺpcov (kvadrant s centrom chýba), index = 20 000 + (riadok − 100) · 100 + stĺpec. Spolu 30 000 políčok. Sektory sa indexujú rovnako po 20 × 20 políčok (prvých 5 radov po 10 sektoroch, ďalších po 5).
 
+### 3.1 Tekutina (`FLotFluid`)
+
+Pri zapnutej tekutine (`FLotGrid::SetFluidEnabled`; zapína ju `UDIAWorldSubsystem::Initialize`, jadro ju má štandardne vypnutú, aby fungovali staré testy) `ApplyCandidates` zaplatí texely, ale zem nezmení: z ich objemu položí `FLotFluid` niekoľko kôp (4 – 8 jednotiek na kopu, jednotka = film jedného texelu). Jeden krok (`FluidStepSeconds` = 1/30 s) beží v štyroch Jacobiho prechodoch nad 32 × 32 dlaždicami, ktoré existujú len tam, kde je asfalt a o jednu dlaždicu ďalej:
+
+1. toky cez steny medzi texelmi (virtuálne rúry: `zotrvačnosť · starý tok + tuhosť · teplota² · rozdiel výšok nad filmom`),
+2. podiel výtoku, ktorý texel naozaj má (nikdy viac, než drží),
+3. skutočné toky,
+4. nová hrúbka, teplota (nesie ju tok) a druh (väčší podiel vyhrá), potom chladnutie, pokrytie (`OnSet` pre voľný texel s ≥ 0,5 jednotky), zatuhnutie a uvoľnenie prázdnych dlaždíc.
+
+Steny sú okraje mriežky a kvadrant nákupného centra. Výpočet je deterministický (žiadna náhoda). Stabilitu drží zotrvačnosť < 1 a tuhosť 0,2 (λ·k = 1,6 < 3,7). Ručné nástroje liejú tekutinou, stroje (`PourFromCar`, robot, vozík) cez `FInstantPour` hneď.
+
+`FLotGame::Tick` krokuje tekutinu pevným krokom (najviac 6 krokov na `Tick`), pokrytie účtuje cez `ApplyPour`, takže odmena za políčko, odomykanie a udalosti idú tou istou cestou. `SettleFluid` necháva asfalt zatuhnúť naraz; ukladanie ho volá na **kópii** hry (`MakeSaveBlob`), takže uložená hra drží len zem a bežiaca hra pokračuje. `LoadFromBytes` zachová nastavenie tekutiny.
+
 ## 4. Zem a textúra pokrytia
 
-`ADIAGroundActor` zobrazuje mriežku ako textúru `PF_R8G8`: kanál R je 255, ak texel nie je voľný (surový alebo hotový), kanál G je 255, ak je hotový. Materiál `M_Ground` z nich poskladá farbu zeme.
+`ADIAGroundActor` zobrazuje mriežku ako textúru `PF_R8G8`: kanál R je 255, ak texel nie je voľný, kanál G je 255, ak je hotový (pri dvoch stavoch sú teda obe rovnaké). Materiál `M_Ground` z nich poskladá farbu zeme.
 
 - Na CPU sa drží kópia textúry (kvôli behu `-nullrhi` v testoch) a do GPU sa posielajú len zmenené obdĺžniky.
 - Celé nahratie (16 miliónov texelov) prebehne raz pri načítaní uloženia alebo novej hre. Trvalo asi **25 ms** (25,3 a 24,3 ms v dvoch zalogovaných behoch na tomto stroji; nie je to presné meranie).
@@ -65,9 +78,9 @@ Indexovanie políčok: riadky 0 – 99 majú 200 stĺpcov, index = riadok · 200
 
 `UDIAWorldSubsystem` vlastní jedinú inštanciu `FLotGame` a rozosiela všetky udalosti. Nikto iný jadro nevytvára. Po každom kroku hry zavolá `Dispatch`, ktorý spustí `OnCellsCompleted`, `OnEntryCompleted`, `OnUnlocked`, `OnExitOpened` a vždy ako posledné `OnStateChanged`. Ďalšie delegáty: `OnItemBought`, `OnWon`, `OnGameReset`. Čas jedného kroku sa orezáva na 1 s (`MaxTickSeconds`), aby dlhý zásek nepreskočil hru.
 
-Všetko, čo sa týka kreditov, litrov a udalostí, sa účtuje na **jednom mieste**: `FLotGame::ApplyPour`. Každé liatie (ruka, kufor, vozík, finišer, robot, auto) prejde touto funkciou, ktorá vráti `FLotEvents` (vyliate litre, získané kredity, dokončené políčka a vstupné úseky, odomknutia, otvorený východ). Odomknutie sa počíta zo zeme: krok i je odomknutý, ak je hotový vstupný úsek i a zároveň je hotových `UnlockCells[i]` políčok.
+Všetko, čo sa týka kreditov, litrov a udalostí, sa účtuje na **jednom mieste**: `FLotGame::ApplyPour`. Každé liatie (ruka, kufor, vozík, robot, auto) prejde touto funkciou, ktorá vráti `FLotEvents` (vyliate litre, získané kredity, dokončené políčka a vstupné úseky, odomknutia, otvorený východ). Odomknutie sa počíta zo zeme: krok i je odomknutý, ak je hotový vstupný úsek i a zároveň je hotových `UnlockCells[i]` políčok.
 
-`FDIAToolPath` (`World/DIAToolPath.h`) je spoločná pomôcka vozíka, finišera a auta: z posunutia nástroja urobí dráhu a zaručí, že sa nič nepoloží cez skok, teda cez miesto, ktoré nástroj nepreišiel. Používa `JumpSlack` 1,5 a `MoveToleranceCm` 0,01.
+`FDIAToolPath` (`World/DIAToolPath.h`) je spoločná pomôcka vozíka a auta: z posunutia nástroja urobí dráhu a zaručí, že sa nič nepoloží cez skok, teda cez miesto, ktoré nástroj nepreišiel. Používa `JumpSlack` 1,5 a `MoveToleranceCm` 0,01.
 
 ## 6. Ukladanie (formát „DIA2“)
 
@@ -75,15 +88,15 @@ Uloženie má dve vrstvy.
 
 **Jadro** (`FLotGame::SaveToBytes` / `LoadFromBytes`) zapíše bajty v tomto poradí:
 
-1. hlavička: magické číslo `0x32414944` („DIA2“), verzia formátu (1), počet políčok (30 000) a veľkosť mriežky (4 000);
+1. hlavička: magické číslo `0x32414944` („DIA2“), verzia formátu (2), počet políčok (30 000) a veľkosť mriežky (4 000);
 2. kredity, čas hry, vyliate litre, úroveň výrobne a jej zásoba;
 3. kúpené veci, ruka a jej obsah, zostávajúci čas výmeny, litre v kufri a vo vozíku, čo je v ruke chytené;
 4. stav robota (sektor, krok, poloha, či cestuje, rozpočet);
 5. príznak výhry;
 6. poloha a natočenie hráča, polohy a natočenie predmetov, poloha a natočenie auta a príznak, že hráč sedí v aute;
-7. zem: bit na každé políčko (hotové), počet rozpracovaných políčok a pre každé jeho index a 400 texelov po 2 bity.
+7. zem: bit na každé políčko (hotové), počet rozpracovaných políčok a pre každé jeho index a 400 texelov po 1 bite (4 + 50 bajtov).
 
-`LoadFromBytes` všetko najprv načíta do dočasnej hry, skontroluje a až po úspechu ju vymení za skutočnú, takže poškodený súbor hru nepokazí. Príznaky „drží sa“ sa pri načítaní odvodzujú. Uloženie z verzie 1 (magické číslo `0x31414944`) sa odmietne (test `Lot.Save.RejectsV1`).
+`LoadFromBytes` všetko najprv načíta do dočasnej hry, skontroluje a až po úspechu ju vymení za skutočnú, takže poškodený súbor hru nepokazí. Príznaky „drží sa“ sa pri načítaní odvodzujú. Uloženie z verzie 1 (so surovým asfaltom, 2 bity na texel) sa odmietne, rovnako ako staršie magické číslo `0x31414944` (test `Lot.Save.RejectsV1`); po zmene treba začať novú hru.
 
 **Engine vrstva** (`UDIASaveGame`) uloží bajty jadra ako pole `Blob` do slotu `DoItAsphalt_Slot0` a zároveň do zálohy `DoItAsphalt_Slot0_bak`. Na konci bajtov je pätka s magickým číslom „DIAE“ a kontrolným súčtom CRC32; kontrolný súčet sa overí pred čítaním enginom. Poškodený slot sa nahradí zálohou, ak sú poškodené obe, hra začne odznova. Parameter `-DIASlot=<názov>` zmení slot (skript `shot.sh` používa `DIA_Shot`).
 
@@ -93,24 +106,24 @@ Uloženie má dve vrstvy.
 ## 7. Vstup, ruky a stroje
 
 - Vstup sa definuje v kóde (`DIAInput.cpp`), nie v assetoch. Ovládač (`DIAPlayerController.cpp`) prekladá vstup na volania jadra.
-- **Ruka** je v jadre stav: miska, lopatka, vedro alebo hladidlo, s kapacitou a hladinou. Hladidlo robí `FinishRaw` pod bodom dotyku, ktorý sleduje zámerný bod rýchlosťou najviac `TrowelSpeedCmS`.
-- **Predmety** (kufor, vozík, výdajňa, finišer) sú aktéri `ADIAMovable`. Jadro pozná ich polohu a či sú držané; držanie sa určuje v jadre, nie v aktérovi.
-- **Auto** (`ADIAPaverCar`) je kinematický pawn bez nádrže. `PourFromCar` najprv uhladí surový asfalt pod lištou, potom zaplatí zo zásoby výrobne a `Stamp`-om položí hotový. Rýchlosť auta pri liatí obmedzuje `CarPaveSpeedCmS = sadzba · 10 000 / (60 · šírka)`.
+- **Ruka** je v jadre stav: miska, lopatka alebo vedro, s kapacitou a hladinou. Ruka lieva tekutinou (`FLotFluid`), hladidlo hra nemá.
+- **Predmety** (kufor, vozík, výdajňa) sú aktéri `ADIAMovable`. Jadro pozná ich polohu a či sú držané; držanie sa určuje v jadre, nie v aktérovi.
+- **Auto** (`ADIAPaverCar`) je kinematický pawn bez nádrže. `PourFromCar` zaplatí zo zásoby výrobne a `Stamp`-om položí hotový asfalt pod lištou. Rýchlosť auta pri liatí obmedzuje `CarPaveSpeedCmS = sadzba · 10 000 / (60 · šírka)`.
 - **Robot** (`ADIAAutoPaver`) dostane sektor povelom `AssignAutoPaverSector` (reštartuje postup). `SnapToCore` ho po načítaní postaví na uložené miesto.
 
 ## 8. Testovanie
 
-Testy sa deklarujú makrom `DIA_TEST` a bežia cez `Scripts/test.sh`. Posledný plný beh na tomto stroji: **219 testov, všetky prešli** (214 čistých a 5 s očakávaným varovaním: záloha slotu, poškodené oba sloty, poškodený slot, useknutý súbor, uloženie z v1).
+Testy sa deklarujú makrom `DIA_TEST` a bežia cez `Scripts/test.sh`. Posledný plný beh na tomto stroji (2026-11-22, po odstránení hladenia): **231 testov, všetky prešli**.
 
 | Skupina | Počet |
 |---|---|
-| `DoItAsphalt.Lot.*` (jadro) | 87 |
-| `DoItAsphalt.Game.*` (engine) | 131 |
+| `DoItAsphalt.Lot.*` (jadro) | 91 |
+| `DoItAsphalt.Game.*` (engine) | 139 |
 | `DoItAsphalt.Core.Smoke` | 1 |
 
-Najväčšie podskupiny `Lot`: Hand 10, AutoPaver 10, Save 10, Movable 11, Stamp 7, Car 5. Najväčšie podskupiny `Game`: Movable 30, SaveSlot 17, Character 15, Car 10, Shop 9, AutoPaver 7, Exit 6, Hud 7.
+Najväčšie podskupiny `Lot`: Save 10, Hand 9, AutoPaver 9, Movable 9, Stamp 6, Car 4. Najväčšie podskupiny `Game`: Movable 25, SaveSlot 17, Character 14, Ui 10, Car 10, Shop 9, Hud 7, AutoPaver 7, Exit 6.
 
-`DoItAsphalt.Lot.BalanceSim` je simulácia celej hry vopred daným správaním (bez človeka). Kontroluje, že prvé políčko padne za 40 – 80 s, 10 políčok do 6 minút, 100 do 18, 800 do 42, 6 000 do 78 minút a že celá hra trvá 105 – 165 minút. V jednom behu vyšlo 41:17 pre 800 políčok a 2:21:27 pre celú hru (kapitola 9 herného dizajnu).
+`DoItAsphalt.Lot.BalanceSim` je simulácia celej hry vopred daným správaním (bez človeka). Kontroluje, že prvé políčko padne za 40 – 80 s, 10 políčok do 6 minút, 100 do 18, 800 do 42, 6 000 do 78 minút a že celá hra trvá 105 – 165 minút. V jednom behu vyšlo 21:42 pre 800 políčok a 1:51:05 pre celú hru (kapitola 9 herného dizajnu).
 
 Skripty overujú aj obraz: `Scripts/shot.sh <názov> "<cheaty>"` spustí hru v okne, vykoná cheaty a uloží snímku.
 
@@ -133,12 +146,12 @@ Shipping sa skompiluje príkazom `Build.sh DoItAsphalt Mac Shipping -project=<ce
 
 ## 11. Cheaty
 
-Zoznam 27 príkazov je v kapitole 11 dokumentu `01-herny-dizajn.md`. Implementácia je v `Source/DoItAsphalt/Game/DIACheats.cpp`.
+Zoznam 26 príkazov je v kapitole 11 dokumentu `01-herny-dizajn.md`. Implementácia je v `Source/DoItAsphalt/Game/DIACheats.cpp`.
 
 ## 12. Zmeny oproti návrhu
 
 Pozri kapitolu 10 dokumentu `01-herny-dizajn.md`. Navyše z technickej strany:
 
-- Návrh počítal s mriežkou `FCoverageGrid`; hra používa `FLotGrid` s tromi stavmi (voľný, surový, hotový) namiesto dvoch.
+- Návrh počítal s mriežkou `FCoverageGrid`; hra používa `FLotGrid` (dva stavy: voľný, hotový).
 - Robot v návrhu nemal obrys sektora; obrys je parameter materiálu zeme.
 - `ContinueGame` v `ADIAHUD` je verejná, aby cheat `dia.Load` použil rovnakú cestu ako tlačidlo Continue.

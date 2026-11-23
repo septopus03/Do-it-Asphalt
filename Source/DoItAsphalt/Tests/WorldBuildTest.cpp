@@ -141,22 +141,16 @@ bool FGroundMirrorsGridTest::RunTest(const FString& Parameters)
 	Ground->GetCoverageTexel(0, 20, R, G);
 	TestTrue(TEXT("the next cell upwards is still free"), R == 0 && G == 0);
 
-	// A raw strip is R only. It is stamped through the grid, as a test may, and synced by hand.
+	// A poured strip is finished asphalt too. It is stamped through the grid, as a test may, and synced by hand.
 	const FVector2D Centre = AsphaltLot::CellCentre(AsphaltLot::CellIndex(50, 50));
-	const FLotPour Pour = Game.GetGrid().Stamp(Centre - FVector2D(40.0, 0.0), Centre + FVector2D(40.0, 0.0), 40.0, 1000.0, ELotTexel::Raw);
-	TestTrue(TEXT("the raw strip changed texels"), Pour.TexelsChanged > 0);
+	const FLotPour Pour = Game.GetGrid().Stamp(Centre - FVector2D(40.0, 0.0), Centre + FVector2D(40.0, 0.0), 40.0, 1000.0);
+	TestTrue(TEXT("the strip changed texels"), Pour.TexelsChanged > 0);
 	Ground->SyncCoverage();
 	const FIntPoint Mid = TexelAt(Centre);
-	TestTrue(TEXT("raw texel readable"), Ground->GetCoverageTexel(Mid.X, Mid.Y, R, G));
-	TestTrue(TEXT("a raw texel is R only"), R == 255 && G == 0);
+	TestTrue(TEXT("poured texel readable"), Ground->GetCoverageTexel(Mid.X, Mid.Y, R, G));
+	TestTrue(TEXT("a poured texel is R and G"), R == 255 && G == 255);
 	Ground->GetCoverageTexel(Mid.X, Mid.Y + 40, R, G);
 	TestTrue(TEXT("beside the strip nothing changed"), R == 0 && G == 0);
-
-	// Finishing the raw strip turns the same texels to done.
-	Game.GetGrid().FinishRaw(Centre - FVector2D(40.0, 0.0), Centre + FVector2D(40.0, 0.0), 40.0);
-	Ground->SyncCoverage();
-	Ground->GetCoverageTexel(Mid.X, Mid.Y, R, G);
-	TestTrue(TEXT("a finished raw texel is R and G"), R == 255 && G == 255);
 
 	// A loaded or restarted game uploads everything again; plain changes never do.
 	TestEqual(TEXT("the incremental syncs did not upload the whole texture"), Ground->GetNumFullUploads(), FullUploads);

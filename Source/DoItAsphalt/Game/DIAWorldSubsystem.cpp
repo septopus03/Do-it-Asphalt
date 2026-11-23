@@ -7,6 +7,7 @@
 #include "GameFramework/Actor.h"
 #include "Kismet/GameplayStatics.h"
 #include "LotBalance.h"
+#include "LotMap.h"
 #include "Misc/CommandLine.h"
 #include "PlatformFeatures.h"
 #include "SaveGameSystem.h"
@@ -204,7 +205,14 @@ TArray<uint8> UDIAWorldSubsystem::MakeSaveBlob() const
 	const ELotMovable Held = Game.GetHeld();
 	if (Held == ELotMovable::Count)
 	{
-		return Game.SaveToBytes();
+		if (!Game.IsFluidActive())
+		{
+			return Game.SaveToBytes();
+		}
+		// A save holds only the ground: asphalt that still runs is let to set on a copy, and the running game goes on.
+		FLotGame Settled = Game;
+		Settled.SettleFluid();
+		return Settled.SaveToBytes();
 	}
 	// A held movable is saved as put down where it is now: the pose of its actor. The running game keeps holding it, so the
 	// let-go is done on a copy.
@@ -231,6 +239,7 @@ TArray<uint8> UDIAWorldSubsystem::MakeSaveBlob() const
 	// of its last release, or the place it was bought at, both legal. A copy, not Release/Grab on the live game: Grab also zeroes the suitcase's
 	// dose budget (a standing suitcase can dose while the cart is held), so the live game would not be identical afterwards.
 	FLotGame Copy = Game;
+	Copy.SettleFluid();
 	Copy.Release(Where, YawDeg);
 	return Copy.SaveToBytes();
 }
@@ -252,12 +261,28 @@ void UDIAWorldSubsystem::SaveGame()
 void UDIAWorldSubsystem::NewGame()
 {
 	Game = FLotGame();
+	Game.SetFluidEnabled(true);
 	// Both: a backup that stayed would bring the old game back.
 	UGameplayStatics::DeleteGameInSlot(SlotName(), DIASave::UserIndex);
 	UGameplayStatics::DeleteGameInSlot(BackupSlotName(), DIASave::UserIndex);
 	AutosaveTimer = 0.0;
 	OnGameReset.Broadcast();
 	OnStateChanged.Broadcast();
+}
+
+void UDIAWorldSubsystem::DevStart()
+{
+	NewGame();
+	Game.DebugGive(DevStartCredits);
+	FLotEvents Events = Game.DebugCompleteCells(LotBalance::UnlockCells[static_cast<int32>(ELotUnlock::Car)]);
+	for (int32 Entry = 0; Entry < static_cast<int32>(ELotUnlock::Exit); ++Entry)
+	{
+		for (int32 I = 0; I < AsphaltLot::CellsPerEntry; ++I)
+		{
+			Events.Append(Game.DebugCompleteCell(AsphaltLot::EntryCell(Entry, I)));
+		}
+	}
+	Dispatch(Events);
 }
 
 void UDIAWorldSubsystem::Autosave()
@@ -404,6 +429,13 @@ IDIAInteractable* UDIAWorldSubsystem::FindInteractable(const ADIACharacter* Who,
 		}
 	}
 	return Best;
+}
+
+void UDIAWorldSubsystem::Initialize(FSubsystemCollectionBase& Collection)
+{
+	Super::Initialize(Collection);
+	// In the running game the poured asphalt runs before it sets; the core classes alone (and their tests) pour instantly.
+	Game.SetFluidEnabled(true);
 }
 
 void UDIAWorldSubsystem::Tick(float DeltaTime)

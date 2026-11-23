@@ -107,7 +107,6 @@ namespace
 		case ELotItem::Suitcase: return FText::Format(NSLOCTEXT("DIAShop", "Litres", "{0} l"), TenthsText(Tenths(LotBalance::SuitcaseCapacityL)));
 		case ELotItem::Cart: return FText::Format(NSLOCTEXT("DIAShop", "Litres", "{0} l"), TenthsText(Tenths(LotBalance::CartCapacityL)));
 		case ELotItem::Station: return NSLOCTEXT("DIAShop", "StationValue", "Refill anywhere");
-		case ELotItem::Finisher: return FText::Format(NSLOCTEXT("DIAShop", "Rate", "{0} {1}"), Whole(LotBalance::FinisherRateCellsPerMin), PerMinuteCells());
 		case ELotItem::AutoPaver: return FText::Format(NSLOCTEXT("DIAShop", "Rate", "{0} {1}"), Whole(LotBalance::AutoPaverRateCellsPerMin[0]), PerMinuteCells());
 		case ELotItem::AutoPaverFast: return Change(LotBalance::AutoPaverRateCellsPerMin[0], LotBalance::AutoPaverRateCellsPerMin[1], PerMinuteCells());
 		case ELotItem::AutoPaverFaster: return Change(LotBalance::AutoPaverRateCellsPerMin[1], LotBalance::AutoPaverRateCellsPerMin[2], PerMinuteCells());
@@ -206,7 +205,6 @@ FText DIAFormat::ItemName(ELotItem Item)
 	case ELotItem::Suitcase: return LOCTEXT("ItemSuitcase", "Suitcase");
 	case ELotItem::Cart: return LOCTEXT("ItemCart", "Cart");
 	case ELotItem::Station: return LOCTEXT("ItemStation", "Portable Station");
-	case ELotItem::Finisher: return LOCTEXT("ItemFinisher", "Finisher");
 	case ELotItem::AutoPaver: return LOCTEXT("ItemAutoPaver", "Auto Paver");
 	case ELotItem::AutoPaverFast: return LOCTEXT("ItemAutoPaverFast", "Fast Auto Paver");
 	case ELotItem::AutoPaverFaster: return LOCTEXT("ItemAutoPaverFaster", "Faster Auto Paver");
@@ -237,7 +235,6 @@ FText DIAFormat::HandName(ELotHand Hand)
 	case ELotHand::Bowl: return LOCTEXT("HandBowl", "Bowl");
 	case ELotHand::Scoop: return LOCTEXT("HandScoop", "Scoop");
 	case ELotHand::Bucket: return LOCTEXT("HandBucket", "Bucket");
-	case ELotHand::Trowel: return LOCTEXT("HandTrowel", "Trowel");
 	default: return FText::GetEmpty();
 	}
 }
@@ -248,7 +245,7 @@ FText DIAFormat::UnlockEffect(ELotUnlock Unlock)
 	{
 	case ELotUnlock::QuickSwap: return LOCTEXT("EffectQuickSwap", "Hand tools change at once.");
 	case ELotUnlock::Sprint: return LOCTEXT("EffectSprint", "Hold Shift to run between the work and the trough.");
-	case ELotUnlock::StripWork: return LOCTEXT("EffectStripWork", "The portable station, the cart and the finisher are on offer: work in strips.");
+	case ELotUnlock::StripWork: return LOCTEXT("EffectStripWork", "The portable station is on offer: refill anywhere on the lot.");
 	case ELotUnlock::AutoPaver: return LOCTEXT("EffectAutoPaver", "The auto paver is on offer: mark a sector and it paves on its own.");
 	case ELotUnlock::Car: return LOCTEXT("EffectCar", "The paver car is on offer: pave the main aisles from the cab.");
 	case ELotUnlock::Exit: return LOCTEXT("EffectExit", "The exit gate is open: drive through it to finish.");
@@ -267,7 +264,6 @@ FText DIAFormat::HandLabel(const FLotGame& Game)
 	case ELotMovable::Suitcase: return ItemName(ELotItem::Suitcase);
 	case ELotMovable::Cart: return ItemName(ELotItem::Cart);
 	case ELotMovable::Station: return ItemName(ELotItem::Station);
-	case ELotMovable::Finisher: return ItemName(ELotItem::Finisher);
 	default: return HandName(Game.GetHand());
 	}
 }
@@ -430,7 +426,6 @@ FText DIAFormat::MovablePrompt(ELotMovable Movable, bool bHeld)
 	case ELotMovable::Suitcase: return LOCTEXT("PromptPullFlap", "E – Pull\nF – Open flap");
 	case ELotMovable::Station: return LOCTEXT("PromptCarry", "E – Carry");
 	case ELotMovable::Cart: return LOCTEXT("PromptPush", "E – Push");
-	case ELotMovable::Finisher: return LOCTEXT("PromptGuide", "E – Guide");
 	default: return FText::GetEmpty();
 	}
 }
@@ -585,37 +580,12 @@ bool FDIAShopModel::Update(const FLotGame& Game)
 		}
 	}
 
-	// The shown rows keep their places; only the first pass sorts.
-	if (RebuildCount == 1)
+	// The rows never move: what is bought stays where it was and only turns to Owned.
+	for (int32 I = 0; I < NumRows; ++I)
 	{
-		Resort();
-	}
-	else
-	{
-		for (int32 I = 0; I < NumRows; ++I)
-		{
-			Rows[I] = Natural[Order[I]];
-		}
+		Rows[I] = Natural[I];
 	}
 	return true;
-}
-
-void FDIAShopModel::Resort()
-{
-	// What can be bought stays on top; the owned rows follow in their own order.
-	int32 Next = 0;
-	for (const bool bOwnedPass : {false, true})
-	{
-		for (int32 I = 0; I < NumRows; ++I)
-		{
-			if ((Natural[I].State == EDIAShopState::Owned) == bOwnedPass)
-			{
-				Order[Next] = I;
-				Rows[Next] = Natural[I];
-				++Next;
-			}
-		}
-	}
 }
 
 FDIAShopTarget FDIAShopModel::TargetOf(int32 Index, const FLotGame& Game) const

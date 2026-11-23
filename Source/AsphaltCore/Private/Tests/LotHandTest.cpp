@@ -17,7 +17,6 @@ DIA_TEST(FLotHandPourSmallStepsTest, "DoItAsphalt.Lot.Hand.PourSmallSteps")
 DIA_TEST(FLotHandNothingLeavesOnOccupiedTest, "DoItAsphalt.Lot.Hand.NothingLeavesOnOccupied")
 DIA_TEST(FLotHandFirstSquareTest, "DoItAsphalt.Lot.Hand.FirstSquare")
 DIA_TEST(FLotHandBucketDumpTest, "DoItAsphalt.Lot.Hand.BucketDump")
-DIA_TEST(FLotHandTrowelTest, "DoItAsphalt.Lot.Hand.Trowel")
 DIA_TEST(FLotHandDebugFillTest, "DoItAsphalt.Lot.Hand.DebugFill")
 
 namespace
@@ -36,14 +35,6 @@ namespace
 	FVector2D MiddleOfLot()
 	{
 		return AsphaltLot::CellCentre(AsphaltLot::CellIndex(40, 40));
-	}
-
-	/** State of the texel containing the world point. */
-	ELotTexel TexelAt(const FLotGame& G, FVector2D World)
-	{
-		const int32 X = FMath::FloorToInt32((World.X + AsphaltLot::HalfExtentCm) / FLotGrid::TexelCm);
-		const int32 Y = FMath::FloorToInt32((World.Y + AsphaltLot::HalfExtentCm) / FLotGrid::TexelCm);
-		return G.GetGrid().GetTexel(X, Y);
 	}
 }
 
@@ -91,17 +82,17 @@ bool FLotHandSwapDelayTest::RunTest(const FString& Parameters)
 	FillBowl(G);
 	TestFalse(TEXT("no bucket"), G.SelectHand(ELotHand::Bucket));
 	TestFalse(TEXT("no scoop"), G.CanSelectHand(ELotHand::Scoop));
-	TestTrue(TEXT("trowel is always there"), G.CanSelectHand(ELotHand::Trowel));
+	G.DebugGrantItem(ELotItem::Scoop);
+	TestTrue(TEXT("the scoop once bought"), G.CanSelectHand(ELotHand::Scoop));
 	TestTrue(TEXT("same item at once"), G.SelectHand(ELotHand::Bowl));
 	TestFalse(TEXT("same item costs no time"), G.IsHandBusy());
 
-	TestTrue(TEXT("take the trowel"), G.SelectHand(ELotHand::Trowel));
+	TestTrue(TEXT("take the scoop"), G.SelectHand(ELotHand::Scoop));
 	TestTrue(TEXT("swap takes time"), G.IsHandBusy());
 	TestFalse(TEXT("no second swap meanwhile"), G.SelectHand(ELotHand::Bowl));
 	G.Tick(1.5);
 	TestFalse(TEXT("swap done"), G.IsHandBusy());
-	TestEqual(TEXT("trowel in hand"), G.GetHand(), ELotHand::Trowel);
-	TestEqual(TEXT("trowel holds nothing"), G.GetHandCapacity(ELotHand::Trowel), 0.0);
+	TestEqual(TEXT("scoop in hand"), G.GetHand(), ELotHand::Scoop);
 
 	TestTrue(TEXT("back to the bowl"), G.SelectHand(ELotHand::Bowl));
 	TestTrue(TEXT("busy again"), G.IsHandBusy());
@@ -120,7 +111,8 @@ bool FLotHandSwapDelayTest::RunTest(const FString& Parameters)
 		Quick.DebugCompleteCell(AsphaltLot::EntryCell(0, I));
 	}
 	TestTrue(TEXT("quick swap unlocked"), Quick.IsUnlocked(ELotUnlock::QuickSwap));
-	TestTrue(TEXT("quick swap selects"), Quick.SelectHand(ELotHand::Trowel));
+	Quick.DebugGrantItem(ELotItem::Scoop);
+	TestTrue(TEXT("quick swap selects"), Quick.SelectHand(ELotHand::Scoop));
 	TestFalse(TEXT("quick swap costs no time"), Quick.IsHandBusy());
 	return true;
 }
@@ -147,12 +139,10 @@ bool FLotHandNothingLeavesOnOccupiedTest::RunTest(const FString& Parameters)
 	FLotGame G;
 	FillBowl(G);
 	const FVector2D Done = MiddleOfLot();
-	const FVector2D Raw = AsphaltLot::CellCentre(AsphaltLot::CellIndex(60, 40));
-	G.GetGrid().Stamp(Done - FVector2D(40.0, 0.0), Done + FVector2D(40.0, 0.0), 80.0, 100.0, ELotTexel::Done);
-	G.GetGrid().Stamp(Raw - FVector2D(40.0, 0.0), Raw + FVector2D(40.0, 0.0), 80.0, 100.0, ELotTexel::Raw);
-	const FVector2D Targets[3] = {Done, Raw, FVector2D(5000.0, 5000.0)};
-	const TCHAR* Names[3] = {TEXT("finished texels"), TEXT("raw texels"), TEXT("off the lot")};
-	for (int32 I = 0; I < 3; ++I)
+	G.GetGrid().Stamp(Done - FVector2D(40.0, 0.0), Done + FVector2D(40.0, 0.0), 80.0, 100.0);
+	const FVector2D Targets[2] = {Done, FVector2D(5000.0, 5000.0)};
+	const TCHAR* Names[2] = {TEXT("finished texels"), TEXT("off the lot")};
+	for (int32 I = 0; I < 2; ++I)
 	{
 		const FLotEvents E = G.PourHand(Targets[I], Targets[I] + FVector2D(-100.0, 0.0), 1.0);
 		TestEqual(FString::Printf(TEXT("%s: nothing poured"), Names[I]), E.LitresPoured, 0.0);
@@ -191,7 +181,7 @@ bool FLotHandFirstSquareTest::RunTest(const FString& Parameters)
 	}
 	TestTrue(TEXT("first cell complete"), G.GetGrid().IsCellComplete(Cell));
 	TestEqual(TEXT("only that cell"), G.GetCompletedCells(), 1);
-	TestNearlyEqual(TEXT("credits"), G.GetCredits(), 10.0, Tolerance);
+	TestNearlyEqual(TEXT("credits: ten for the cell, one a litre"), G.GetCredits(), 10.0 + 9.5, Tolerance);
 	TestNearlyEqual(TEXT("half a litre left in the fourth bowl"), G.GetHandLitres(ELotHand::Bowl), 0.5, TexelTolerance);
 	TestNearlyEqual(TEXT("litres used"), G.GetTotalLitres(), 9.5, TexelTolerance);
 	return true;
@@ -217,7 +207,7 @@ bool FLotHandBucketDumpTest::RunTest(const FString& Parameters)
 
 	const FLotEvents E = G.DumpBucket(Aim, From);
 	TestTrue(TEXT("cell complete"), G.GetGrid().IsCellComplete(AsphaltLot::CellAt(Aim)));
-	TestNearlyEqual(TEXT("credits"), E.CreditsEarned, 10.0, Tolerance);
+	TestNearlyEqual(TEXT("credits: ten for the cell, one a litre"), E.CreditsEarned, 10.0 + E.LitresPoured, Tolerance);
 	TestNearlyEqual(TEXT("half a litre stays"), G.GetHandLitres(ELotHand::Bucket), 0.5, TexelTolerance);
 	const FLotEvents Again = G.DumpBucket(Aim, From);
 	TestEqual(TEXT("complete cell takes nothing"), Again.LitresPoured, 0.0);
@@ -230,35 +220,6 @@ bool FLotHandBucketDumpTest::RunTest(const FString& Parameters)
 	Other.Tick(LotBalance::SwapSeconds);
 	TestNearlyEqual(TEXT("bucket in hand fills at the dispense rate"), Other.FillBucket(ELotSource::Plant, 1.0), LotBalance::DispenseRateLPerS(0), Tolerance);
 	TestNearlyEqual(TEXT("... and holds it"), Other.GetHandLitres(ELotHand::Bucket), LotBalance::DispenseRateLPerS(0), Tolerance);
-	return true;
-}
-
-bool FLotHandTrowelTest::RunTest(const FString& Parameters)
-{
-	FLotGame G;
-	FillBowl(G);
-	const FVector2D P = MiddleOfLot();
-	const FVector2D A = P + FVector2D(-40.0, 0.0);
-	const FVector2D B = P + FVector2D(40.0, 0.0);
-	G.GetGrid().Stamp(A, B, 60.0, 100.0, ELotTexel::Raw);
-	const FVector2D Inside = P + FVector2D(2.5, 12.5);
-	// The raw strip is 60 cm wide; just outside the trowel's width it stays raw.
-	const FVector2D Outside = P + FVector2D(2.5, LotBalance::TrowelWidthCm * 0.5 + 2.5);
-	TestTrue(TEXT("raw inside before"), TexelAt(G, Inside) == ELotTexel::Raw);
-
-	TestEqual(TEXT("bowl in hand: no effect"), G.Trowel(A, B).LitresPoured, 0.0);
-	TestTrue(TEXT("bowl in hand: still raw"), TexelAt(G, Inside) == ELotTexel::Raw);
-
-	G.SelectHand(ELotHand::Trowel);
-	G.Tick(1.5);
-	const double Litres = G.GetTotalLitres();
-	const FLotEvents E = G.Trowel(A, B);
-	TestTrue(TEXT("under the trowel: finished"), TexelAt(G, Inside) == ELotTexel::Done);
-	TestTrue(TEXT("beside the trowel: still raw"), TexelAt(G, Outside) == ELotTexel::Raw);
-	TestTrue(TEXT("other side: still raw"), TexelAt(G, P + FVector2D(2.5, -(LotBalance::TrowelWidthCm * 0.5 + 2.5))) == ELotTexel::Raw);
-	TestEqual(TEXT("smoothing costs nothing"), E.LitresPoured, 0.0);
-	TestEqual(TEXT("total litres unchanged"), G.GetTotalLitres(), Litres);
-	TestNearlyEqual(TEXT("bowl untouched"), G.GetHandLitres(ELotHand::Bowl), 2.5, Tolerance);
 	return true;
 }
 
@@ -276,10 +237,6 @@ bool FLotHandDebugFillTest::RunTest(const FString& Parameters)
 	TestNearlyEqual(TEXT("bucket filled to capacity"), G.GetHandLitres(ELotHand::Bucket), 10.0, Tolerance);
 	TestNearlyEqual(TEXT("the bowl keeps its own content"), G.GetHandLitres(ELotHand::Bowl), 2.5, Tolerance);
 
-	G.Tick(LotBalance::SwapSeconds);
-	TestTrue(TEXT("take the trowel"), G.SelectHand(ELotHand::Trowel));
-	G.DebugFillHand();
-	TestEqual(TEXT("the trowel holds nothing"), G.GetHandLitres(ELotHand::Trowel), 0.0);
 	return true;
 }
 

@@ -133,13 +133,13 @@ namespace DIACheats
 	}
 
 	/** The names dia.Item accepts: the ELotItem values in order. */
-	const TCHAR* const ItemNames[] = {TEXT("Scoop"), TEXT("Bucket"), TEXT("Suitcase"), TEXT("Cart"), TEXT("Station"), TEXT("Finisher"),
+	const TCHAR* const ItemNames[] = {TEXT("Scoop"), TEXT("Bucket"), TEXT("Suitcase"), TEXT("Cart"), TEXT("Station"),
 		TEXT("AutoPaver"), TEXT("AutoPaverFast"), TEXT("AutoPaverFaster"), TEXT("Car"), TEXT("CarWideBar")};
 	static_assert(UE_ARRAY_COUNT(ItemNames) == static_cast<int32>(ELotItem::Count), "one name per item");
 
 	void Item(const TArray<FString>& Args, UWorld* World)
 	{
-		static const TCHAR* Usage_ = TEXT("dia.Item <Scoop|Bucket|Suitcase|Cart|Station|Finisher|AutoPaver|AutoPaverFast|AutoPaverFaster|Car|CarWideBar>");
+		static const TCHAR* Usage_ = TEXT("dia.Item <Scoop|Bucket|Suitcase|Cart|Station|AutoPaver|AutoPaverFast|AutoPaverFaster|Car|CarWideBar>");
 		if (!Usage(Args.Num() == 1, Usage_))
 		{
 			return;
@@ -190,7 +190,7 @@ namespace DIACheats
 	}
 
 	/** The names dia.Grab accepts: the ELotMovable values in order. */
-	const TCHAR* const MovableNames[] = {TEXT("Suitcase"), TEXT("Cart"), TEXT("Station"), TEXT("Finisher")};
+	const TCHAR* const MovableNames[] = {TEXT("Suitcase"), TEXT("Cart"), TEXT("Station")};
 	static_assert(UE_ARRAY_COUNT(MovableNames) == static_cast<int32>(ELotMovable::Count), "one name per movable");
 
 	/** The movable a name stands for; Count if it is none. */
@@ -213,7 +213,7 @@ namespace DIACheats
 		if (!Game.OwnsMovable(Movable))
 		{
 			const ELotItem Item = Movable == ELotMovable::Suitcase ? ELotItem::Suitcase : Movable == ELotMovable::Cart ? ELotItem::Cart
-				: Movable == ELotMovable::Station ? ELotItem::Station : ELotItem::Finisher;
+				: ELotItem::Station;
 			Game.DebugGrantItem(Item);
 			S.OnItemBought.Broadcast(Item);
 		}
@@ -229,7 +229,7 @@ namespace DIACheats
 
 	void Grab(const TArray<FString>& Args, UWorld* World)
 	{
-		static const TCHAR* Usage_ = TEXT("dia.Grab <Suitcase|Cart|Station|Finisher>");
+		static const TCHAR* Usage_ = TEXT("dia.Grab <Suitcase|Cart|Station>");
 		if (!Usage(Args.Num() == 1, Usage_))
 		{
 			return;
@@ -276,10 +276,10 @@ namespace DIACheats
 		}
 	}
 
-	/** Lays a raw strip of the cart's width through the core, from the point towards +X, as if the cart had been pushed there; the cart stays where it was. */
-	void RawStrip(const TArray<FString>& Args, UWorld* World)
+	/** Lays a strip of the cart's width through the core, from the point towards +X, as if the cart had been pushed there; the cart stays where it was. */
+	void CartStrip(const TArray<FString>& Args, UWorld* World)
 	{
-		if (!Usage(Args.Num() >= 2 && Args.Num() <= 3, TEXT("dia.RawStrip <x> <y> [lengthM=4]")))
+		if (!Usage(Args.Num() >= 2 && Args.Num() <= 3, TEXT("dia.CartStrip <x> <y> [lengthM=4]")))
 		{
 			return;
 		}
@@ -291,7 +291,7 @@ namespace DIACheats
 		FLotGame& Game = S->GetGame();
 		if (Game.GetHeld() != ELotMovable::Count)
 		{
-			UE_LOG(LogDoItAsphalt, Warning, TEXT("dia.RawStrip: something is held; let go of it first (dia.Drop)"));
+			UE_LOG(LogDoItAsphalt, Warning, TEXT("dia.CartStrip: something is held; let go of it first (dia.Drop)"));
 			return;
 		}
 		ProvideMovable(*S, ELotMovable::Cart);
@@ -306,40 +306,10 @@ namespace DIACheats
 		}
 	}
 
-	/** Finishes the raw asphalt of a strip of the finisher's width through the core, from the point towards +X, as if the finisher had been guided there; the finisher stays where it was. */
-	void FinishStrip(const TArray<FString>& Args, UWorld* World)
-	{
-		if (!Usage(Args.Num() >= 2 && Args.Num() <= 3, TEXT("dia.FinishStrip <x> <y> [lengthM=4]")))
-		{
-			return;
-		}
-		UDIAWorldSubsystem* S = GetSubsystem(World);
-		if (!S)
-		{
-			return;
-		}
-		FLotGame& Game = S->GetGame();
-		if (Game.GetHeld() != ELotMovable::Count)
-		{
-			UE_LOG(LogDoItAsphalt, Warning, TEXT("dia.FinishStrip: something is held; let go of it first (dia.Drop)"));
-			return;
-		}
-		ProvideMovable(*S, ELotMovable::Finisher);
-		const FLotMovable Before = Game.World().Movables[static_cast<int32>(ELotMovable::Finisher)];
-		const FVector2D From(FCString::Atod(*Args[0]), FCString::Atod(*Args[1]));
-		const double LengthCm = (Args.Num() == 3 ? FCString::Atod(*Args[2]) : 4.0) * 100.0;
-		if (Game.Grab(ELotMovable::Finisher))
-		{
-			S->Dispatch(Game.FinisherPass(From, From + FVector2D(LengthCm, 0.0)));
-			Game.Release(Before.Pos, Before.YawDeg);
-			S->Dispatch(FLotEvents());
-		}
-	}
-
 	/** Gives the player the movable (if needed) and sets it down at the point, turned by the yaw; the actor follows the core. */
 	void Place(const TArray<FString>& Args, UWorld* World)
 	{
-		static const TCHAR* Usage_ = TEXT("dia.Place <Suitcase|Cart|Station|Finisher> <x> <y> [yaw]");
+		static const TCHAR* Usage_ = TEXT("dia.Place <Suitcase|Cart|Station> <x> <y> [yaw]");
 		if (!Usage(Args.Num() >= 3 && Args.Num() <= 4, Usage_))
 		{
 			return;
@@ -564,6 +534,21 @@ namespace DIACheats
 		}
 	}
 
+	void Screen(const TArray<FString>& Args, UWorld* World)
+	{
+		if (!Usage(Args.Num() == 1, TEXT("dia.Screen <Pause|Settings|Question|Win>")))
+		{
+			return;
+		}
+		if (ADIAHUD* Hud = GetHud(World))
+		{
+			if (!Hud->DebugShowScreen(Args[0]))
+			{
+				UE_LOG(LogDoItAsphalt, Warning, TEXT("dia.Screen <Pause|Settings|Question|Win>: unknown screen %s"), *Args[0]);
+			}
+		}
+	}
+
 	void CheckView(const TArray<FString>& Args, UWorld* World)
 	{
 		if (!Usage(Args.Num() == 1 && (Args[0] == TEXT("0") || Args[0] == TEXT("1")), TEXT("dia.CheckView <1|0>")))
@@ -577,12 +562,12 @@ namespace DIACheats
 	}
 
 	/** The names dia.Hand accepts: the ELotHand values in order. */
-	const TCHAR* const HandNames[] = {TEXT("Bowl"), TEXT("Scoop"), TEXT("Bucket"), TEXT("Trowel")};
+	const TCHAR* const HandNames[] = {TEXT("Bowl"), TEXT("Scoop"), TEXT("Bucket")};
 	static_assert(UE_ARRAY_COUNT(HandNames) == static_cast<int32>(ELotHand::Count), "one name per hand item");
 
 	void Hand(const TArray<FString>& Args, UWorld* World)
 	{
-		static const TCHAR* Usage_ = TEXT("dia.Hand <Bowl|Scoop|Bucket|Trowel>");
+		static const TCHAR* Usage_ = TEXT("dia.Hand <Bowl|Scoop|Bucket>");
 		if (!Usage(Args.Num() == 1, Usage_))
 		{
 			return;
@@ -740,12 +725,11 @@ namespace DIACheats
 	FAutoConsoleCommandWithWorldAndArgs GiveCommand(TEXT("dia.Give"), TEXT("dia.Give <credits>"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Give));
 	FAutoConsoleCommandWithWorldAndArgs CompleteCommand(TEXT("dia.Complete"), TEXT("dia.Complete <n>: completes the first n incomplete cells"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Complete));
 	FAutoConsoleCommandWithWorldAndArgs CompleteEntryCommand(TEXT("dia.CompleteEntry"), TEXT("dia.CompleteEntry <0..5>: completes the 12 cells of an entry segment"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&CompleteEntry));
-	FAutoConsoleCommandWithWorldAndArgs ItemCommand(TEXT("dia.Item"), TEXT("dia.Item <name>: gives the player an item (Scoop, Bucket, Suitcase, Cart, Station, Finisher, AutoPaver, AutoPaverFast, AutoPaverFaster, Car, CarWideBar)"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Item));
-	FAutoConsoleCommandWithWorldAndArgs GrabCommand(TEXT("dia.Grab"), TEXT("dia.Grab <Suitcase|Cart|Station|Finisher>: gives the player the movable if needed, fills a suitcase or cart and takes it in the hands"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Grab));
+	FAutoConsoleCommandWithWorldAndArgs ItemCommand(TEXT("dia.Item"), TEXT("dia.Item <name>: gives the player an item (Scoop, Bucket, Suitcase, Cart, Station, AutoPaver, AutoPaverFast, AutoPaverFaster, Car, CarWideBar)"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Item));
+	FAutoConsoleCommandWithWorldAndArgs GrabCommand(TEXT("dia.Grab"), TEXT("dia.Grab <Suitcase|Cart|Station>: gives the player the movable if needed, fills a suitcase or cart and takes it in the hands"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Grab));
 	FAutoConsoleCommandWithWorldAndArgs DropCommand(TEXT("dia.Drop"), TEXT("dia.Drop: lets go of the held movable where it is, if there is room"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Drop));
-	FAutoConsoleCommandWithWorldAndArgs RawStripCommand(TEXT("dia.RawStrip"), TEXT("dia.RawStrip <x> <y> [lengthM=4]: lays a raw strip of the cart's width from the point towards +X through the core (gives and fills the cart)"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&RawStrip));
-	FAutoConsoleCommandWithWorldAndArgs FinishStripCommand(TEXT("dia.FinishStrip"), TEXT("dia.FinishStrip <x> <y> [lengthM=4]: finishes the raw asphalt of a strip of the finisher's width from the point towards +X through the core (gives the finisher)"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&FinishStrip));
-	FAutoConsoleCommandWithWorldAndArgs PlaceCommand(TEXT("dia.Place"), TEXT("dia.Place <Suitcase|Cart|Station|Finisher> <x> <y> [yaw]: gives the movable if needed and sets it down at the point"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Place));
+	FAutoConsoleCommandWithWorldAndArgs CartStripCommand(TEXT("dia.CartStrip"), TEXT("dia.CartStrip <x> <y> [lengthM=4]: lays a strip of the cart's width from the point towards +X through the core (gives and fills the cart)"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&CartStrip));
+	FAutoConsoleCommandWithWorldAndArgs PlaceCommand(TEXT("dia.Place"), TEXT("dia.Place <Suitcase|Cart|Station> <x> <y> [yaw]: gives the movable if needed and sets it down at the point"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Place));
 	FAutoConsoleCommandWithWorldAndArgs PlantCommand(TEXT("dia.Plant"), TEXT("dia.Plant <0..5>: sets the plant level"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Plant));
 	FAutoConsoleCommandWithWorldAndArgs EnterCarCommand(TEXT("dia.EnterCar"), TEXT("dia.EnterCar: gets the player into the paver car (dia.Item Car first), like the E key beside it; while driving, gets out"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&EnterCar));
 	FAutoConsoleCommandWithWorldAndArgs TeleportCommand(TEXT("dia.Teleport"), TEXT("dia.Teleport <x> <y> [yaw] [pitch]"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Teleport));
@@ -759,8 +743,9 @@ namespace DIACheats
 	FAutoConsoleCommandWithWorldAndArgs CameraConsoleCommand(TEXT("dia.Camera"), TEXT("dia.Camera [distanceCm] [yawOffsetDeg] [pitchDeg]: no arguments toggle between the view from the eyes and the external view; otherwise the external view that far behind the player at that angle (0 = from the eyes)"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&CameraCommand));
 	FAutoConsoleCommandWithWorldAndArgs WorkViewConsoleCommand(TEXT("dia.WorkView"), TEXT("dia.WorkView <1|0>: holds the work view (zoomed, tilted down) or lets it go; screenshots use it"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&WorkView));
 	FAutoConsoleCommandWithWorldAndArgs ShopConsoleCommand(TEXT("dia.Shop"), TEXT("dia.Shop: opens or closes the shop; screenshots use it"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Shop));
+	FAutoConsoleCommandWithWorldAndArgs ScreenConsoleCommand(TEXT("dia.Screen"), TEXT("dia.Screen <Pause|Settings|Question|Win>: opens that screen of the menu or the win screen; screenshots use it"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Screen));
 	FAutoConsoleCommandWithWorldAndArgs CheckViewConsoleCommand(TEXT("dia.CheckView"), TEXT("dia.CheckView <1|0>: holds the check view (unfinished ground in orange, the way to the nearest unfinished cell) or lets it go; screenshots use it"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&CheckView));
-	FAutoConsoleCommandWithWorldAndArgs HandConsoleCommand(TEXT("dia.Hand"), TEXT("dia.Hand <Bowl|Scoop|Bucket|Trowel>: takes the item into the hand (a scoop or bucket not owned yet is given)"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Hand));
+	FAutoConsoleCommandWithWorldAndArgs HandConsoleCommand(TEXT("dia.Hand"), TEXT("dia.Hand <Bowl|Scoop|Bucket>: takes the item into the hand (a scoop or bucket not owned yet is given)"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Hand));
 	FAutoConsoleCommandWithWorldAndArgs FillConsoleCommand(TEXT("dia.Fill"), TEXT("dia.Fill: fills the vessel in hand to its capacity"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Fill));
 	FAutoConsoleCommandWithWorldAndArgs TopViewCommand(TEXT("dia.TopView"), TEXT("dia.TopView [heightM=260]: camera above the centre of the lot, looking straight down (+X up, +Y right)"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&TopView));
 	FAutoConsoleCommandWithWorldAndArgs ShotAndQuitCommand(TEXT("dia.ShotAndQuit"), TEXT("dia.ShotAndQuit <seconds> <name>: saves Saved/Screenshots/<name>.png and quits"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&ShotAndQuit));

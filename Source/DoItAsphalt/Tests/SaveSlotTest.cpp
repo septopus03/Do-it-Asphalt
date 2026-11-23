@@ -10,6 +10,7 @@
 #include "EngineUtils.h"
 #include "Game/DIAGameMode.h"
 #include "Game/DIASaveGame.h"
+#include "Game/DIASettings.h"
 #include "Game/DIAWorldSubsystem.h"
 #include "HAL/FileManager.h"
 #include "LotBalance.h"
@@ -344,9 +345,9 @@ bool FAutosaveTest::RunTest(const FString& Parameters)
 		TestTrue(TEXT("a purchase with autosave"), Subsystem->BuyPlant());
 		TestTrue(TEXT("the upgrade was saved"), FSaveTestSlot::Exists());
 
-		// A purchase that fails saves nothing: the finisher is still locked (its unlock step is closed).
+		// A purchase that fails saves nothing: the station is still locked (its unlock step is closed).
 		FSaveTestSlot::Delete();
-		TestFalse(TEXT("a locked item cannot be bought"), Subsystem->BuyItem(ELotItem::Finisher));
+		TestFalse(TEXT("a locked item cannot be bought"), Subsystem->BuyItem(ELotItem::Station));
 		TestFalse(TEXT("and saves nothing"), FSaveTestSlot::Exists());
 
 		// An item saves too.
@@ -556,6 +557,26 @@ bool FMenuModelTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("the question"), FDIAMenuModel::GetQuestion().ToString(), FString(TEXT("Start over? Progress will be lost.")));
 	Model.Open(EDIAMenuMode::Pause, false);
 	TestFalse(TEXT("opening again drops the question"), Model.ShowsQuestion());
+
+	// The settings replace the buttons, and the question blocks them.
+	Model.bConfirming = true;
+	Model.OpenSettings();
+	TestFalse(TEXT("no settings over the question"), Model.ShowsSettings());
+	Model.bConfirming = false;
+	Model.OpenSettings();
+	TestTrue(TEXT("the settings are up"), Model.ShowsSettings());
+	TestFalse(TEXT("the buttons are gone"), Model.ShowsButtons());
+	TestFalse(TEXT("so is Resume"), Model.ShowsResume());
+	TestEqual(TEXT("settings title"), Model.GetTitle().ToString(), FString(TEXT("Settings")));
+	Model.CloseSettings();
+	TestTrue(TEXT("back to the buttons"), Model.ShowsButtons());
+	TestFalse(TEXT("settings gone"), Model.ShowsSettings());
+	Model.OpenSettings();
+	Model.Open(EDIAMenuMode::Pause, false);
+	TestFalse(TEXT("opening again leaves the settings"), Model.ShowsSettings());
+	Model.OpenSettings();
+	Model.Close();
+	TestFalse(TEXT("closing drops the settings"), Model.ShowsSettings());
 	Model.Close();
 	TestFalse(TEXT("closed again"), Model.IsOpen());
 	TestFalse(TEXT("closed: no question"), Model.ShowsQuestion());
@@ -1250,12 +1271,12 @@ bool FSaveNewGameRemovesMachinesTest::RunTest(const FString& Parameters)
 	{
 		return false;
 	}
-	for (const ELotItem Item : {ELotItem::Suitcase, ELotItem::Cart, ELotItem::Station, ELotItem::Finisher, ELotItem::AutoPaver, ELotItem::Car})
+	for (const ELotItem Item : {ELotItem::Suitcase, ELotItem::Cart, ELotItem::Station, ELotItem::AutoPaver, ELotItem::Car})
 	{
 		Scene.Grant(Item);
 	}
 	Scene.TickFor(0.2);
-	TestEqual(TEXT("four movables"), Scene.Find<ADIAMovable>().Num(), static_cast<int32>(ELotMovable::Count));
+	TestEqual(TEXT("all movables"), Scene.Find<ADIAMovable>().Num(), static_cast<int32>(ELotMovable::Count));
 	TestEqual(TEXT("an auto paver"), Scene.Find<ADIAAutoPaver>().Num(), 1);
 	TestEqual(TEXT("a car"), Scene.Find<ADIAPaverCar>().Num(), 1);
 
@@ -1527,8 +1548,27 @@ bool FSaveHeldNeedsRoomTest::RunTest(const FString& Parameters)
 	using namespace SaveWorldTestSupport;
 	CheckHeldKind(*this, ELotMovable::Cart, ELotItem::Cart, TEXT("cart"));
 	CheckHeldKind(*this, ELotMovable::Suitcase, ELotItem::Suitcase, TEXT("suitcase"));
-	CheckHeldKind(*this, ELotMovable::Finisher, ELotItem::Finisher, TEXT("finisher"));
 	CheckHeldKind(*this, ELotMovable::Station, ELotItem::Station, TEXT("station"));
+	return true;
+}
+
+DIA_TEST(FMouseSensitivityTest, "DoItAsphalt.Game.MouseSensitivity")
+
+bool FMouseSensitivityTest::RunTest(const FString& Parameters)
+{
+	using namespace DIASettings;
+	TestNearlyEqual(TEXT("below the range"), ClampMouseSensitivity(-5.f), MinMouseSensitivity, 1e-6f);
+	TestNearlyEqual(TEXT("above the range"), ClampMouseSensitivity(99.f), MaxMouseSensitivity, 1e-6f);
+	TestNearlyEqual(TEXT("inside the range"), ClampMouseSensitivity(1.5f), 1.5f, 1e-6f);
+	TestNearlyEqual(TEXT("not a number gives the default"), ClampMouseSensitivity(std::numeric_limits<float>::quiet_NaN()), DefaultMouseSensitivity, 1e-6f);
+
+	const float Before = GetMouseSensitivity();
+	SetMouseSensitivity(2.f);
+	TestNearlyEqual(TEXT("set at once"), GetMouseSensitivity(), 2.f, 1e-6f);
+	SetMouseSensitivity(100.f);
+	TestNearlyEqual(TEXT("set is clamped"), GetMouseSensitivity(), MaxMouseSensitivity, 1e-6f);
+	SetMouseSensitivity(Before);
+	TestNearlyEqual(TEXT("restored"), GetMouseSensitivity(), Before, 1e-6f);
 	return true;
 }
 

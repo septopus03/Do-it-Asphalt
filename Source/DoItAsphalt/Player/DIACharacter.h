@@ -65,6 +65,10 @@ public:
 	/** Flap (F, held): the standing suitcase beside the player doses raw asphalt through its flap. */
 	void SetFlap(bool bOpen) { bFlap = bOpen; }
 	bool IsFlapHeld() const { return bFlap; }
+
+	/** Fill (R, held): scoops from the trough with the bowl or scoop, fills the bucket at a tap or the outlet. The left button only pours or dumps. */
+	void SetFilling(bool bFill) { bFilling = bFill; }
+	bool IsFillingHeld() const { return bFilling; }
 	/** Work view (right button, held): the field of view narrows and the view tilts down; it eases back on release. */
 	void SetWorkView(bool bWork);
 	bool IsWorkView() const { return bWorkView; }
@@ -85,6 +89,9 @@ public:
 	/** Main mesh of the hand item (bowl, scoop, bucket, trowel), the spoon that goes with the bowl, and the asphalt disc in a vessel. */
 	UStaticMeshComponent* GetHandMesh() const { return HandMesh; }
 	UStaticMeshComponent* GetSpoonMesh() const { return SpoonMesh; }
+	/** The gloves of the bowl's two hands (left holds the bowl, right the spoon); hidden for every other tool. */
+	UStaticMeshComponent* GetLeftGlove() const { return LeftGlove; }
+	UStaticMeshComponent* GetRightGlove() const { return RightGlove; }
 	UStaticMeshComponent* GetLiquidMesh() const { return LiquidMesh; }
 
 	virtual void Tick(float DeltaSeconds) override;
@@ -110,6 +117,8 @@ private:
 	float GetWorkViewBlend() const;
 	/** One tick of the held Use button with the item in hand. */
 	void UseHand(UDIAWorldSubsystem& Subsystem, float DeltaSeconds);
+	/** What the Fill key does (scooping, filling the bucket); UseHand is the left button (pouring, dumping, trowel). */
+	void FillHand(UDIAWorldSubsystem& Subsystem, float DeltaSeconds);
 	/** A game was loaded or started: stands where the core says, without sprinting. */
 	void HandleGameReset();
 
@@ -132,21 +141,30 @@ private:
 	UPROPERTY()
 	TObjectPtr<UStaticMeshComponent> SpoonMesh;
 
+	/** The two hands of the bowl and the spoon: a glove and a sleeve each (the left one holds the bowl, the right one the spoon). */
+	UPROPERTY()
+	TObjectPtr<UStaticMeshComponent> LeftGlove;
+
+	UPROPERTY()
+	TObjectPtr<UStaticMeshComponent> LeftSleeve;
+
+	UPROPERTY()
+	TObjectPtr<UStaticMeshComponent> RightGlove;
+
+	UPROPERTY()
+	TObjectPtr<UStaticMeshComponent> RightSleeve;
+
 	UPROPERTY()
 	TObjectPtr<UStaticMeshComponent> LiquidMesh;
 
 	bool bSprinting = false;
 	bool bUsing = false;
 	bool bFlap = false;
+	bool bFilling = false;
 	bool bWorkView = false;
 	bool bExternalView = false;
 	/** 0 = normal view, 1 = work view. */
 	float WorkViewAlpha = 0.f;
-	/** The bucket was already emptied during this press of Use. */
-	bool bBucketDumped = false;
-	/** The trowel has a contact point from the press on; it follows the aim at most TrowelSpeedCmS. */
-	bool bTrowelDown = false;
-	FVector2D TrowelContact = FVector2D::ZeroVector;
 	/** The item the pivot shows now and the movable held then; Count before the first refresh. */
 	ELotHand ShownHand = ELotHand::Count;
 	ELotMovable ShownHeld = ELotMovable::Count;
