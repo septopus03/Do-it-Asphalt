@@ -62,6 +62,8 @@ public:
 	void OnPause();
 	/** Tab: opens or closes the shop. */
 	void OnShop();
+	/** G: opens or closes the paver map (click a sector to send the auto paver there); "No paver" without it. */
+	void OnPaverMap();
 	/** V, held: the check view; it does nothing while a menu, the shop or the win screen is up. */
 	void OnCheckViewStarted();
 	void OnCheckViewCompleted();
@@ -77,7 +79,7 @@ public:
 	void OnWorkViewStarted();
 	void OnWorkViewCompleted();
 	/**
-	 * G: sends the auto paver to the sector the player stands in (toast: "Paver → sector n", "No paver", "Not on the lot" or "Paver is
+	 * H: sends the auto paver to the sector the player stands in (toast: "Paver → sector n", "No paver", "Not on the lot" or "Paver is
 	 * already here"). It does nothing while a menu, the shop or the win screen is up; the same code path serves dia.SendPaver.
 	 */
 	void OnSendPaver();

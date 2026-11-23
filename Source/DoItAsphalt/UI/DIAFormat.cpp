@@ -60,14 +60,23 @@ namespace
 	FText PerMinuteLitres() { return NSLOCTEXT("DIAShop", "LitresPerMinute", "l/min"); }
 	FText PerMinuteCells() { return NSLOCTEXT("DIAShop", "CellsPerMinute", "cells/min"); }
 
+	/** Below this fraction of its tank the car's HUD asks for a station. */
+	constexpr double CarLowTankFraction = 0.1;
+
 	/** The vessel in the hand, or the suitcase or cart that is held: how much it holds and how much fits. False when there is none. */
 	bool GaugeOf(const FLotGame& Game, double& OutHave, double& OutCapacity)
 	{
 		const ELotMovable Held = Game.GetHeld();
-		// Behind the wheel there is no vessel.
+		// Behind the wheel the gauge is the car's tank.
 		if (Game.World().bPlayerInCar)
 		{
-			return false;
+			if (Game.GetCarLevel() < 0)
+			{
+				return false;
+			}
+			OutHave = Game.GetCarTank();
+			OutCapacity = Game.GetCarTankCapacity();
+			return true;
 		}
 		if (Held == ELotMovable::Suitcase || Held == ELotMovable::Cart)
 		{
@@ -102,8 +111,9 @@ namespace
 	{
 		switch (Item)
 		{
-		case ELotItem::Scoop: return FText::Format(NSLOCTEXT("DIAShop", "Litres", "{0} l"), TenthsText(Tenths(LotBalance::ScoopLitres)));
 		case ELotItem::Bucket: return FText::Format(NSLOCTEXT("DIAShop", "Litres", "{0} l"), TenthsText(Tenths(LotBalance::HandCapacityL[static_cast<int32>(ELotHand::Bucket)])));
+		case ELotItem::Canister: return FText::Format(NSLOCTEXT("DIAShop", "Litres", "{0} l"), TenthsText(Tenths(LotBalance::HandCapacityL[static_cast<int32>(ELotHand::Canister)])));
+		case ELotItem::Tub: return FText::Format(NSLOCTEXT("DIAShop", "Litres", "{0} l"), TenthsText(Tenths(LotBalance::HandCapacityL[static_cast<int32>(ELotHand::Tub)])));
 		case ELotItem::Suitcase: return FText::Format(NSLOCTEXT("DIAShop", "Litres", "{0} l"), TenthsText(Tenths(LotBalance::SuitcaseCapacityL)));
 		case ELotItem::Cart: return FText::Format(NSLOCTEXT("DIAShop", "Litres", "{0} l"), TenthsText(Tenths(LotBalance::CartCapacityL)));
 		case ELotItem::Station: return NSLOCTEXT("DIAShop", "StationValue", "Refill anywhere");
@@ -200,8 +210,9 @@ FText DIAFormat::ItemName(ELotItem Item)
 {
 	switch (Item)
 	{
-	case ELotItem::Scoop: return LOCTEXT("ItemScoop", "Scoop");
 	case ELotItem::Bucket: return LOCTEXT("ItemBucket", "Bucket");
+	case ELotItem::Canister: return LOCTEXT("ItemCanister", "Canister");
+	case ELotItem::Tub: return LOCTEXT("ItemTub", "Tub");
 	case ELotItem::Suitcase: return LOCTEXT("ItemSuitcase", "Suitcase");
 	case ELotItem::Cart: return LOCTEXT("ItemCart", "Cart");
 	case ELotItem::Station: return LOCTEXT("ItemStation", "Portable Station");
@@ -233,8 +244,9 @@ FText DIAFormat::HandName(ELotHand Hand)
 	switch (Hand)
 	{
 	case ELotHand::Bowl: return LOCTEXT("HandBowl", "Bowl");
-	case ELotHand::Scoop: return LOCTEXT("HandScoop", "Scoop");
 	case ELotHand::Bucket: return LOCTEXT("HandBucket", "Bucket");
+	case ELotHand::Canister: return LOCTEXT("HandCanister", "Canister");
+	case ELotHand::Tub: return LOCTEXT("HandTub", "Tub");
 	default: return FText::GetEmpty();
 	}
 }
@@ -284,6 +296,19 @@ bool DIAFormat::IsInRefillZone(const FLotGame& Game)
 
 FText DIAFormat::RefillLine(const FLotGame& Game)
 {
+	if (Game.World().bPlayerInCar && Game.GetCarLevel() >= 0)
+	{
+		// Behind the wheel the line is about the tank: at a station what is there to load, elsewhere where to go when it runs low.
+		if (Game.IsAtStation(Game.World().PlayerPos))
+		{
+			return FText::Format(LOCTEXT("CarLoading", "Station: loading · plant stock {0}"), Litres(Game.GetPlantStock(), Game.GetPlantStorage()));
+		}
+		if (Game.GetCarTank() < Game.GetCarTankCapacity() * CarLowTankFraction)
+		{
+			return LOCTEXT("CarTankLow", "Tank low – drive to a station");
+		}
+		return FText::GetEmpty();
+	}
 	return IsInRefillZone(Game) ? Litres(Game.GetPlantStock(), Game.GetPlantStorage()) : FText::GetEmpty();
 }
 
@@ -410,9 +435,17 @@ FText DIAFormat::PaverLine(const FLotGame& Game)
 	const int32 Sector = Game.GetAutoPaverSector();
 	if (Sector == INDEX_NONE)
 	{
-		return LOCTEXT("PaverWaiting", "Paver: waiting – press G");
+		return LOCTEXT("PaverWaiting", "Paver: waiting – press G for the map");
 	}
-	return FText::Format(LOCTEXT("PaverWorking", "Paver: sector {0} · {1} / {2}"), SectorNumber(Sector), Count(Game.GetAutoPaverStep()), Count(AsphaltLot::CellsPerSector));
+	const FText Tank = Litres(Game.GetAutoPaverTank(), Game.GetAutoPaverTankCapacity());
+	switch (Game.GetAutoPaverPhase())
+	{
+	case ELotPaverPhase::ToStation: return FText::Format(LOCTEXT("PaverToStation", "Paver → station (tank empty) · sector {0}"), SectorNumber(Sector));
+	case ELotPaverPhase::Loading: return FText::Format(LOCTEXT("PaverLoading", "Paver: loading at the station · {0}"), Tank);
+	case ELotPaverPhase::ToSector: return FText::Format(LOCTEXT("PaverToSector", "Paver → sector {0} · {1}"), SectorNumber(Sector), Tank);
+	default: break;
+	}
+	return FText::Format(LOCTEXT("PaverWorking", "Paver: sector {0} · {1} / {2} · tank {3}"), SectorNumber(Sector), Count(Game.GetAutoPaverStep()), Count(AsphaltLot::CellsPerSector), Tank);
 }
 
 FText DIAFormat::MovablePrompt(ELotMovable Movable, bool bHeld)
@@ -452,7 +485,12 @@ bool FDIAHudModel::Update(const FLotGame& Game)
 		NewKey.GaugeCapacityTenths = Tenths(Capacity);
 	}
 	// The stock moves all the time, so it only counts while it is shown.
-	if (DIAFormat::IsInRefillZone(Game))
+	const bool bCarLine = Game.World().bPlayerInCar && Game.GetCarLevel() >= 0;
+	if (bCarLine)
+	{
+		NewKey.CarLine = Game.IsAtStation(Game.World().PlayerPos) ? 2 : (Game.GetCarTank() < Game.GetCarTankCapacity() * CarLowTankFraction ? 1 : 0);
+	}
+	if (NewKey.CarLine == 2 || (!bCarLine && DIAFormat::IsInRefillZone(Game)))
 	{
 		NewKey.StockTenths = Tenths(Game.GetPlantStock());
 		NewKey.StorageTenths = Tenths(Game.GetPlantStorage());
@@ -465,6 +503,8 @@ bool FDIAHudModel::Update(const FLotGame& Game)
 	{
 		NewKey.PaverSector = Game.GetAutoPaverSector();
 		NewKey.PaverStep = NewKey.PaverSector == INDEX_NONE ? 0 : Game.GetAutoPaverStep();
+		NewKey.PaverPhase = static_cast<int32>(Game.GetAutoPaverPhase());
+		NewKey.PaverTankTenths = Tenths(Game.GetAutoPaverTank());
 	}
 
 	if (RebuildCount > 0 && NewKey == Key)
@@ -480,6 +520,7 @@ bool FDIAHudModel::Update(const FLotGame& Game)
 	View.HandLabel = DIAFormat::HandLabel(Game);
 	View.HandGauge = DIAFormat::HandGauge(Game);
 	View.Refill = DIAFormat::RefillLine(Game);
+	View.RefillCaption = bCarLine ? LOCTEXT("RefillCaptionCar", "Car") : LOCTEXT("RefillCaptionPlant", "Plant stock");
 	View.Next = DIAFormat::NextUnlock(Game);
 	View.Paver = DIAFormat::PaverLine(Game);
 	return true;

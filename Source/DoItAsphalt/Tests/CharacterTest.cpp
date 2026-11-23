@@ -364,10 +364,10 @@ bool FCharacterHandMeshTest::RunTest(const FString& Parameters)
 
 	// The core changes the hand without the character: the mesh catches up with the next state change.
 	TickFor(Wrapper, LotBalance::SwapSeconds + 0.5);
-	Game.DebugGrantItem(ELotItem::Scoop);
-	TestTrue(TEXT("the core takes the scoop"), Game.SelectHand(ELotHand::Scoop));
+	Game.DebugGrantItem(ELotItem::Canister);
+	TestTrue(TEXT("the core takes the canister"), Game.SelectHand(ELotHand::Canister));
 	Wrapper.TickTestWorld(TickSeconds);
-	TestEqual(TEXT("scoop mesh"), MeshName(Character->GetHandMesh()), FString(TEXT("SM_Scoop")));
+	TestEqual(TEXT("canister mesh"), MeshName(Character->GetHandMesh()), FString(TEXT("SM_Canister")));
 
 	TickFor(Wrapper, LotBalance::SwapSeconds + 0.5);
 	TestTrue(TEXT("back to the bowl"), Game.SelectHand(ELotHand::Bowl));
@@ -440,7 +440,7 @@ bool FCharacterPourOnLotTest::RunTest(const FString& Parameters)
 	}
 	Character->SetUsing(false);
 
-	TestNearlyEqual(TEXT("the bowl is a litre lighter"), Before - Game.GetHandLitres(ELotHand::Bowl), LotBalance::HandPourRateLPerS * 1.0, 0.05);
+	TestNearlyEqual(TEXT("the bowl is a litre lighter"), Before - Game.GetHandLitres(ELotHand::Bowl), LotBalance::HandPourRateLPerS[static_cast<int32>(ELotHand::Bowl)] * 1.0, 0.05);
 	const int32 Gained = CountTexels(Game) - DoneBefore;
 	TestTrue(TEXT("finished texels appeared on the ground"), Gained > 0);
 	TestNearlyEqual(TEXT("... as many as the litres pay for"), Gained * FLotGrid::LitresPerTexel, Game.GetTotalLitres(), 1e-6);
@@ -475,9 +475,9 @@ bool FCharacterBucketPoursAtAimTest::RunTest(const FString& Parameters)
 	TickFor(Wrapper, 0.1);
 	const double After = Game.GetHandLitres(ELotHand::Bucket);
 	TestTrue(TEXT("a little left the bucket"), After < Full);
-	TestTrue(TEXT("but not all of it"), After > Full - 0.5 * LotBalance::BucketPourRateLPerS);
+	TestTrue(TEXT("but not all of it"), After > Full - 0.5 * LotBalance::HandPourRateLPerS[static_cast<int32>(ELotHand::Bucket)]);
 	TestTrue(TEXT("the asphalt lies at the aim point"), TexelAt(Game, Aim) == ELotTexel::Done);
-	TestTrue(TEXT("a point beyond the stream's footprint is still free"), TexelAt(Game, Aim + FVector2D(LotBalance::BucketPourRadiusCm * 2.0, 0.0)) == ELotTexel::Free);
+	TestTrue(TEXT("a point beyond the stream's footprint is still free"), TexelAt(Game, Aim + FVector2D(LotBalance::PourRadiusCm[static_cast<int32>(ELotHand::Bucket)] * 2.0, 0.0)) == ELotTexel::Free);
 
 	// The ground under the stream is covered quickly; what the bucket could not lay stays in it.
 	TickFor(Wrapper, 2.0);
@@ -674,9 +674,9 @@ bool FCharacterTickRateIndependentTest::RunTest(const FString& Parameters)
 	TestNearlyEqual(TEXT("scooped litres"), Fine.Scooped, Coarse.Scooped, 1e-6);
 	TestEqual(TEXT("two strokes of the spoon"), Fine.Scooped, 2.0 * LotBalance::SpoonLitres, 1e-6);
 	TestNearlyEqual(TEXT("poured litres (within two texels)"), Fine.Poured, Coarse.Poured, 2.0 * FLotGrid::LitresPerTexel);
-	TestEqual(TEXT("poured about a litre"), Fine.Poured, LotBalance::HandPourRateLPerS, 0.1);
+	TestEqual(TEXT("poured about a litre"), Fine.Poured, LotBalance::HandPourRateLPerS[static_cast<int32>(ELotHand::Bowl)], 0.1);
 	TestNearlyEqual(TEXT("the bucket's stream pours the same in both"), Fine.DumpedLitres, Coarse.DumpedLitres, 2.0 * FLotGrid::LitresPerTexel);
-	TestEqual(TEXT("a second of the bucket's stream"), Fine.DumpedLitres, LotBalance::BucketPourRateLPerS, 0.1);
+	TestEqual(TEXT("a second of the bucket's stream"), Fine.DumpedLitres, LotBalance::HandPourRateLPerS[static_cast<int32>(ELotHand::Bucket)], 0.1);
 	return true;
 }
 
@@ -689,9 +689,9 @@ bool FCharacterNextHandTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("the bowl stays while nothing else is owned"), Game.GetHand(), ELotHand::Bowl);
 	TickFor(Wrapper, LotBalance::SwapSeconds + 0.5);
 
-	Game.DebugGrantItem(ELotItem::Scoop);
+	Game.DebugGrantItem(ELotItem::Canister);
 	Game.DebugGrantItem(ELotItem::Bucket);
-	const ELotHand Order[] = {ELotHand::Scoop, ELotHand::Bucket, ELotHand::Bowl};
+	const ELotHand Order[] = {ELotHand::Bucket, ELotHand::Canister, ELotHand::Bowl};
 	for (const ELotHand Expected : Order)
 	{
 		Character->NextHand();

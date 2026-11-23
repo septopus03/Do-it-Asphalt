@@ -6,6 +6,7 @@
 #include "AsphaltTest.h"
 #include "Camera/CameraComponent.h"
 #include "Components/BoxComponent.h"
+#include "GameFramework/SpringArmComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/CollisionProfile.h"
 #include "Engine/StaticMesh.h"
@@ -146,22 +147,17 @@ namespace CarTestSupport
 	}
 
 	/**
-	 * The cabin view: the body (with its glass, which seen from inside is an opaque blue plane) is hidden from the owner's own view, a
-	 * bonnet is seen by it alone, and the wide bar stays. The flags are the same in every state, because the view's owner is the view target:
-	 * the car while driven, the character otherwise, so that from outside the car looks as it always did.
+	 * The third-person view: the whole body is seen by everyone (nothing is hidden from the owner), the camera hangs on a boom, and the
+	 * collision stays a blocking box. The view target is the one expected: the car while driven, the character otherwise.
 	 */
 	void CheckCabinView(FAutomationTestBase& Test, ADIAPaverCar* Car, const ADIAPlayerController* Controller, const AActor* ExpectedViewTarget, const TCHAR* When)
 	{
 		const FString Tag(When);
 		Test.TestTrue(Tag + TEXT(": the view target is the one expected"), Controller->GetViewTarget() == ExpectedViewTarget);
 		UStaticMeshComponent* Body = Car->GetBodyMesh();
-		UStaticMeshComponent* Bonnet = Car->GetCabinBonnet();
-		Test.TestTrue(Tag + TEXT(": the body is not hidden from the owner's view"), Body->bOwnerNoSee);
-		Test.TestFalse(Tag + TEXT(": the body is for everyone else"), Body->bOnlyOwnerSee);
+		Test.TestFalse(Tag + TEXT(": the body is not hidden from the owner's view"), Body->bOwnerNoSee);
+		Test.TestFalse(Tag + TEXT(": the body is for everyone"), Body->bOnlyOwnerSee);
 		Test.TestTrue(Tag + TEXT(": the body is visible"), Body->IsVisible() && !Car->IsHidden());
-		Test.TestTrue(Tag + TEXT(": the bonnet is for the owner's view alone"), Bonnet->bOnlyOwnerSee);
-		Test.TestFalse(Tag + TEXT(": the bonnet is not hidden from it"), Bonnet->bOwnerNoSee);
-		Test.TestTrue(Tag + TEXT(": the bonnet has a model"), Bonnet->GetStaticMesh() != nullptr);
 		Test.TestFalse(Tag + TEXT(": the wide bar is not hidden from the owner's view"), Car->GetWideBarMesh()->bOwnerNoSee);
 		Test.TestEqual(Tag + TEXT(": the collision is still a blocking box"), Car->GetCollision()->GetCollisionEnabled(), ECollisionEnabled::QueryAndPhysics);
 		Test.TestEqual(Tag + TEXT(": the body has no collision of its own"), Body->GetCollisionEnabled(), ECollisionEnabled::NoCollision);
@@ -366,25 +362,26 @@ bool FCarExitNeedsRoomTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-DIA_TEST(FCarCabinCameraTest, "DoItAsphalt.Game.Car.CabinCamera")
+DIA_TEST(FCarCabinCameraTest, "DoItAsphalt.Game.Car.ThirdPersonCamera")
 
 bool FCarCabinCameraTest::RunTest(const FString& Parameters)
 {
 	DIA_CAR_FIXTURE()
 	TestTrue(TEXT("grant the car"), Grant(Subsystem, ELotItem::Car));
 	ADIAPaverCar* Car = TheCar(World);
-	if (!TestNotNull(TEXT("the car"), Car) || !TestNotNull(TEXT("the camera"), Car->GetCabinCamera()))
+	if (!TestNotNull(TEXT("the car"), Car) || !TestNotNull(TEXT("the camera"), Car->GetCamera()) || !TestNotNull(TEXT("the boom"), Car->GetBoom()))
 	{
 		return false;
 	}
 	const FVector2D Spot = MiddleOfLot();
 	PlaceCar(Car, Spot, 90.0);
-	const FVector Eye = Car->GetCabinCamera()->GetComponentLocation();
-	TestEqual(TEXT("the eyes are 190 cm high"), Eye.Z, 190.0, 0.5);
-	// Facing +Y: 120 cm ahead of the centre is +Y.
-	TestEqual(TEXT("120 cm ahead of the centre (X)"), Eye.X, Spot.X, 0.5);
-	TestEqual(TEXT("120 cm ahead of the centre (Y)"), Eye.Y, Spot.Y + 120.0, 0.5);
-	TestFalse(TEXT("first person: the camera does not follow the control rotation"), Car->GetCabinCamera()->bUsePawnControlRotation);
+	TestEqual(TEXT("the boom is the planned length"), Car->GetBoom()->TargetArmLength, static_cast<float>(DIAPaverCar::ArmLengthCm), 0.5f);
+	TestFalse(TEXT("the camera does not follow the control rotation"), Car->GetCamera()->bUsePawnControlRotation);
+	TestFalse(TEXT("nor does the boom"), Car->GetBoom()->bUsePawnControlRotation);
+	// Facing +Y: the camera is behind the car (smaller Y), well above the ground.
+	const FVector Eye = Car->GetCamera()->GetComponentLocation();
+	TestTrue(TEXT("the camera is behind the car"), Eye.Y < Spot.Y - 100.0);
+	TestTrue(TEXT("and above the ground"), Eye.Z > 100.0);
 	return true;
 }
 
@@ -401,6 +398,7 @@ bool FCarPaveSpeedCapTest::RunTest(const FString& Parameters)
 	}
 	Game.DebugSetPlantLevel(5);
 	Game.DebugSetPlantStock(Game.GetPlantStorage());
+	Game.DebugFillTanks(); // the car pours from its tank
 
 	// The numbers of the brief are the numbers of the balance, or this test has nothing to say.
 	if (!TestEqual(TEXT("plain bar pours at 144.5 cm/s at most"), LotBalance::CarPaveSpeedCmS(0), 144.5, 0.1)
@@ -453,6 +451,7 @@ bool FCarPavesThreeRowsTest::RunTest(const FString& Parameters)
 	}
 	Game.DebugSetPlantLevel(5);
 	Game.DebugSetPlantStock(Game.GetPlantStorage());
+	Game.DebugFillTanks(); // the car pours from its tank
 	TestEqual(TEXT("nothing is paved yet"), Game.GetCompletedCells(), 0);
 
 	// The bar starts on a cell edge along a row centre; the 3 m bar covers three rows.
@@ -486,6 +485,7 @@ bool FCarNoPaveAcrossAJumpTest::RunTest(const FString& Parameters)
 	}
 	Game.DebugSetPlantLevel(5);
 	Game.DebugSetPlantStock(Game.GetPlantStorage());
+	Game.DebugFillTanks(); // the car pours from its tank
 	const FVector2D RowCentre = MiddleOfLot();
 	PlaceCar(Car, RowCentre + FVector2D(LotBalance::CarBarBehindCm - AsphaltLot::CellCm * 0.5, 0.0), 0.0);
 	Car->SetPouring(true);

@@ -18,6 +18,11 @@ namespace LotLayout
 	inline constexpr double RefillRadiusCm = 200.0;
 	/** An aim point closer than this to TroughPos means scooping. */
 	inline constexpr double TroughReachCm = 120.0;
+	/**
+	 * The vehicle station: a gantry pad in the strip beside the plant where the auto paver and the car take their asphalt in. Vehicles drive
+	 * through it along X. A bought portable Station is a second one, wherever the player puts it.
+	 */
+	inline const FVector2D VehicleStationPos{-1500.0, -10450.0};
 	/** Where the player starts. */
 	inline const FVector2D PlayerStart{-50.0, -9850.0};
 	/** The player starts looking at the trough. */

@@ -6,6 +6,7 @@
 #include "AsphaltTest.h"
 #include "Engine/World.h"
 #include "LotBalance.h"
+#include "LotLayout.h"
 #include "LotGame.h"
 #include "LotMap.h"
 #include "UI/DIAFormat.h"
@@ -51,7 +52,7 @@ bool FFormatTest::RunTest(const FString& Parameters)
 	Is(TEXT("toast entry"), DIAFormat::EntryToast(2), TEXT("Entry 3 complete"));
 	Is(TEXT("toast exit"), DIAFormat::ExitToast(), TEXT("The exit is open!"));
 	Is(TEXT("item name"), DIAFormat::ItemName(ELotItem::AutoPaver), TEXT("Auto Paver"));
-	Is(TEXT("item toast"), DIAFormat::ItemBoughtToast(ELotItem::Scoop), TEXT("Scoop bought"));
+	Is(TEXT("item toast"), DIAFormat::ItemBoughtToast(ELotItem::Canister), TEXT("Canister bought"));
 	Is(TEXT("unlock name"), DIAFormat::UnlockName(ELotUnlock::Sprint), TEXT("Sprint"));
 	Is(TEXT("car item name"), DIAFormat::ItemName(ELotItem::Car), TEXT("Paver Car"));
 	Is(TEXT("car upgrade name"), DIAFormat::ItemName(ELotItem::CarWideBar), TEXT("Wide Bar"));
@@ -169,7 +170,7 @@ bool FWinModelTest::RunTest(const FString& Parameters)
 
 	// Credits earned are what the cells paid, not what is left in the purse.
 	Game.DebugCompleteCells(200);
-	Game.DebugGrantItem(ELotItem::Scoop);
+	Game.DebugGrantItem(ELotItem::Canister);
 	Game.DebugSetPlantLevel(2);
 	TestEqual(TEXT("items and plant levels count"), FDIAWinModel::ItemsBought(Game), 3);
 	TestTrue(TEXT("changes rebuild the view"), Model.Update(Game));
@@ -198,7 +199,16 @@ bool FCarFormatTest::RunTest(const FString& Parameters)
 	Game.World().bPlayerInCar = true;
 	TestTrue(TEXT("getting in rebuilds the view"), Model.Update(Game));
 	TestEqual(TEXT("in the car the hand panel says Car"), Model.GetView().HandLabel.ToString(), FString(TEXT("Car")));
-	TestTrue(TEXT("and shows no vessel"), Model.GetView().HandGauge.IsEmpty());
+	TestEqual(TEXT("the line is captioned with the car"), Model.GetView().RefillCaption.ToString(), FString(TEXT("Car")));
+	TestTrue(TEXT("and the gauge is the car's tank"), Model.GetView().HandGauge.ToString().Contains(TEXT("6,000")));
+	TestEqual(TEXT("an empty tank far from a station tells where to go"), Model.GetView().Refill.ToString(), FString(TEXT("Tank low – drive to a station")));
+	Game.DebugFillTanks();
+	TestTrue(TEXT("a full tank changes the view"), Model.Update(Game));
+	TestTrue(TEXT("and the line is gone"), Model.GetView().Refill.IsEmpty());
+	Game.World().PlayerPos = LotLayout::VehicleStationPos;
+	Game.DebugSetPlantStock(100.0);
+	TestTrue(TEXT("at the station the view changes"), Model.Update(Game));
+	TestTrue(TEXT("and the line is about loading"), Model.GetView().Refill.ToString().StartsWith(TEXT("Station: loading")));
 	TestEqual(TEXT("the label function agrees"), DIAFormat::HandLabel(Game).ToString(), FString(TEXT("Car")));
 	return true;
 }

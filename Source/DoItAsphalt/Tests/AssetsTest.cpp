@@ -78,8 +78,10 @@ namespace
 		// Asphalt-self (docs/04, chapter 4.1): hand tools, containers, finisher, trough, curb, wide bar, mall.
 		TEXT("SM_Spoon"), TEXT("SM_Bowl"), TEXT("SM_Trowel"), TEXT("SM_Scoop"), TEXT("SM_Bucket"), TEXT("SM_Suitcase"),
 		TEXT("SM_Cart"), TEXT("SM_Finisher"), TEXT("SM_Trough"), TEXT("SM_Curb"), TEXT("SM_PaverCar_WideBar"), TEXT("SM_Mall"),
+		// Vessels and stations of the second pass: canister, tub, the fixed vehicle station.
+		TEXT("SM_Canister"), TEXT("SM_Tub"), TEXT("SM_VehicleStation"),
 	};
-	constexpr int32 AssetsTestNumModels = 42;
+	constexpr int32 AssetsTestNumModels = 45;
 
 	bool AssetsTestReadVector(const TSharedPtr<FJsonObject>& Entry, const TCHAR* Field, FVector& Out)
 	{
@@ -95,7 +97,7 @@ namespace
 
 bool FAllModelsImportedTest::RunTest(const FString& Parameters)
 {
-	TestEqual(TEXT("the model list has 42 names"), static_cast<int32>(UE_ARRAY_COUNT(AssetsTestModelNames)), AssetsTestNumModels);
+	TestEqual(TEXT("the model list has 45 names"), static_cast<int32>(UE_ARRAY_COUNT(AssetsTestModelNames)), AssetsTestNumModels);
 
 	const FString ManifestPath = FPaths::Combine(FPaths::ProjectDir(), TEXT("Tools/ModelGen/manifest.json"));
 	FString Text;

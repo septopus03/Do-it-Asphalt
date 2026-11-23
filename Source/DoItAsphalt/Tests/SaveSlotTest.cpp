@@ -142,7 +142,7 @@ bool FSaveSlotRoundTripTest::RunTest(const FString& Parameters)
 	// A played game: credits, 40 cells, two purchases, the character at (300, 200).
 	SaveTestComplete(Subsystem, SaveTestCells);
 	Game.DebugGive(SaveTestCredits);
-	TestTrue(TEXT("the first purchase"), Subsystem->BuyItem(ELotItem::Scoop));
+	TestTrue(TEXT("the first purchase"), Subsystem->BuyItem(ELotItem::Canister));
 	TestTrue(TEXT("the second purchase"), Subsystem->BuyPlant());
 	ADIACharacter* Character = DIATest::SpawnCharacter(World, FVector2D::ZeroVector);
 	if (!TestNotNull(TEXT("character"), Character))
@@ -155,7 +155,7 @@ bool FSaveSlotRoundTripTest::RunTest(const FString& Parameters)
 	const double Credits = Game.GetCredits();
 	const int32 Cells = Game.GetCompletedCells();
 	const int32 PlantLevel = Game.GetPlantLevel();
-	TestTrue(TEXT("something was played"), Cells == SaveTestCells && Game.Owns(ELotItem::Scoop) && PlantLevel == 1);
+	TestTrue(TEXT("something was played"), Cells == SaveTestCells && Game.Owns(ELotItem::Canister) && PlantLevel == 1);
 
 	Subsystem->SaveGame();
 	TestTrue(TEXT("the slot exists now"), FSaveTestSlot::Exists());
@@ -170,7 +170,7 @@ bool FSaveSlotRoundTripTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("LoadGame succeeds"), Subsystem->LoadGame());
 	TestEqual(TEXT("credits as saved"), Game.GetCredits(), Credits);
 	TestEqual(TEXT("cells as saved"), Game.GetCompletedCells(), Cells);
-	TestTrue(TEXT("the item as saved"), Game.Owns(ELotItem::Scoop));
+	TestTrue(TEXT("the item as saved"), Game.Owns(ELotItem::Canister));
 	TestEqual(TEXT("plant level as saved"), Game.GetPlantLevel(), PlantLevel);
 	TestTrue(TEXT("the character stands where it was saved"), FVector2D::Distance(SaveTestWhere(Character), Saved) <= SaveTestToleranceCm);
 	TestEqual(TEXT("OnGameReset fired once"), Resets, 1);
@@ -278,7 +278,7 @@ bool FNewGameResetsWorldTest::RunTest(const FString& Parameters)
 	// 100 cells, a grown plant, the character far from the start, a save on disk.
 	SaveTestComplete(Subsystem, SaveTestManyCells);
 	Game.DebugGive(SaveTestCredits);
-	Subsystem->BuyItem(ELotItem::Scoop);
+	Subsystem->BuyItem(ELotItem::Canister);
 	Game.DebugSetPlantLevel(LotBalance::PlantAddonBLevel);
 	ADIAPlantActor* Plant = nullptr;
 	for (TActorIterator<ADIAPlantActor> It(World); It; ++It)
@@ -299,7 +299,7 @@ bool FNewGameResetsWorldTest::RunTest(const FString& Parameters)
 
 	Subsystem->NewGame();
 	TestEqual(TEXT("no cells"), Game.GetCompletedCells(), 0);
-	TestFalse(TEXT("the scoop is not owned"), Game.Owns(ELotItem::Scoop));
+	TestFalse(TEXT("the scoop is not owned"), Game.Owns(ELotItem::Canister));
 	TestEqual(TEXT("the plant is back at level 0"), Game.GetPlantLevel(), 0);
 	Wrapper.TickTestWorld(SaveTestShortTick);
 	TestFalse(TEXT("the addons are gone from the world"), Plant->GetAddonA()->IsVisible() || Plant->GetAddonB()->IsVisible());
@@ -332,7 +332,7 @@ bool FAutosaveTest::RunTest(const FString& Parameters)
 
 		// Off by default: nothing is written, however much happens.
 		TestFalse(TEXT("autosave is off at first"), Subsystem->IsAutosaveEnabled());
-		TestTrue(TEXT("a purchase"), Subsystem->BuyItem(ELotItem::Scoop));
+		TestTrue(TEXT("a purchase"), Subsystem->BuyItem(ELotItem::Canister));
 		for (int32 I = 0; I < SaveTestTicksBeforeAutosave + SaveTestTicksAfterAutosave; ++I)
 		{
 			Subsystem->Tick(SaveTestTickSeconds);
@@ -1085,6 +1085,7 @@ bool FSaveLoadMovesEverythingTest::RunTest(const FString& Parameters)
 	Scene.Grant(ELotItem::Cart);
 	Scene.Grant(ELotItem::AutoPaver);
 	Scene.Grant(ELotItem::Car);
+	Game.DebugFillTanks(); // a full tank: the paver drives to its sector instead of to the station
 	ADIAPaverCar* Car = Scene.Only<ADIAPaverCar>();
 	ADIAAutoPaver* Paver = Scene.Only<ADIAAutoPaver>();
 	ADIAGroundActor* Ground = Scene.Only<ADIAGroundActor>();
@@ -1346,11 +1347,11 @@ bool FSaveAutosaveOnPurchaseTest::RunTest(const FString& Parameters)
 	Subsystem->SetAutosaveEnabled(true);
 
 	// An item: the slot holds it, and the credits it cost.
-	TestTrue(TEXT("buy the scoop"), Subsystem->BuyItem(ELotItem::Scoop));
+	TestTrue(TEXT("buy the scoop"), Subsystem->BuyItem(ELotItem::Canister));
 	const double CreditsAfterItem = Game.GetCredits();
 	Game.DebugGive(5.0);
 	TestTrue(TEXT("load what the purchase saved"), Subsystem->LoadGame());
-	TestTrue(TEXT("the slot has the item"), Game.Owns(ELotItem::Scoop));
+	TestTrue(TEXT("the slot has the item"), Game.Owns(ELotItem::Canister));
 	TestEqual(TEXT("and the credits after the purchase"), Game.GetCredits(), CreditsAfterItem);
 
 	// A plant level.
@@ -1360,7 +1361,7 @@ bool FSaveAutosaveOnPurchaseTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("load what the purchase saved"), Subsystem->LoadGame());
 	TestEqual(TEXT("the slot has the plant level"), Game.GetPlantLevel(), 1);
 	TestEqual(TEXT("and the credits after the purchase"), Game.GetCredits(), CreditsAfterPlant);
-	TestTrue(TEXT("and still the item"), Game.Owns(ELotItem::Scoop));
+	TestTrue(TEXT("and still the item"), Game.Owns(ELotItem::Canister));
 	return true;
 }
 

@@ -10,6 +10,7 @@
 
 class SDIAHudOverlay;
 class SDIAMenu;
+class SDIAPaverMap;
 class SDIAShopPanel;
 class ADIAGroundActor;
 class SDIAWinScreen;
@@ -75,6 +76,11 @@ public:
 	void SetShopOpen(bool bOpen);
 	bool IsShopOpen() const { return bShopOpen; }
 
+	/** G: opens or closes the paver map (the auto paver's sectors). Like the shop it takes the mouse; nothing opens over a menu or the win screen, and the shop and the map never stand together. */
+	void TogglePaverMap();
+	void SetPaverMapOpen(bool bOpen);
+	bool IsPaverMapOpen() const { return bPaverMapOpen; }
+
 	/** The check view (V, held): unfinished ground turns orange and the HUD points to the nearest unfinished cell. */
 	void SetCheckView(bool bOn);
 	bool IsCheckView() const { return bCheckView; }
@@ -109,11 +115,16 @@ private:
 	FText Prompt;
 	FDIAToasts Toasts;
 	bool bShopOpen = false;
+	bool bPaverMapOpen = false;
 	bool bCheckView = false;
 	FDIACheckModel CheckModel;
 	TSharedPtr<SDIAHudOverlay> Overlay;
 	/** Built once with the overlay, hidden until the shop opens. */
 	TSharedPtr<SDIAShopPanel> ShopPanel;
+	/** Built once with the overlay, hidden until the paver map opens. */
+	TSharedPtr<SDIAPaverMap> PaverMap;
+	/** The controller takes the mouse while the shop or the map is open. */
+	void UpdatePanelInput();
 	/** The ground, found when the check view is first switched on. */
 	TWeakObjectPtr<ADIAGroundActor> Ground;
 	/** Built once with the overlay, hidden until the game is won. */

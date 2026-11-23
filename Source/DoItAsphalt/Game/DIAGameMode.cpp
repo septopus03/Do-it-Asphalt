@@ -2,6 +2,7 @@
 
 #include "Game/DIAGameMode.h"
 #include "Engine/World.h"
+#include "Game/DIASettings.h"
 #include "Game/DIAWorldSubsystem.h"
 #include "EngineUtils.h"
 #include "GameFramework/PlayerStart.h"
@@ -19,6 +20,7 @@
 #include "World/DIAMovable.h"
 #include "World/DIAPaverCar.h"
 #include "World/DIAPlantActor.h"
+#include "World/DIAVehicleStation.h"
 
 namespace
 {
@@ -35,6 +37,8 @@ ADIAGameMode::ADIAGameMode()
 
 void ADIAGameMode::StartPlay()
 {
+	// The player's settings (window, vsync, quality, volume) apply from the first frame.
+	DIASettings::Apply();
 	// Spawned before Super::StartPlay so that they get their BeginPlay together with everything else.
 	if (UWorld* World = GetWorld())
 	{
@@ -42,6 +46,8 @@ void ADIAGameMode::StartPlay()
 		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 		World->SpawnActor<ADIAGroundActor>(FVector::ZeroVector, FRotator::ZeroRotator, Params);
 		World->SpawnActor<ADIAPlantActor>(FVector(LotLayout::PlantPos.X, LotLayout::PlantPos.Y, 0.0), FRotator(0.0, LotLayout::PlantYawDeg, 0.0), Params);
+		// The fixed vehicle station: the car and the auto paver load asphalt here.
+		World->SpawnActor<ADIAVehicleStation>(FVector(LotLayout::VehicleStationPos.X, LotLayout::VehicleStationPos.Y, 0.0), FRotator::ZeroRotator, Params);
 		EnsureSite();
 	}
 	if (UDIAWorldSubsystem* Subsystem = UDIAWorldSubsystem::Get(this))

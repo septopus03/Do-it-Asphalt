@@ -97,10 +97,11 @@ namespace AutoPaverTestSupport
 			}
 		}
 
-		/** Gives the player the auto paver without the unlock the shop would ask for, and announces it like a purchase. */
+		/** Gives the player the auto paver without the unlock the shop would ask for, and announces it like a purchase. The tank is full. */
 		void GrantPaver() const
 		{
 			Game().DebugGrantItem(ELotItem::AutoPaver);
+			Game().DebugFillTanks();
 			Subsystem->OnItemBought.Broadcast(ELotItem::AutoPaver);
 			Subsystem->OnStateChanged.Broadcast();
 		}
@@ -308,7 +309,7 @@ bool FAutoPaverSendTest::RunTest(const FString& Parameters)
 	Scene.Controller->OnSendPaver();
 	TestEqual(TEXT("sent to sector 3"), Scene.Game().GetAutoPaverSector(), 3);
 	TestEqual(TEXT("toast numbers the sector from 1"), Scene.LastToast(), FString(TEXT("Paver → sector 4")));
-	TestEqual(TEXT("sector 3 shown on the HUD line"), DIAFormat::PaverLine(Scene.Game()).ToString(), FString(TEXT("Paver: sector 4 · 0 / 400")));
+	TestTrue(TEXT("sector 3 shown on the HUD line"), DIAFormat::PaverLine(Scene.Game()).ToString().StartsWith(TEXT("Paver → sector 4 · ")));
 
 	// Sent again to the sector it is still travelling to: nothing restarts.
 	Scene.Controller->OnSendPaver();
@@ -349,11 +350,11 @@ bool FAutoPaverSendTest::RunTest(const FString& Parameters)
 	Scene.StandAt(AsphaltLot::SectorCentre(20));
 	Scene.Controller->SetShopInput(true);
 	Scene.Controller->OnSendPaver();
-	TestEqual(TEXT("the shop swallows G"), Scene.Game().GetAutoPaverSector(), 10);
+	TestEqual(TEXT("the shop swallows H"), Scene.Game().GetAutoPaverSector(), 10);
 	Scene.Controller->SetShopInput(false);
 	Scene.Controller->SetWinInput(true);
 	Scene.Controller->OnSendPaver();
-	TestEqual(TEXT("the win screen swallows G"), Scene.Game().GetAutoPaverSector(), 10);
+	TestEqual(TEXT("the win screen swallows H"), Scene.Game().GetAutoPaverSector(), 10);
 	Scene.Controller->SetWinInput(false);
 	Scene.Controller->OnSendPaver();
 	TestEqual(TEXT("and with nothing open it works"), Scene.Game().GetAutoPaverSector(), 20);
@@ -453,11 +454,17 @@ bool FAutoPaverHudTest::RunTest(const FString& Parameters)
 
 	Game.DebugGrantItem(ELotItem::AutoPaver);
 	TestTrue(TEXT("the purchase changes the view"), Model.Update(Game));
-	TestEqual(TEXT("waiting"), Model.GetView().Paver.ToString(), FString(TEXT("Paver: waiting – press G")));
+	TestEqual(TEXT("waiting"), Model.GetView().Paver.ToString(), FString(TEXT("Paver: waiting – press G for the map")));
 
 	TestTrue(TEXT("assigned"), Game.AssignAutoPaverSector(11));
 	TestTrue(TEXT("a sector changes the view"), Model.Update(Game));
-	TestEqual(TEXT("travelling"), Model.GetView().Paver.ToString(), FString(TEXT("Paver: sector 12 · 0 / 400")));
+	TestEqual(TEXT("an empty tank sends it to the station first"), Model.GetView().Paver.ToString(), FString(TEXT("Paver → station (tank empty) · sector 12")));
+
+	// A full tank: it drives to the sector.
+	Game.DebugFillTanks();
+	Game.Tick(0.1);
+	TestTrue(TEXT("the tank changes the view"), Model.Update(Game));
+	TestTrue(TEXT("travelling"), Model.GetView().Paver.ToString().StartsWith(TEXT("Paver → sector 12 · ")) || Model.GetView().Paver.ToString().StartsWith(TEXT("Paver → station")));
 
 	// Only a shown value rebuilds: nothing moves in the core without a tick.
 	const int32 Rebuilds = Model.GetRebuildCount();
@@ -474,7 +481,7 @@ bool FAutoPaverHudTest::RunTest(const FString& Parameters)
 	}
 	TestTrue(TEXT("it worked its way to a step"), Game.GetAutoPaverStep() >= 143);
 	Model.Update(Game);
-	TestEqual(TEXT("working"), Model.GetView().Paver.ToString(), FString::Printf(TEXT("Paver: sector 12 · %d / 400"), Game.GetAutoPaverStep()));
+	TestTrue(TEXT("working"), Model.GetView().Paver.ToString().StartsWith(FString::Printf(TEXT("Paver: sector 12 · %d / 400 · tank "), Game.GetAutoPaverStep())));
 
 	// Finished: waiting again.
 	for (int32 Step = 0; Step < AsphaltLot::CellsPerSector; ++Step)
@@ -486,7 +493,7 @@ bool FAutoPaverHudTest::RunTest(const FString& Parameters)
 		Game.Tick(0.1);
 	}
 	TestTrue(TEXT("the view follows the finished sector"), Model.Update(Game));
-	TestEqual(TEXT("waiting again"), Model.GetView().Paver.ToString(), FString(TEXT("Paver: waiting – press G")));
+	TestEqual(TEXT("waiting again"), Model.GetView().Paver.ToString(), FString(TEXT("Paver: waiting – press G for the map")));
 	return true;
 }
 

@@ -442,7 +442,7 @@ TSharedRef<SWidget> SDIAHudOverlay::BuildBottom()
 					SNew(SHorizontalBox)
 					+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Bottom).Padding(0.f, 0.f, 14.f, 2.f)
 					[
-						Text(NSLOCTEXT("DIAHud", "RefillCaption", "Plant stock"), EDIAFontWeight::Bold, AsphaltHud::HudRefillCaptionFont, AsphaltHud::SignYellow)
+						Text(TAttribute<FText>::CreateLambda([this]() { return Model.GetView().RefillCaption; }), EDIAFontWeight::Bold, AsphaltHud::HudRefillCaptionFont, AsphaltHud::SignYellow)
 					]
 					+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Bottom)
 					[

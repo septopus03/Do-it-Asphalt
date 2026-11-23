@@ -5,13 +5,13 @@
 #include "CoreMinimal.h"
 
 /** Things the player can buy. Order is binding: the tables in LotBalance are indexed by it. */
-enum class ELotItem : uint8 { Scoop, Bucket, Suitcase, Cart, Station, AutoPaver, AutoPaverFast, AutoPaverFaster, Car, CarWideBar, Count };
+enum class ELotItem : uint8 { Bucket, Canister, Tub, Suitcase, Cart, Station, AutoPaver, AutoPaverFast, AutoPaverFaster, Car, CarWideBar, Count };
 
 /** Unlock steps; step i belongs to entry segment i of the progression and opens after LotBalance::UnlockCells[i] cells. */
 enum class ELotUnlock : uint8 { QuickSwap, Sprint, StripWork, AutoPaver, Car, Exit, Count };
 
-/** What the player holds in the hand. */
-enum class ELotHand : uint8 { Bowl, Scoop, Bucket, Count };
+/** What the player holds in the hand: the bowl (filled with the spoon) and the three vessels that are filled at a tap. */
+enum class ELotHand : uint8 { Bowl, Bucket, Canister, Tub, Count };
 
 /** Equipment the player can carry or push around the lot. */
 enum class ELotMovable : uint8 { Suitcase, Cart, Station, Count };
@@ -35,25 +35,23 @@ namespace LotBalance
 
 	/** Litres in one spoon of the bowl. */
 	inline constexpr double SpoonLitres = 0.25;
-	/** Litres in one scoop. */
-	inline constexpr double ScoopLitres = 1.0;
 	/** Litres the hand holds, indexed by ELotHand. */
-	inline constexpr double HandCapacityL[3] = {2.5, 1.0, 10.0};
+	inline constexpr double HandCapacityL[4] = {2.5, 10.0, 20.0, 36.0};
 
 	/** Price in credits, indexed by ELotItem. */
-	inline constexpr int32 ItemPrice[10] = {10, 35, 110, 340, 900, 3000, 9000, 22000, 12000, 24000};
+	inline constexpr int32 ItemPrice[11] = {35, 70, 160, 110, 340, 900, 3000, 9000, 22000, 12000, 24000};
 	/** Unlock step an item needs, indexed by ELotItem; ELotUnlock::Count means no condition. */
-	inline constexpr ELotUnlock ItemUnlock[10] =
+	inline constexpr ELotUnlock ItemUnlock[11] =
 	{
-		ELotUnlock::Count, ELotUnlock::Count, ELotUnlock::Count, ELotUnlock::Count,
+		ELotUnlock::Count, ELotUnlock::Count, ELotUnlock::Sprint, ELotUnlock::Count, ELotUnlock::Count,
 		ELotUnlock::StripWork,
 		ELotUnlock::AutoPaver, ELotUnlock::AutoPaver, ELotUnlock::AutoPaver,
 		ELotUnlock::Car, ELotUnlock::Car
 	};
 	/** Item that must be owned first, indexed by ELotItem; ELotItem::Count means nothing. */
-	inline constexpr ELotItem ItemRequires[10] =
+	inline constexpr ELotItem ItemRequires[11] =
 	{
-		ELotItem::Count, ELotItem::Count, ELotItem::Count, ELotItem::Count,
+		ELotItem::Count, ELotItem::Count, ELotItem::Count, ELotItem::Count, ELotItem::Count,
 		ELotItem::Count,
 		ELotItem::Count, ELotItem::AutoPaver, ELotItem::AutoPaverFast,
 		ELotItem::Count, ELotItem::Car
@@ -86,23 +84,32 @@ namespace LotBalance
 	/** Cells per minute for the three auto paver levels. */
 	inline constexpr double AutoPaverRateCellsPerMin[3] = {120, 170, 220};
 
+	/** Litres the tank of the auto paver holds; it is filled at a vehicle station. */
+	inline constexpr double AutoPaverTankL = 2000.0; // tunable
+	/** Litres the tank of the car holds: plain bar, wide bar; filled at a vehicle station. */
+	inline constexpr double CarTankL[2] = {6000.0, 8000.0}; // tunable
+	/** Litres per second a vehicle takes in at a station (what the plant stock allows). */
+	inline constexpr double VehicleLoadRateLPerS = 500.0; // tunable
+	/** A vehicle within this distance of a station is loaded. */
+	inline constexpr double VehicleStationRadiusCm = 500.0; // tunable
+	/** Below this the tank of the auto paver counts as empty and the paver drives to a station. */
+	inline constexpr double AutoPaverTankEmptyL = 0.5;
+
 	/** Cells per minute of the car: plain bar, wide bar. */
 	inline constexpr double CarRateCellsPerMin[2] = {260, 300};
 	/** Width of the car's bar: plain bar, wide bar. */
 	inline constexpr double CarWidthCm[2] = {300, 350};
+	static_assert(UE_ARRAY_COUNT(CarTankL) == 2, "one car tank per bar");
 
 	// ---- Not fixed by the specification ----
 
-	/** Seconds of one scoop stroke. */
+	/** Seconds of one spoon stroke. */
 	inline constexpr double ScoopCycleSeconds = 0.5; // tunable
-	/** Litres per second poured from the bowl and the scoop. */
-	inline constexpr double HandPourRateLPerS = 1.0; // tunable
-	/** Footprint radius of the pour, indexed by ELotHand. */
-	inline constexpr double PourRadiusCm[3] = {15, 10, 0}; // tunable
+	/** Every hand item pours as a stream where the player aims: litres per second and the radius of the footprint, indexed by ELotHand. */
+	inline constexpr double HandPourRateLPerS[4] = {1.0, 4.0, 6.0, 9.0}; // tunable
+	inline constexpr double PourRadiusCm[4] = {15.0, 30.0, 40.0, 55.0}; // tunable
+	static_assert(UE_ARRAY_COUNT(HandPourRateLPerS) == (int32)ELotHand::Count, "HandPourRateLPerS must have one entry per ELotHand");
 	static_assert(UE_ARRAY_COUNT(PourRadiusCm) == (int32)ELotHand::Count, "PourRadiusCm must have one entry per ELotHand");
-	/** The bucket pours as a stream where the player aims: litres per second, and the radius of the stream's footprint. */
-	inline constexpr double BucketPourRateLPerS = 4.0; // tunable
-	inline constexpr double BucketPourRadiusCm = 30.0; // tunable
 	/** Seconds a tool swap takes before the quick swap is unlocked (afterwards 0). */
 	inline constexpr double SwapSeconds = 1.5; // tunable
 	/** Farthest distance from the player at which the aim point works. */

@@ -10,7 +10,8 @@
 #include "LotMap.h"
 
 DIA_TEST(FLotHandSpoonStrokesTest, "DoItAsphalt.Lot.Hand.SpoonStrokes")
-DIA_TEST(FLotHandScoopIsFasterTest, "DoItAsphalt.Lot.Hand.ScoopIsFaster")
+DIA_TEST(FLotHandVesselsFillAtTapTest, "DoItAsphalt.Lot.Hand.VesselsFillAtTap")
+DIA_TEST(FLotHandVesselsPourTest, "DoItAsphalt.Lot.Hand.VesselsPour")
 DIA_TEST(FLotHandScoopNeedsStockTest, "DoItAsphalt.Lot.Hand.ScoopNeedsStock")
 DIA_TEST(FLotHandSwapDelayTest, "DoItAsphalt.Lot.Hand.SwapDelay")
 DIA_TEST(FLotHandPourSmallStepsTest, "DoItAsphalt.Lot.Hand.PourSmallSteps")
@@ -54,14 +55,57 @@ bool FLotHandSpoonStrokesTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-bool FLotHandScoopIsFasterTest::RunTest(const FString& Parameters)
+bool FLotHandVesselsFillAtTapTest::RunTest(const FString& Parameters)
 {
+	const ELotHand Vessels[3] = {ELotHand::Bucket, ELotHand::Canister, ELotHand::Tub};
+	const double Capacity[3] = {10.0, 20.0, 36.0};
 	FLotGame G;
-	G.DebugGrantItem(ELotItem::Scoop);
-	TestNearlyEqual(TEXT("stroke 1"), G.ScoopFromTrough(0.6), 1.0, Tolerance);
-	TestNearlyEqual(TEXT("stroke 2"), G.ScoopFromTrough(0.6), 1.0, Tolerance);
-	TestNearlyEqual(TEXT("stroke 3 fills the bowl"), G.ScoopFromTrough(0.6), 0.5, Tolerance);
-	TestEqual(TEXT("bowl full"), G.ScoopFromTrough(0.6), 0.0);
+	G.DebugSetPlantLevel(2);
+	G.DebugSetPlantStock(G.GetPlantStorage());
+	for (int32 I = 0; I < 3; ++I)
+	{
+		TestFalse(TEXT("not owned: cannot be taken"), G.CanSelectHand(Vessels[I]));
+		TestEqual(TEXT("not owned: nothing fills"), G.FillVessel(Vessels[I], ELotSource::Plant, 1.0), 0.0);
+		G.DebugGrantItem(FLotGame::VesselItem(Vessels[I]));
+		TestTrue(TEXT("owned: can be taken"), G.CanSelectHand(Vessels[I]));
+		TestEqual(TEXT("capacity"), G.GetHandCapacity(Vessels[I]), Capacity[I]);
+		const double Rate = LotBalance::DispenseRateLPerS(2);
+		const double Moved = G.FillVessel(Vessels[I], ELotSource::Plant, 1.0);
+		TestNearlyEqual(TEXT("a second at the dispense rate"), Moved, FMath::Min(Rate, Capacity[I]), Tolerance);
+		for (int32 Step = 0; Step < 20; ++Step)
+		{
+			G.FillVessel(Vessels[I], ELotSource::Plant, 1.0);
+		}
+		TestNearlyEqual(TEXT("filled to the brim, not over"), G.GetHandLitres(Vessels[I]), Capacity[I], Tolerance);
+	}
+	TestFalse(TEXT("the bowl is no vessel"), FLotGame::IsVessel(ELotHand::Bowl));
+	TestEqual(TEXT("the bowl is filled with the spoon, not at a tap"), G.FillVessel(ELotHand::Bowl, ELotSource::Plant, 1.0), 0.0);
+	return true;
+}
+
+bool FLotHandVesselsPourTest::RunTest(const FString& Parameters)
+{
+	// A bigger vessel pours faster and wider; each pours for exactly its rate.
+	const ELotHand Vessels[3] = {ELotHand::Bucket, ELotHand::Canister, ELotHand::Tub};
+	double Previous = 0.0;
+	for (const ELotHand Vessel : Vessels)
+	{
+		FLotGame G;
+		G.DebugGrantItem(FLotGame::VesselItem(Vessel));
+		for (int32 I = 0; I < AsphaltLot::CellsPerEntry; ++I)
+		{
+			G.DebugCompleteCell(AsphaltLot::EntryCell(0, I));
+		}
+		TestTrue(TEXT("take the vessel"), G.SelectHand(Vessel));
+		G.DebugFillHand();
+		const FVector2D Aim = MiddleOfLot();
+		const FLotEvents Events = G.PourHand(Aim, Aim + FVector2D(-100.0, 0.0), 1.0);
+		const double Rate = LotBalance::HandPourRateLPerS[static_cast<int32>(Vessel)];
+		// What the footprint of the stream can take in a second is the limit: a bigger vessel pours wider.
+		TestTrue(TEXT("no more than the vessel's rate"), Events.LitresPoured <= Rate + TexelTolerance);
+		TestTrue(TEXT("more than the vessel before"), Events.LitresPoured > Previous);
+		Previous = Events.LitresPoured;
+	}
 	return true;
 }
 
@@ -81,18 +125,18 @@ bool FLotHandSwapDelayTest::RunTest(const FString& Parameters)
 	FLotGame G;
 	FillBowl(G);
 	TestFalse(TEXT("no bucket"), G.SelectHand(ELotHand::Bucket));
-	TestFalse(TEXT("no scoop"), G.CanSelectHand(ELotHand::Scoop));
-	G.DebugGrantItem(ELotItem::Scoop);
-	TestTrue(TEXT("the scoop once bought"), G.CanSelectHand(ELotHand::Scoop));
+	TestFalse(TEXT("no scoop"), G.CanSelectHand(ELotHand::Canister));
+	G.DebugGrantItem(ELotItem::Canister);
+	TestTrue(TEXT("the scoop once bought"), G.CanSelectHand(ELotHand::Canister));
 	TestTrue(TEXT("same item at once"), G.SelectHand(ELotHand::Bowl));
 	TestFalse(TEXT("same item costs no time"), G.IsHandBusy());
 
-	TestTrue(TEXT("take the scoop"), G.SelectHand(ELotHand::Scoop));
+	TestTrue(TEXT("take the scoop"), G.SelectHand(ELotHand::Canister));
 	TestTrue(TEXT("swap takes time"), G.IsHandBusy());
 	TestFalse(TEXT("no second swap meanwhile"), G.SelectHand(ELotHand::Bowl));
 	G.Tick(1.5);
 	TestFalse(TEXT("swap done"), G.IsHandBusy());
-	TestEqual(TEXT("scoop in hand"), G.GetHand(), ELotHand::Scoop);
+	TestEqual(TEXT("scoop in hand"), G.GetHand(), ELotHand::Canister);
 
 	TestTrue(TEXT("back to the bowl"), G.SelectHand(ELotHand::Bowl));
 	TestTrue(TEXT("busy again"), G.IsHandBusy());
@@ -111,8 +155,8 @@ bool FLotHandSwapDelayTest::RunTest(const FString& Parameters)
 		Quick.DebugCompleteCell(AsphaltLot::EntryCell(0, I));
 	}
 	TestTrue(TEXT("quick swap unlocked"), Quick.IsUnlocked(ELotUnlock::QuickSwap));
-	Quick.DebugGrantItem(ELotItem::Scoop);
-	TestTrue(TEXT("quick swap selects"), Quick.SelectHand(ELotHand::Scoop));
+	Quick.DebugGrantItem(ELotItem::Canister);
+	TestTrue(TEXT("quick swap selects"), Quick.SelectHand(ELotHand::Canister));
 	TestFalse(TEXT("quick swap costs no time"), Quick.IsHandBusy());
 	return true;
 }
@@ -190,35 +234,35 @@ bool FLotHandFirstSquareTest::RunTest(const FString& Parameters)
 bool FLotHandBucketDumpTest::RunTest(const FString& Parameters)
 {
 	FLotGame G;
-	TestEqual(TEXT("no bucket yet"), G.FillBucket(ELotSource::Plant, 4.0), 0.0);
+	TestEqual(TEXT("no bucket yet"), G.FillVessel(ELotHand::Bucket, ELotSource::Plant, 4.0), 0.0);
 	G.DebugGrantItem(ELotItem::Bucket);
-	TestNearlyEqual(TEXT("plant fills 2.5 l/s"), G.FillBucket(ELotSource::Plant, 4.0), 10.0, Tolerance);
+	TestNearlyEqual(TEXT("plant fills 2.5 l/s"), G.FillVessel(ELotHand::Bucket, ELotSource::Plant, 4.0), 10.0, Tolerance);
 	TestNearlyEqual(TEXT("bucket full"), G.GetHandLitres(ELotHand::Bucket), 10.0, Tolerance);
 	TestNearlyEqual(TEXT("stock"), G.GetPlantStock(), 70.0, Tolerance);
-	TestEqual(TEXT("full bucket takes nothing"), G.FillBucket(ELotSource::Plant, 1.0), 0.0);
+	TestEqual(TEXT("full bucket takes nothing"), G.FillVessel(ELotHand::Bucket, ELotSource::Plant, 1.0), 0.0);
 
 	const FVector2D Aim = MiddleOfLot();
 	const FVector2D From = Aim + FVector2D(-100.0, 0.0);
 	TestTrue(TEXT("take the bucket"), G.SelectHand(ELotHand::Bucket));
-	TestEqual(TEXT("busy hands dump nothing"), G.DumpBucket(Aim, From).LitresPoured, 0.0);
+	TestEqual(TEXT("busy hands dump nothing"), G.DumpVessel(Aim, From).LitresPoured, 0.0);
 	G.Tick(1.5);
-	TestEqual(TEXT("off the lot nothing leaves"), G.DumpBucket(FVector2D(5000.0, 5000.0), From).LitresPoured, 0.0);
+	TestEqual(TEXT("off the lot nothing leaves"), G.DumpVessel(FVector2D(5000.0, 5000.0), From).LitresPoured, 0.0);
 	TestNearlyEqual(TEXT("bucket unchanged"), G.GetHandLitres(ELotHand::Bucket), 10.0, Tolerance);
 
-	const FLotEvents E = G.DumpBucket(Aim, From);
+	const FLotEvents E = G.DumpVessel(Aim, From);
 	TestTrue(TEXT("cell complete"), G.GetGrid().IsCellComplete(AsphaltLot::CellAt(Aim)));
 	TestNearlyEqual(TEXT("credits: ten for the cell, one a litre"), E.CreditsEarned, 10.0 + E.LitresPoured, Tolerance);
 	TestNearlyEqual(TEXT("half a litre stays"), G.GetHandLitres(ELotHand::Bucket), 0.5, TexelTolerance);
-	const FLotEvents Again = G.DumpBucket(Aim, From);
+	const FLotEvents Again = G.DumpVessel(Aim, From);
 	TestEqual(TEXT("complete cell takes nothing"), Again.LitresPoured, 0.0);
 	TestNearlyEqual(TEXT("bucket keeps the rest"), G.GetHandLitres(ELotHand::Bucket), 0.5, TexelTolerance);
 
 	FLotGame Other;
 	Other.DebugGrantItem(ELotItem::Bucket);
 	Other.SelectHand(ELotHand::Bucket);
-	TestEqual(TEXT("busy hands fill nothing"), Other.FillBucket(ELotSource::Plant, 1.0), 0.0);
+	TestEqual(TEXT("busy hands fill nothing"), Other.FillVessel(ELotHand::Bucket, ELotSource::Plant, 1.0), 0.0);
 	Other.Tick(LotBalance::SwapSeconds);
-	TestNearlyEqual(TEXT("bucket in hand fills at the dispense rate"), Other.FillBucket(ELotSource::Plant, 1.0), LotBalance::DispenseRateLPerS(0), Tolerance);
+	TestNearlyEqual(TEXT("bucket in hand fills at the dispense rate"), Other.FillVessel(ELotHand::Bucket, ELotSource::Plant, 1.0), LotBalance::DispenseRateLPerS(0), Tolerance);
 	TestNearlyEqual(TEXT("... and holds it"), Other.GetHandLitres(ELotHand::Bucket), LotBalance::DispenseRateLPerS(0), Tolerance);
 	return true;
 }

@@ -21,7 +21,7 @@ bool FLotBalanceTablesTest::RunTest(const FString& Parameters)
 	{
 		ItemTotal += Price;
 	}
-	TestEqual(TEXT("item prices"), ItemTotal, 71395);
+	TestEqual(TEXT("item prices"), ItemTotal, 71615);
 
 	int32 PlantTotal = 0;
 	for (const int32 Price : LotBalance::PlantPrice)
@@ -101,7 +101,7 @@ bool FLotLayoutStartTest::RunTest(const FString& Parameters)
 		}
 		Spawns.Add(Spawn);
 	}
-	TestEqual(TEXT("others spawn at the start"), LotLayout::ItemSpawn(ELotItem::Scoop), LotLayout::PlayerStart);
+	TestEqual(TEXT("others spawn at the start"), LotLayout::ItemSpawn(ELotItem::Canister), LotLayout::PlayerStart);
 	return true;
 }
 

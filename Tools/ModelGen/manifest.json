@@ -40,5 +40,8 @@
   {"name": "SM_Trough", "min": [-0.64, -0.30, 0], "max": [0.64, 0.30, 0.50], "max_tris": 400, "tolerance": 0.02},
   {"name": "SM_Curb", "min": [-0.075, -1.0, 0], "max": [0.075, 1.0, 0.12], "max_tris": 40, "tolerance": 0.005},
   {"name": "SM_PaverCar_WideBar", "min": [-2.32, -1.75, 0.02], "max": [-2.16, 1.75, 0.20], "max_tris": 400, "tolerance": 0.02},
-  {"name": "SM_Mall", "min": [-50, -50, 0], "max": [50, 50, 14.3], "max_tris": 4000, "tolerance": 0.05}
+  {"name": "SM_Mall", "min": [-50, -50, 0], "max": [50, 50, 14.3], "max_tris": 4000, "tolerance": 0.05},
+  {"name": "SM_Canister", "min": [-0.145, -0.115, 0], "max": [0.145, 0.115, 0.40], "max_tris": 700, "tolerance": 0.005},
+  {"name": "SM_Tub", "min": [-0.245, -0.29, 0], "max": [0.265, 0.29, 0.22], "max_tris": 700, "tolerance": 0.005},
+  {"name": "SM_VehicleStation", "min": [-4.0, -2.95, 0], "max": [4.0, 2.5, 4.6], "max_tris": 3000, "tolerance": 0.05}
 ]

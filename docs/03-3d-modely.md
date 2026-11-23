@@ -2,7 +2,7 @@
 
 Verzia 2.0 · 2026-11-21 · modely vytvára **Fable 5.2**
 
-Tento dokument je zmluva medzi vetvou modelov a vetvou kódu. Kód počíta s rozmermi a názvami podľa tabuliek nižšie. Obsahuje 42 modelov: 12 nových pre hru Asphalt-self, ostatné ostali z verzie 1.
+Tento dokument je zmluva medzi vetvou modelov a vetvou kódu. Kód počíta s rozmermi a názvami podľa tabuliek nižšie. Obsahuje 45 modelov: 12 nových pre hru Asphalt-self, ostatné ostali z verzie 1, a tri z druhého kola (`SM_Canister`, `SM_Tub`, `SM_VehicleStation`). `SM_Scoop` ostal v manifeste, ale hra ho už nepoužíva (malá naberačka sa odstránila).
 
 ---
 
@@ -67,14 +67,14 @@ Názov materiálu v GLB = názov slotu v Unreali = `MI_<názov>` v `Content/Mate
 
 Rozmery sú obálka D × Š × V (X × Y × Z) v metroch, prevzatá z `Tools/ModelGen/manifest.json`; „Tri“ je horný limit trojuholníkov. Všetky modely sú v `Content/Models/` a v `SourceAssets/Models/`.
 
-### 4.1 Nové modely (12)
+### 4.1 Nové modely (15)
 
 | Asset | Rozmery | Obálka v osiach | Tri | Čo to je a kde sa používa | Skript |
 |---|---|---|---|---|---|
 | `SM_Spoon` | 0,199 × 0,045 × 0,018 | X −0,055 … 0,144 | 200 | lyžica v ruke k miske | `hand_tools.py` |
 | `SM_Bowl` | 0,25 × 0,25 × 0,09 | stred pôdorysu, Z od 0 | 400 | miska v ruke (štartovacia nádoba) | `hand_tools.py` |
 | `SM_Trowel` | 0,28 × 0,12 × 0,092 | X −0,14 … 0,14 | 250 | hladidlo (hra ho od 2026-11-22 nepoužíva, model ostáva v repozitári) | `hand_tools.py` |
-| `SM_Scoop` | 0,34 × 0,12 × 0,07 | X −0,07 … 0,27 | 250 | lopatka v ruke | `hand_tools.py` |
+| `SM_Scoop` | 0,34 × 0,12 × 0,07 | X −0,07 … 0,27 | 250 | malá naberačka (hra ju od 2026-11-23 nepoužíva, model ostáva v repozitári) | `hand_tools.py` |
 | `SM_Bucket` | 0,288 × 0,31 × 0,385 | stred pôdorysu, Z od 0 | 600 | vedro v ruke | `hand_tools.py` |
 | `SM_Suitcase` | 0,42 × 0,508 × 1,055 | X −0,05 … 0,37, Z od 0 | 1000 | kufor, ťahaný, s klapkou | `suitcase.py` |
 | `SM_Cart` | 1,26 × 0,67 × 0,99 | X −0,65 … 0,61, Z od 0 | 1500 | vozík, tlačený | `cart.py` |
@@ -83,6 +83,9 @@ Rozmery sú obálka D × Š × V (X × Y × Z) v metroch, prevzatá z `Tools/Mod
 | `SM_Curb` | 0,15 × 2,0 × 0,12 | stred pôdorysu, Z od 0 | 40 | diel obrubníka okolo parkoviska | `lot_props.py` |
 | `SM_PaverCar_WideBar` | 0,16 × 3,5 × 0,18 | X −2,32 … −2,16, Z 0,02 … 0,2 | 400 | široká lišta auta (kúpa CarWideBar) | `lot_props.py` |
 | `SM_Mall` | 100 × 100 × 14,3 | X, Y −50 … 50 | 4000 | nákupné centrum, zaberá kvadrant parkoviska | `mall.py` |
+| `SM_Canister` | 0,29 × 0,23 × 0,40 | stred pôdorysu, Z od 0 | 700 | kanister 20 l v ruke | `vessels.py` |
+| `SM_Tub` | 0,51 × 0,58 × 0,22 | X −0,245 … 0,265, Z od 0 | 700 | vaňa 36 l v ruke | `vessels.py` |
+| `SM_VehicleStation` | 8,0 × 5,45 × 4,6 | X −4 … 4, Y −2,95 … 2,5, Z od 0 | 3000 | pevná výdajňa asfaltu pre auto a robota (bránka s 4 m jazdným pruhom) | `vehicle_station.py` |
 
 `SM_Mall` má pri importe obdĺžnikovú kolíziu (`BOX_COLLISION_MODELS = {"SM_Mall"}` v `Tools/UE/import_models.py`); ostatné modely majú konvexnú kolíziu s 18 stenami.
 

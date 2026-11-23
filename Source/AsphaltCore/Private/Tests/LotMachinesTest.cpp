@@ -19,8 +19,12 @@ DIA_TEST(FLotAutoPaverFinishesSectorTest, "DoItAsphalt.Lot.AutoPaver.FinishesSec
 DIA_TEST(FLotAutoPaverSkipsCompletedTest, "DoItAsphalt.Lot.AutoPaver.SkipsCompleted")
 DIA_TEST(FLotAutoPaverReassignTest, "DoItAsphalt.Lot.AutoPaver.Reassign")
 DIA_TEST(FLotCarNothingWithoutCarTest, "DoItAsphalt.Lot.Car.NothingWithoutCar")
+DIA_TEST(FLotAutoPaverEmptyTankFetchesTest, "DoItAsphalt.Lot.AutoPaver.EmptyTankFetches")
+DIA_TEST(FLotAutoPaverRunsDryAndReturnsTest, "DoItAsphalt.Lot.AutoPaver.RunsDryAndReturns")
+DIA_TEST(FLotAutoPaverNearestStationTest, "DoItAsphalt.Lot.AutoPaver.NearestStation")
 DIA_TEST(FLotCarWidthTest, "DoItAsphalt.Lot.Car.Width")
-DIA_TEST(FLotCarDrawsFromStockTest, "DoItAsphalt.Lot.Car.DrawsFromStock")
+DIA_TEST(FLotCarDrawsFromTankTest, "DoItAsphalt.Lot.Car.DrawsFromTank")
+DIA_TEST(FLotCarLoadsAtStationTest, "DoItAsphalt.Lot.Car.LoadsAtStation")
 DIA_TEST(FLotCarSpawnAndLevelTest, "DoItAsphalt.Lot.Car.SpawnAndLevel")
 DIA_TEST(FLotMachinesLitresConservedTest, "DoItAsphalt.Lot.Machines.LitresConserved")
 
@@ -64,6 +68,7 @@ namespace
 			G.DebugGrantItem(ELotItem::AutoPaverFaster);
 		}
 		FullPlant(G);
+		G.DebugFillTanks();
 	}
 
 	/** Sends the auto paver to the sector and ticks until it has arrived. */
@@ -74,6 +79,18 @@ namespace
 		{
 			G.Tick(0.25);
 			FullPlant(G);
+			G.DebugFillTanks();
+		}
+	}
+
+	/** Ticks for Seconds with a full plant and full tanks, so that neither the stock nor a trip to the station limits the machines. */
+	void RunFed(FLotGame& G, double Seconds)
+	{
+		for (double T = 0.0; T < Seconds; T += 0.25)
+		{
+			G.Tick(0.25);
+			FullPlant(G);
+			G.DebugFillTanks();
 		}
 	}
 
@@ -187,7 +204,7 @@ bool FLotAutoPaverRatePerMinuteTest::RunTest(const FString& Parameters)
 		RichPaver(G, Level);
 		SendAndArrive(G, TestSector);
 		const double CreditsBefore = G.GetCredits();
-		G.Tick(60.0);
+		RunFed(G, 60.0);
 		const int32 Cells = G.GetCompletedCells();
 		TestTrue(*FString::Printf(TEXT("level %d lays %d cells"), Level, Cells), FMath::Abs(Cells - Expected[Level]) <= 2.0);
 		TestNearlyEqual(*FString::Printf(TEXT("level %d credits"), Level), G.GetCredits() - CreditsBefore,
@@ -201,17 +218,22 @@ bool FLotAutoPaverStarvedByPlantTest::RunTest(const FString& Parameters)
 	FLotGame G;
 	G.DebugGrantItem(ELotItem::AutoPaver);
 	G.AssignAutoPaverSector(TestSector);
-	for (int32 I = 0; I < 600 * 4; ++I)
+	const double Supply0 = G.GetPlantStock();
+	double Time = 0.0;
+	for (int32 I = 0; I < 1800 * 4; ++I)
 	{
 		G.Tick(0.25);
+		Time += 0.25;
 		if (G.GetPlantStock() < 0.0)
 		{
 			AddError(TEXT("plant stock went negative"));
 			break;
 		}
 	}
+	// The paver waits at the station until its tank is full, so a weak plant keeps it waiting; it never lays more than the plant made.
 	const int32 Cells = G.GetCompletedCells();
-	TestTrue(*FString::Printf(TEXT("%d cells from a level 0 plant"), Cells), Cells >= 150 && Cells <= 175);
+	const double Made = Supply0 + G.GetPlantRatePerMin() / 60.0 * Time;
+	TestTrue(*FString::Printf(TEXT("%d cells from a level 0 plant"), Cells), Cells >= 150 && Cells * 9.0 <= Made);
 	return true;
 }
 
@@ -251,7 +273,7 @@ bool FLotAutoPaverSkipsCompletedTest::RunTest(const FString& Parameters)
 		G.DebugCompleteCell(AsphaltLot::SectorCell(TestSector, Step));
 	}
 	SendAndArrive(G, TestSector);
-	G.Tick(110.0);
+	RunFed(G, 110.0);
 	TestEqual(TEXT("rest done"), CompleteCellsOfSector(G, TestSector), AsphaltLot::CellsPerSector);
 	TestEqual(TEXT("waiting"), G.GetAutoPaverSector(), static_cast<int32>(INDEX_NONE));
 	return true;
@@ -262,7 +284,7 @@ bool FLotAutoPaverReassignTest::RunTest(const FString& Parameters)
 	FLotGame G;
 	RichPaver(G, 0);
 	SendAndArrive(G, TestSector);
-	G.Tick(10.0);
+	RunFed(G, 10.0);
 	const int32 Done = CompleteCellsOfSector(G, TestSector);
 	TestTrue(TEXT("some work done"), Done > 0 && Done < AsphaltLot::CellsPerSector);
 	TestTrue(TEXT("reassign"), G.AssignAutoPaverSector(TestSector + 1));
@@ -271,6 +293,100 @@ bool FLotAutoPaverReassignTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("travelling"), G.IsAutoPaverTravelling());
 	G.Tick(0.25);
 	TestEqual(TEXT("old sector left as it is"), CompleteCellsOfSector(G, TestSector), Done);
+	return true;
+}
+
+bool FLotAutoPaverEmptyTankFetchesTest::RunTest(const FString& Parameters)
+{
+	FLotGame G;
+	G.DebugGrantItem(ELotItem::AutoPaver);
+	FullPlant(G);
+	TestEqual(TEXT("the tank starts empty"), G.GetAutoPaverTank(), 0.0);
+	TestTrue(TEXT("assign"), G.AssignAutoPaverSector(TestSector));
+	TestTrue(TEXT("first to the station"), G.GetAutoPaverPhase() == ELotPaverPhase::ToStation);
+	TestTrue(TEXT("travelling"), G.IsAutoPaverTravelling());
+
+	bool bLoading = false;
+	bool bLoaded = false;
+	bool bWorking = false;
+	double Previous = 0.0;
+	for (int32 I = 0; I < 400 * 4 && !bWorking; ++I)
+	{
+		G.Tick(0.25);
+		FullPlant(G);
+		bLoading = bLoading || G.GetAutoPaverPhase() == ELotPaverPhase::Loading;
+		bLoaded = bLoaded || (bLoading && G.GetAutoPaverPhase() == ELotPaverPhase::ToSector);
+		bWorking = G.GetAutoPaverPhase() == ELotPaverPhase::Working;
+		TestTrue(TEXT("the tank only grows before the work starts"), G.GetAutoPaverTank() >= Previous);
+		Previous = G.GetAutoPaverTank();
+		TestEqual(TEXT("nothing is laid before it works"), G.GetCompletedCells(), 0);
+	}
+	TestTrue(TEXT("it loaded at the station"), bLoading && bLoaded);
+	TestTrue(TEXT("and reached the sector"), bWorking);
+	TestEqual(TEXT("with a full tank"), G.GetAutoPaverTank(), LotBalance::AutoPaverTankL);
+	TestEqual(TEXT("at the first cell"), G.GetAutoPaverPos(), AsphaltLot::CellCentre(AsphaltLot::SectorCell(TestSector, 0)));
+	return true;
+}
+
+bool FLotAutoPaverRunsDryAndReturnsTest::RunTest(const FString& Parameters)
+{
+	FLotGame G;
+	RichPaver(G, 2);
+	G.AssignAutoPaverSector(TestSector);
+	bool bWentBack = false;
+	bool bCameBack = false;
+	int32 StepAtDry = -1;
+	for (int32 I = 0; I < 900 * 4 && G.GetAutoPaverSector() != INDEX_NONE; ++I)
+	{
+		G.Tick(0.25);
+		FullPlant(G);
+		if (G.GetAutoPaverPhase() == ELotPaverPhase::ToStation && !bWentBack)
+		{
+			bWentBack = true;
+			StepAtDry = G.GetAutoPaverStep();
+			TestTrue(TEXT("it ran dry"), G.GetAutoPaverTank() <= LotBalance::AutoPaverTankEmptyL);
+		}
+		if (bWentBack && G.GetAutoPaverPhase() == ELotPaverPhase::Working)
+		{
+			bCameBack = true;
+			TestEqual(TEXT("it carries on where it stopped"), G.GetAutoPaverStep(), StepAtDry);
+			TestTrue(TEXT("with a full tank"), G.GetAutoPaverTank() > LotBalance::AutoPaverTankL - 1.0);
+			bWentBack = false;
+		}
+	}
+	// 4000 l are 400 cells; a 2000 l tank is not enough for them.
+	TestTrue(TEXT("it had to fetch asphalt"), bCameBack);
+	TestEqual(TEXT("and finished the whole sector"), CompleteCellsOfSector(G, TestSector), AsphaltLot::CellsPerSector);
+	TestEqual(TEXT("then waits"), G.GetAutoPaverSector(), static_cast<int32>(INDEX_NONE));
+	return true;
+}
+
+bool FLotAutoPaverNearestStationTest::RunTest(const FString& Parameters)
+{
+	// The portable station is set down beside a sector far from the fixed one: a paver that runs dry there goes to it.
+	const int32 FarSector = 40;
+	const FVector2D FarCell = AsphaltLot::CellCentre(AsphaltLot::SectorCell(FarSector, 0));
+	FLotGame G;
+	RichPaver(G, 2);
+	G.DebugGrantItem(ELotItem::Station);
+	TestTrue(TEXT("grab"), G.Grab(ELotMovable::Station));
+	G.Release(FarCell + FVector2D(0.0, 300.0), 0.0);
+	TestEqual(TEXT("the fixed station is the nearest to the start"), G.FindNearestStation(G.GetAutoPaverPos()), 0);
+	TestEqual(TEXT("the portable station is the nearest to the far sector"), G.FindNearestStation(FarCell), 1);
+	G.AssignAutoPaverSector(FarSector);
+	for (int32 I = 0; I < 900 * 4 && G.GetAutoPaverPhase() != ELotPaverPhase::ToStation; ++I)
+	{
+		G.Tick(0.25);
+		FullPlant(G);
+	}
+	TestTrue(TEXT("ran dry"), G.GetAutoPaverPhase() == ELotPaverPhase::ToStation);
+	for (int32 I = 0; I < 600 * 4 && G.GetAutoPaverPhase() == ELotPaverPhase::ToStation; ++I)
+	{
+		G.Tick(0.25);
+		FullPlant(G);
+	}
+	TestTrue(TEXT("loading"), G.GetAutoPaverPhase() == ELotPaverPhase::Loading);
+	TestEqual(TEXT("at the portable station, not the fixed one"), G.GetAutoPaverPos(), G.GetStationPos(1));
 	return true;
 }
 
@@ -294,6 +410,7 @@ bool FLotCarWidthTest::RunTest(const FString& Parameters)
 	FLotGame G;
 	G.DebugGrantItem(ELotItem::Car);
 	FullPlant(G);
+	G.DebugFillTanks();
 	TestEqual(TEXT("plain bar"), G.GetCarLevel(), 0);
 	FVector2D A, B;
 	RowStrip(40, 40, 10, A, B);
@@ -310,6 +427,7 @@ bool FLotCarWidthTest::RunTest(const FString& Parameters)
 	W.DebugGrantItem(ELotItem::Car);
 	W.DebugGrantItem(ELotItem::CarWideBar);
 	FullPlant(W);
+	W.DebugFillTanks();
 	TestEqual(TEXT("wide bar"), W.GetCarLevel(), 1);
 	W.PourFromCar(A, B);
 	TestEqual(TEXT("still three rows complete"), W.GetCompletedCells(), 30);
@@ -322,23 +440,92 @@ bool FLotCarWidthTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-bool FLotCarDrawsFromStockTest::RunTest(const FString& Parameters)
+bool FLotCarDrawsFromTankTest::RunTest(const FString& Parameters)
 {
 	FLotGame G;
 	G.DebugGrantItem(ELotItem::Car);
+	FullPlant(G);
 	const double Stock = G.GetPlantStock();
-	TestEqual(TEXT("starting stock"), Stock, LotBalance::PlantStartStockL);
+	TestEqual(TEXT("the tank starts empty"), G.GetCarTank(), 0.0);
 	FVector2D A, B;
 	RowStrip(40, 40, 60, A, B);
+	TestEqual(TEXT("an empty tank lays nothing"), G.PourFromCar(A, B).LitresPoured, 0.0);
+	TestEqual(TEXT("and the stock is left alone"), G.GetPlantStock(), Stock);
+
+	G.DebugFillTanks();
+	const double Tank = G.GetCarTank();
+	TestEqual(TEXT("full tank"), Tank, LotBalance::CarTankL[0]);
+	// 60 cells of three rows need about 1700 litres; a 6000 l tank holds them.
 	const FLotEvents Events = G.PourFromCar(A, B);
 	TestTrue(TEXT("poured something"), Events.LitresPoured > 0.0);
-	TestTrue(TEXT("at most the stock"), Events.LitresPoured <= Stock + Tolerance);
-	TestTrue(TEXT("stock not negative"), G.GetPlantStock() >= 0.0);
-	TestNearlyEqual(TEXT("stock paid exactly"), G.GetPlantStock(), Stock - Events.LitresPoured, Tolerance);
+	TestNearlyEqual(TEXT("tank paid exactly"), G.GetCarTank(), Tank - Events.LitresPoured, Tolerance);
+	TestEqual(TEXT("the plant stock is not touched by the bar"), G.GetPlantStock(), Stock);
 	TestNearlyEqual(TEXT("booked on the ground"), G.GetTotalLitres(), Events.LitresPoured, Tolerance);
-	TestTrue(TEXT("stock used up"), G.GetPlantStock() < FLotGrid::LitresPerTexel);
-	TestEqual(TEXT("second call pours nothing"), G.PourFromCar(A, B).LitresPoured, 0.0);
+
+	// A long strip empties the tank and stops there.
+	FVector2D C, D;
+	RowStrip(0, 40, 200, C, D);
+	FLotGame H;
+	H.DebugGrantItem(ELotItem::Car);
+	H.DebugFillTanks();
+	// One strip of 200 cells takes about 5700 litres, so two strips next to each other are more than the tank holds.
+	FVector2D E, F;
+	RowStrip(0, 44, 200, E, F);
+	const FLotEvents Long = H.PourFromCar(C, D);
+	const FLotEvents Longer = H.PourFromCar(E, F);
+	TestTrue(TEXT("tank used up"), H.GetCarTank() < FLotGrid::LitresPerTexel);
+	TestTrue(TEXT("at most the tank"), Long.LitresPoured + Longer.LitresPoured <= LotBalance::CarTankL[0] + Tolerance);
+	TestEqual(TEXT("second call pours nothing"), H.PourFromCar(E, F).LitresPoured, 0.0);
 	TestTrue(TEXT("bad input is ignored"), G.PourFromCar(FVector2D(NaN, 0.0), B).LitresPoured == 0.0);
+	return true;
+}
+
+bool FLotCarLoadsAtStationTest::RunTest(const FString& Parameters)
+{
+	FLotGame G;
+	TestEqual(TEXT("no car, no tank"), G.GetCarTankCapacity(), 0.0);
+	G.DebugGrantItem(ELotItem::Car);
+	FullPlant(G);
+	TestEqual(TEXT("tank size"), G.GetCarTankCapacity(), LotBalance::CarTankL[0]);
+	G.World().CarPos = LotLayout::ItemSpawn(ELotItem::Car);
+	TestFalse(TEXT("the spawn is not at the station"), G.IsAtStation(G.World().CarPos));
+	TestEqual(TEXT("nothing is loaded away from a station"), G.LoadCar(1.0), 0.0);
+
+	G.World().CarPos = LotLayout::VehicleStationPos + FVector2D(LotBalance::VehicleStationRadiusCm - 10.0, 0.0);
+	TestTrue(TEXT("at the station"), G.IsAtStation(G.World().CarPos));
+	const double Stock = G.GetPlantStock();
+	const double Moved = G.LoadCar(1.0);
+	TestNearlyEqual(TEXT("a second of loading"), Moved, LotBalance::VehicleLoadRateLPerS, Tolerance);
+	TestNearlyEqual(TEXT("tank has it"), G.GetCarTank(), Moved, Tolerance);
+	TestNearlyEqual(TEXT("stock paid"), G.GetPlantStock(), Stock - Moved, Tolerance);
+	for (int32 I = 0; I < 20; ++I)
+	{
+		G.LoadCar(1.0);
+	}
+	TestEqual(TEXT("full, not more"), G.GetCarTank(), G.GetCarTankCapacity());
+	TestEqual(TEXT("bad time"), G.LoadCar(NaN), 0.0);
+
+	// A poor plant stock limits it.
+	FLotGame P;
+	P.DebugGrantItem(ELotItem::Car);
+	P.World().CarPos = LotLayout::VehicleStationPos;
+	P.DebugSetPlantStock(30.0);
+	P.LoadCar(10.0);
+	TestNearlyEqual(TEXT("only the stock"), P.GetCarTank(), 30.0, Tolerance);
+	TestEqual(TEXT("stock empty"), P.GetPlantStock(), 0.0);
+
+	// The portable station is a second one once it is bought and set down; held, it does not count.
+	FLotGame S;
+	TestEqual(TEXT("one station"), S.GetNumStations(), 1);
+	S.DebugGrantItem(ELotItem::Station);
+	TestEqual(TEXT("two stations"), S.GetNumStations(), 2);
+	TestEqual(TEXT("its place"), S.GetStationPos(1), LotLayout::ItemSpawn(ELotItem::Station));
+	TestTrue(TEXT("grab it"), S.Grab(ELotMovable::Station));
+	TestEqual(TEXT("held: one station"), S.GetNumStations(), 1);
+	S.Release(FVector2D(3000.0, 3000.0), 0.0);
+	TestEqual(TEXT("set down"), S.GetNumStations(), 2);
+	TestEqual(TEXT("nearest of two"), S.FindNearestStation(FVector2D(3100.0, 3000.0)), 1);
+	TestEqual(TEXT("nearest of two, other side"), S.FindNearestStation(FVector2D(-3000.0, -9000.0)), 0);
 	return true;
 }
 
@@ -362,7 +549,8 @@ bool FLotMachinesLitresConservedTest::RunTest(const FString& Parameters)
 	G.DebugGrantItem(ELotItem::AutoPaver);
 	G.DebugGrantItem(ELotItem::Car);
 	G.AssignAutoPaverSector(TestSector);
-	const double Sum0 = G.GetPlantStock() + G.GetTotalLitres();
+	const auto Total = [&G]() { return G.GetPlantStock() + G.GetTotalLitres() + G.GetAutoPaverTank() + G.GetCarTank(); };
+	const double Sum0 = Total();
 	const double Rate = G.GetPlantRatePerMin() / 60.0;
 	double Time = 0.0;
 	for (int32 I = 0; I < 400; ++I)
@@ -370,23 +558,24 @@ bool FLotMachinesLitresConservedTest::RunTest(const FString& Parameters)
 		G.Tick(0.25);
 		Time += 0.25;
 		TestTrue(TEXT("stock below the storage, so nothing is clipped"), G.GetPlantStock() < G.GetPlantStorage());
-		if (!TestNearlyEqual(TEXT("auto paver conserves litres"), G.GetPlantStock() + G.GetTotalLitres(), Sum0 + Rate * Time, 1e-6))
+		if (!TestNearlyEqual(TEXT("auto paver conserves litres"), Total(), Sum0 + Rate * Time, 1e-6))
 		{
 			break;
 		}
 	}
-	TestTrue(TEXT("the auto paver worked"), G.GetCompletedCells() > 0);
+	TestTrue(TEXT("the auto paver loaded"), G.GetAutoPaverTank() > 0.0);
 
 	G.DebugSetPlantStock(300.0);
-	const double Sum1 = G.GetPlantStock() + G.GetTotalLitres();
+	G.DebugFillTanks();
+	const double Sum1 = Total();
 	FVector2D A, B;
 	RowStrip(40, 40, 30, A, B);
 	const FLotEvents Events = G.PourFromCar(A, B);
 	TestTrue(TEXT("the car poured"), Events.LitresPoured > 0.0);
-	TestNearlyEqual(TEXT("car conserves litres"), G.GetPlantStock() + G.GetTotalLitres(), Sum1, 1e-6);
+	TestNearlyEqual(TEXT("car conserves litres"), Total(), Sum1, 1e-6);
 	// Non-finite litres never reach the books.
 	G.PourFromCar(FVector2D(Infinity, 0.0), B);
-	TestNearlyEqual(TEXT("bad input conserves litres"), G.GetPlantStock() + G.GetTotalLitres(), Sum1, 1e-6);
+	TestNearlyEqual(TEXT("bad input conserves litres"), Total(), Sum1, 1e-6);
 	return true;
 }
 
