@@ -1,217 +1,339 @@
-"""SM_PaverCar - the asphalt paving truck, 4.6 x 3.0 x 2.4 m.
+"""SM_PaverCar, SM_PaverCar_T2, SM_PaverCar_T3, SM_PaverCar_T4 - the asphalt paving
+truck in four tiers, each one bigger and heavier than the one before.
+
+  name             L x W x H (m)      body W   bar     axles  tank(s)
+  SM_PaverCar      4.6 x 3.0 x 2.4    2.2      3.0 m   2      1, r 0.56
+  SM_PaverCar_T2   5.6 x 3.6 x 2.7    2.5      3.6 m   2      1, r 0.64
+  SM_PaverCar_T3   6.8 x 4.2 x 3.0    2.8      4.2 m   3      1, r 0.72
+  SM_PaverCar_T4   8.2 x 5.0 x 3.4    3.1      5.0 m   4      2, r 0.68 side by side
 
 Origin: centre of the footprint, on the ground; it drives towards +X.
 A cab-over truck: yellow cab at the front with a sloping glass windscreen, a
-side window on each side, the door (seams, handle, step) on the LEFT (-Y) side,
-a dark grille between two headlights and a dark bumper whose front face is the
-envelope (X = +2.3). Behind the cab a dark flat deck on the chassis carries the
-steel tank (a cylinder along X with domed ends, yellow straps, filler hatch) on
-two saddles; an exhaust stack stands between cab and tank. Four wheels (tyre,
-yellow rim, dark hub) under dark mudguards, yellow lockers between the axles.
-At the REAR the steel spreader bar, 3.0 m wide, just above the ground with its
-rear face at X = -2.3: hung on two arms from the chassis, braced to the deck
-corners and fed by a pipe from the tank. The body without the bar is 2.2 m wide.
-Envelope: X +-2.3, Y +-1.5, Z [0, 2.4]. 5 materials.
+side window on each side, the door (seams, handle, steps) on the LEFT (-Y) side,
+a dark grille between the headlights and a dark bumper. Behind the cab a dark
+flat deck on the chassis carries the steel tank (a cylinder along X with domed
+ends, yellow straps, filler hatch) on two saddles; an exhaust stack stands
+between cab and tank. Wheels (tyre, yellow rim, dark hub) under dark mudguards,
+yellow lockers between the axles. At the REAR the steel spreader bar, as wide as
+the envelope, just above the ground with its rear face at X = -L/2: hung on two
+arms from the chassis, braced to the deck corners and fed by a pipe from each tank.
+
+What the tiers add on top of the size:
+  T2  sun visor, mirrors, roof light bar with two beacons, a second cab step
+  T3  + a third axle (rear tandem), a second exhaust stack, a bull bar, stacked
+      headlights, a tank ladder, hydraulic rams and yellow end plates on the bar
+  T4  + a fourth axle (two front, two rear), two tanks side by side with a
+      catwalk between them, a third cab step
+
+The front face of the bumper (the bull bar on T3 and T4) and the rear face of the
+bar are the X envelope, the bar ends the Y envelope, the cab roof (the roof
+lights from T2 up) the Z envelope. Envelopes: see TIERS and manifest.json.
+SM_PaverCar is the tier-1 truck the game uses today; its numbers must not change.
+5 materials each.
 
 Run:  blender -b -P Tools/ModelGen/paver_car.py
 """
 import math
 import os
 import sys
+from types import SimpleNamespace
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import common as c  # noqa: E402
 
-NAME = "SM_PaverCar"
 BODY, FRAME, TYRE, GLASS, METAL = "DIA_Yellow", "DIA_DarkSteel", "DIA_Rubber", "DIA_Glass", "DIA_Steel"
 
-BODY_HALF_Y = 1.10                   # docs/03: the body without the bar is 2.2 m wide
-PANEL_HALF_Y = 1.08                  # cab sides and deck edges; details stand off up to BODY_HALF_Y
-
-# --- wheels -----------------------------------------------------------------
-WHEEL_R = 0.50
-WHEEL_W = 0.35
+# --- the same on every tier -------------------------------------------------
 WHEEL_SHOULDER = 0.04                # chamfer between tread and side wall
-WHEEL_Y = 0.915                      # tyre centre; outer side wall at Y = 1.09
-AXLE_XS = (1.35, -1.25)              # front, rear
-RIM_R, HUB_R = 0.30, 0.11
-RIM_H, HUB_H = 0.004, 0.006          # rim stands off the tyre, hub off the rim: ends at BODY_HALF_Y
-GUARD_R = (0.54, 0.60)               # mudguard: half ring around the axle, top touches the deck
-GUARD_Y = (0.74, 1.09)
+RIM_H, HUB_H = 0.004, 0.006          # rim stands off the tyre, hub off the rim: ends at the body width
 GUARD_STEPS = 8
-
-# --- chassis and deck -------------------------------------------------------
-CHASSIS_X = (-2.10, 1.95)
-CHASSIS_HALF_Y = 0.45
-CHASSIS_Z = (0.60, 1.10)
-DECK_X = (-2.10, 0.80)               # ends under the back of the cab
-DECK_Z = (1.10, 1.16)
-LOCKER_X = (-0.60, 0.60)             # between the mudguards
-LOCKER_Z = (0.55, 1.10)
-
-# --- cab --------------------------------------------------------------------
-CAB_X = (0.80, 2.20)
-CAB_FLOOR_Z = 1.10                   # over the front wheels
-SKIRT_X = 1.95                       # front panel in front of the wheels starts here
-SKIRT_Z = 0.55
-SILL_Z = 1.78                        # bottom of the windows: the top of the 1.8 m figure's head
-WINDOW_TOP_Z = 2.24
-ROOF_Z = 2.40                        # envelope height
-SCREEN_FOOT = (CAB_X[1], 1.70)       # the windscreen face runs from here ...
-SCREEN_HEAD = (2.08, 2.30)           # ... up to here, leaning back
-# Cab outline in the X-Z plane: back wall, floor, wheel arch step, skirt, nose, windscreen, roof.
-CAB_XZ = [(CAB_X[0], CAB_FLOOR_Z), (SKIRT_X, CAB_FLOOR_Z), (SKIRT_X, SKIRT_Z), (CAB_X[1], SKIRT_Z),
-          SCREEN_FOOT, SCREEN_HEAD, (1.98, ROOF_Z), (CAB_X[0], ROOF_Z)]
 GLASS_STANDOUT = 0.012               # how far the glass stands off the cab panels
 GLASS_SINK = 0.02                    # and how far it reaches into them
-SCREEN_HALF_Y = 0.95
-SIDE_WINDOW_X = (1.22, 2.00)
-DOOR_X = (1.14, 2.08)                # door seams on the left side
-DOOR_Z0 = 1.16
 SEAM_W = 0.02
-BUMPER_X = (2.14, 2.30)              # front face = envelope
-BUMPER_Z = (0.34, 0.62)
-GRILLE_HALF_Y, GRILLE_Z = 0.55, (0.68, 1.22)
-LIGHT_Y, LIGHT_Z = 0.82, 0.95
-
-# --- tank -------------------------------------------------------------------
-TANK_R = 0.56
-TANK_Z = 1.76                        # axis; the tank clears the deck by 4 cm
-TANK_X = (-1.95, 0.65)
-TANK_DOME = 0.20                     # length of each domed end
-STRAP_XS = (-1.35, 0.05)             # straps sit over the saddles
-SADDLE_HALF_Y = (0.50, 0.34)         # at the deck, at the top
-SADDLE_TOP_Z = 1.52
-HATCH_X = -0.65
-STACK_XY = (0.73, 0.92)              # exhaust stack between cab and tank
-STACK_R, STACK_TOP_Z = 0.05, 2.34
-
-# --- spreader bar (rear) ----------------------------------------------------
-BAR_X = (-2.30, -2.18)               # rear face = envelope, the X the game expects
-BAR_HALF_Y = 1.50                    # 3.0 m wide: the envelope width
-BAR_Z = (0.06, 0.18)                 # just above the ground
-NOZZLE_COUNT = 11
+BAR_Z0 = 0.06                        # the spreader bar hangs just above the ground
+NOZZLE_PITCH = 0.28
 NOZZLE_TIP_Z = 0.02
-ARM_Y = 0.35
-BRACE_Y = (1.30, 1.00)               # on the bar, at the deck corner
-FEED_X, FEED_Z = -2.22, 1.50         # the feed pipe leaves the tank's rear dome at this height
+TIER1_CAB_H = 1.30                   # cab height (floor to roof) and tank radius of the tier-1 truck:
+TIER1_TANK_R = 0.56                  # the taller cabs and fatter tanks are scaled from these
 
 
-def half_ring(axle_x):
+def tier(name, half_x, body_half_y, bar_half_y, height, wheel_r, wheel_w, axle_xs, cab_len, cab_roof_z,
+         tank_r, tank_ys=(0.0,), chassis_half_y=0.45, stack_r=0.05, stack_sides=(1,), stack_top_z=None,
+         bar_depth=0.12, bar_top_z=0.18, steps=1, visor=False, mirrors=False, roof_lights=0,
+         bull_bar=False, stacked_lights=False, ladder=False, rams=False, end_plates=False, catwalk=False):
+    """One truck. `half_x`, `bar_half_y`, `height` are the envelope; `axle_xs` runs front to rear.
+    `stack_sides`: +1 = right (+Y), -1 = left. `cab_roof_z` is below `height` when roof lights sit on it."""
+    return SimpleNamespace(**locals())
+
+
+TIERS = (
+    tier("SM_PaverCar", 2.30, 1.10, 1.50, 2.40, 0.50, 0.35, (1.35, -1.25), 1.40, 2.40, 0.56),
+    tier("SM_PaverCar_T2", 2.80, 1.25, 1.80, 2.70, 0.56, 0.40, (1.79, -1.65), 1.55, 2.62, 0.64,
+         chassis_half_y=0.50, stack_r=0.055, steps=2, visor=True, mirrors=True, roof_lights=2),
+    tier("SM_PaverCar_T3", 3.40, 1.40, 2.10, 3.00, 0.62, 0.44, (2.33, -0.72, -2.20), 1.70, 2.90, 0.72,
+         chassis_half_y=0.55, stack_r=0.06, stack_sides=(1, -1), stack_top_z=2.98, bar_depth=0.16,
+         bar_top_z=0.22, steps=2, visor=True, mirrors=True, roof_lights=4, bull_bar=True,
+         stacked_lights=True, ladder=True, rams=True, end_plates=True),
+    tier("SM_PaverCar_T4", 4.10, 1.55, 2.50, 3.40, 0.70, 0.50, (2.95, 1.31, -1.21, -2.85), 1.90, 3.28, 0.68,
+         tank_ys=(0.74, -0.74), chassis_half_y=0.62, stack_r=0.065, stack_sides=(1, -1), stack_top_z=3.38,
+         bar_depth=0.20, bar_top_z=0.26, steps=3, visor=True, mirrors=True, roof_lights=6, bull_bar=True,
+         stacked_lights=True, ladder=True, rams=True, end_plates=True, catwalk=True),
+)
+
+
+def half_ring(axle_x, wheel_r, guard_r):
     """Mudguard outline around a wheel in the X-Z plane (front end -> over the top ->
     rear end, then back along the inside), as extrude()'s (z, x) pairs for axis 'Y'."""
     pts = []
-    for radius, order in ((GUARD_R[1], range(GUARD_STEPS + 1)),
-                          (GUARD_R[0], range(GUARD_STEPS, -1, -1))):
+    for radius, order in ((guard_r[1], range(GUARD_STEPS + 1)),
+                          (guard_r[0], range(GUARD_STEPS, -1, -1))):
         for k in order:
             a = math.pi * k / GUARD_STEPS
-            pts.append((WHEEL_R + radius * math.sin(a), axle_x + radius * math.cos(a)))
+            pts.append((wheel_r + radius * math.sin(a), axle_x + radius * math.cos(a)))
     return pts
 
 
-def on_screen(z):
-    """X of the windscreen face of the cab at height z."""
-    t = (z - SCREEN_FOOT[1]) / (SCREEN_HEAD[1] - SCREEN_FOOT[1])
-    return SCREEN_FOOT[0] + t * (SCREEN_HEAD[0] - SCREEN_FOOT[0])
+def build(t):
+    c.reset_scene()
+    parts = []
 
+    # --- measures derived from the tier ---------------------------------------
+    panel_half_y = t.body_half_y - 0.02              # cab sides and deck edges; details stand off up to the body width
+    half_w = t.wheel_w / 2
+    wheel_y = t.body_half_y - 0.01 - half_w          # tyre centre; rim and hub end at the body width
+    rim_r, hub_r = 0.6 * t.wheel_r, 0.22 * t.wheel_r
+    guard_r = (t.wheel_r + 0.04, t.wheel_r + 0.10)   # mudguard: half ring around the axle, top touches the deck
+    guard_y = (wheel_y - half_w, t.body_half_y - 0.01)
+    deck_z0 = 2 * t.wheel_r + 0.10                   # top of the mudguards = top of the chassis = cab floor
+    chassis_x = (-t.half_x + 0.20, t.half_x - 0.35)
+    chassis_z = (t.wheel_r + 0.10, deck_z0)
+    cab_x = (t.half_x - 0.10 - t.cab_len, t.half_x - 0.10)
+    deck_x = (chassis_x[0], cab_x[0])                # ends under the back of the cab
+    deck_z = (deck_z0, deck_z0 + 0.06)
+    front_x = t.half_x - (0.08 if t.bull_bar else 0.0)   # front face of the bumper; the bull bar stands in front of it
 
-c.reset_scene()
-parts = []
+    cab_h = t.cab_roof_z - deck_z0
+    grow = cab_h - TIER1_CAB_H                       # how much taller the cab is than the tier-1 one
+    skirt_x = cab_x[1] - 0.25                        # front panel in front of the wheels starts here
+    skirt_z = t.wheel_r + 0.05
+    sill_z = deck_z0 + 0.68 + 0.5 * grow             # bottom of the windows (tier 1: the top of the 1.8 m figure's head)
+    window_top_z = t.cab_roof_z - 0.16
+    screen_foot = (cab_x[1], sill_z - 0.08)          # the windscreen face runs from here ...
+    screen_head = (cab_x[1] - 0.12, t.cab_roof_z - 0.10)   # ... up to here, leaning back
+    screen_half_y = panel_half_y - 0.13
+    side_window_x = (cab_x[0] + 0.42, cab_x[1] - 0.20)
+    door_x = (cab_x[0] + 0.34, cab_x[1] - 0.12)      # door seams on the left side
+    door_z0 = deck_z0 + 0.06
+    bumper_x = (cab_x[1] - 0.06, front_x)
+    bumper_z = (t.wheel_r - 0.16, t.wheel_r + 0.12 + 0.25 * grow)
+    grille_half_y = t.body_half_y / 2
+    grille_z = (t.wheel_r + 0.18, deck_z0 + 0.12 + 0.6 * grow)
+    light_y, light_z = t.body_half_y - 0.28, deck_z0 - 0.15
 
-# Wheels, mudguards and axles.
-half_w = WHEEL_W / 2
-tyre = [(RIM_R, -half_w), (WHEEL_R - WHEEL_SHOULDER, -half_w), (WHEEL_R, -half_w + WHEEL_SHOULDER),
-        (WHEEL_R, half_w - WHEEL_SHOULDER), (WHEEL_R - WHEEL_SHOULDER, half_w), (RIM_R, half_w)]
-for axle_x in AXLE_XS:
+    k = t.tank_r / TIER1_TANK_R                      # tank details scale with its radius
+    tank_z = deck_z0 + 0.10 + t.tank_r               # axis; the tank clears the deck by 4 cm
+    tank_x = (-t.half_x + 0.35, cab_x[0] - 0.15)
+    tank_mid = (tank_x[0] + tank_x[1]) / 2
+    tank_half = (tank_x[1] - tank_x[0]) / 2
+    strap_xs = (tank_x[0] + 0.60, tank_x[1] - 0.60)  # straps sit over the saddles
+    stack_x = cab_x[0] - 0.07                        # exhaust stack between cab and tank
+    stack_y = t.body_half_y - 0.18
+    stack_top_z = t.stack_top_z if t.stack_top_z is not None else t.cab_roof_z - 0.06
+
+    bar_x = (-t.half_x, -t.half_x + t.bar_depth)     # rear face = envelope, the X the game expects
+    bar_z = (BAR_Z0, t.bar_top_z)
+    bar_xm = (bar_x[0] + bar_x[1]) / 2
+    bar_zm = (bar_z[0] + bar_z[1]) / 2
+    arm_y = t.chassis_half_y - 0.10
+    brace_y = (t.bar_half_y - 0.20, panel_half_y - 0.08)   # on the bar, at the deck corner
+    feed_x, feed_z = -t.half_x + 0.08, tank_z - 0.26 * k   # the feed pipe leaves the tank's rear dome at this height
+
+    def on_screen(z):
+        """X of the windscreen face of the cab at height z."""
+        f = (z - screen_foot[1]) / (screen_head[1] - screen_foot[1])
+        return screen_foot[0] + f * (screen_head[0] - screen_foot[0])
+
+    # --- wheels, mudguards and axles ------------------------------------------
+    tyre = [(rim_r, -half_w), (t.wheel_r - WHEEL_SHOULDER, -half_w), (t.wheel_r, -half_w + WHEEL_SHOULDER),
+            (t.wheel_r, half_w - WHEEL_SHOULDER), (t.wheel_r - WHEEL_SHOULDER, half_w), (rim_r, half_w)]
+    for axle_x in t.axle_xs:
+        for side in (1, -1):
+            outward = "Y" if side > 0 else "-Y"
+            face = side * (wheel_y + half_w)
+            parts.append(c.lathe(tyre, (axle_x, side * wheel_y, t.wheel_r), "Y", TYRE, segments=20))
+            parts.append(c.cylinder(rim_r, RIM_H, (axle_x, face + side * RIM_H / 2, t.wheel_r), outward, BODY,
+                                    segments=10, cap_bottom=False))
+            parts.append(c.cylinder(hub_r, HUB_H, (axle_x, face + side * (RIM_H + HUB_H / 2), t.wheel_r),
+                                    outward, FRAME, segments=10, cap_bottom=False))
+            parts.append(c.extrude(half_ring(axle_x, t.wheel_r, guard_r), side * guard_y[0], side * guard_y[1],
+                                   "Y", FRAME))
+        parts.append(c.cylinder(0.07, 2 * (wheel_y - half_w), (axle_x, 0, t.wheel_r), "Y", FRAME, segments=8,
+                                cap_bottom=False, cap_top=False))
+        parts.append(c.box((0.22, 2 * t.chassis_half_y, 0.18), (axle_x, 0, chassis_z[0] - 0.07), FRAME))  # springs
+
+    # --- chassis, deck and the lockers between the front and the rear axles ---
+    parts.append(c.box((chassis_x[1] - chassis_x[0], 2 * t.chassis_half_y, chassis_z[1] - chassis_z[0]),
+                       ((chassis_x[0] + chassis_x[1]) / 2, 0, (chassis_z[0] + chassis_z[1]) / 2), FRAME))
+    parts.append(c.box((deck_x[1] - deck_x[0], 2 * panel_half_y, deck_z[1] - deck_z[0]),
+                       ((deck_x[0] + deck_x[1]) / 2, 0, (deck_z[0] + deck_z[1]) / 2), FRAME))
+    # The widest gap between two neighbouring axles is the one between the front and the rear group.
+    gap_front, gap_rear = max(zip(t.axle_xs, t.axle_xs[1:]), key=lambda pair: pair[0] - pair[1])
+    locker_x = (gap_rear + guard_r[1] + 0.05, gap_front - guard_r[1] - 0.15)
+    locker_z = (t.wheel_r + 0.05, deck_z0)
+    locker_xm = (locker_x[0] + locker_x[1]) / 2
     for side in (1, -1):
-        outward = "Y" if side > 0 else "-Y"
-        face = side * (WHEEL_Y + half_w)
-        parts.append(c.lathe(tyre, (axle_x, side * WHEEL_Y, WHEEL_R), "Y", TYRE, segments=20))
-        parts.append(c.cylinder(RIM_R, RIM_H, (axle_x, face + side * RIM_H / 2, WHEEL_R), outward, BODY,
-                                segments=10, cap_bottom=False))
-        parts.append(c.cylinder(HUB_R, HUB_H, (axle_x, face + side * (RIM_H + HUB_H / 2), WHEEL_R),
-                                outward, FRAME, segments=10, cap_bottom=False))
-        parts.append(c.extrude(half_ring(axle_x), side * GUARD_Y[0], side * GUARD_Y[1], "Y", FRAME))
-    parts.append(c.cylinder(0.07, 2 * (WHEEL_Y - half_w), (axle_x, 0, WHEEL_R), "Y", FRAME, segments=8,
-                            cap_bottom=False, cap_top=False))
-    parts.append(c.box((0.22, 2 * CHASSIS_HALF_Y, 0.18), (axle_x, 0, CHASSIS_Z[0] - 0.07), FRAME))  # springs
+        parts.append(c.box((locker_x[1] - locker_x[0], panel_half_y - t.chassis_half_y,
+                            locker_z[1] - locker_z[0]),
+                           (locker_xm, side * (panel_half_y + t.chassis_half_y) / 2,
+                            (locker_z[0] + locker_z[1]) / 2), BODY, bevel=0.03))
+        parts.append(c.box((0.30, 0.02, 0.04),                                           # locker handle
+                           (locker_xm, side * (panel_half_y + 0.01), locker_z[1] - 0.14), FRAME))
 
-# Chassis, deck and the lockers between the axles.
-parts.append(c.box((CHASSIS_X[1] - CHASSIS_X[0], 2 * CHASSIS_HALF_Y, CHASSIS_Z[1] - CHASSIS_Z[0]),
-                   ((CHASSIS_X[0] + CHASSIS_X[1]) / 2, 0, (CHASSIS_Z[0] + CHASSIS_Z[1]) / 2), FRAME))
-parts.append(c.box((DECK_X[1] - DECK_X[0], 2 * PANEL_HALF_Y, DECK_Z[1] - DECK_Z[0]),
-                   ((DECK_X[0] + DECK_X[1]) / 2, 0, (DECK_Z[0] + DECK_Z[1]) / 2), FRAME))
-for side in (1, -1):
-    parts.append(c.box((LOCKER_X[1] - LOCKER_X[0], PANEL_HALF_Y - CHASSIS_HALF_Y,
-                        LOCKER_Z[1] - LOCKER_Z[0]),
-                       ((LOCKER_X[0] + LOCKER_X[1]) / 2, side * (PANEL_HALF_Y + CHASSIS_HALF_Y) / 2,
-                        (LOCKER_Z[0] + LOCKER_Z[1]) / 2), BODY, bevel=0.03))
-    parts.append(c.box((0.30, 0.02, 0.04),                                           # locker handle
-                       (0.0, side * (PANEL_HALF_Y + 0.01), LOCKER_Z[1] - 0.14), FRAME))
+    # --- cab: body, windscreen, side windows, grille, headlights, bumper ------
+    # Outline in the X-Z plane: back wall, floor, wheel arch step, skirt, nose, windscreen, roof.
+    cab_xz = [(cab_x[0], deck_z0), (skirt_x, deck_z0), (skirt_x, skirt_z), (cab_x[1], skirt_z),
+              screen_foot, screen_head, (cab_x[1] - 0.22, t.cab_roof_z), (cab_x[0], t.cab_roof_z)]
+    parts.append(c.extrude([(z, x) for x, z in cab_xz], -panel_half_y, panel_half_y, "Y", BODY))
+    parts.append(c.extrude([(z, x) for x, z in (
+        (on_screen(sill_z) - GLASS_SINK, sill_z), (on_screen(sill_z) + GLASS_STANDOUT, sill_z),
+        (on_screen(window_top_z) + GLASS_STANDOUT, window_top_z),
+        (on_screen(window_top_z) - GLASS_SINK, window_top_z))], -screen_half_y, screen_half_y, "Y", GLASS))
+    light_zs = (light_z, light_z + 0.22) if t.stacked_lights else (light_z,)
+    for side in (1, -1):
+        parts.append(c.box((side_window_x[1] - side_window_x[0], GLASS_SINK + GLASS_STANDOUT, window_top_z - sill_z),
+                           ((side_window_x[0] + side_window_x[1]) / 2,
+                            side * (panel_half_y + (GLASS_STANDOUT - GLASS_SINK) / 2),
+                            (sill_z + window_top_z) / 2), GLASS))
+        for z in light_zs:
+            parts.append(c.box((0.03, 0.30, 0.16), (cab_x[1], side * light_y, z), GLASS))
+    parts.append(c.box((0.03, 2 * grille_half_y, grille_z[1] - grille_z[0]),
+                       (cab_x[1], 0, (grille_z[0] + grille_z[1]) / 2), FRAME))
+    parts.append(c.box((bumper_x[1] - bumper_x[0], 2 * t.body_half_y, bumper_z[1] - bumper_z[0]),
+                       ((bumper_x[0] + bumper_x[1]) / 2, 0, (bumper_z[0] + bumper_z[1]) / 2), FRAME,
+                       bevel=0.02 if t.bull_bar else 0.04))   # behind a bull bar the bumper is only 8 cm deep
 
-# Cab: body, windscreen, side windows, grille, headlights, bumper.
-parts.append(c.extrude([(z, x) for x, z in CAB_XZ], -PANEL_HALF_Y, PANEL_HALF_Y, "Y", BODY))
-parts.append(c.extrude([(z, x) for x, z in (
-    (on_screen(SILL_Z) - GLASS_SINK, SILL_Z), (on_screen(SILL_Z) + GLASS_STANDOUT, SILL_Z),
-    (on_screen(WINDOW_TOP_Z) + GLASS_STANDOUT, WINDOW_TOP_Z),
-    (on_screen(WINDOW_TOP_Z) - GLASS_SINK, WINDOW_TOP_Z))], -SCREEN_HALF_Y, SCREEN_HALF_Y, "Y", GLASS))
-for side in (1, -1):
-    parts.append(c.box((SIDE_WINDOW_X[1] - SIDE_WINDOW_X[0], GLASS_SINK + GLASS_STANDOUT, WINDOW_TOP_Z - SILL_Z),
-                       ((SIDE_WINDOW_X[0] + SIDE_WINDOW_X[1]) / 2,
-                        side * (PANEL_HALF_Y + (GLASS_STANDOUT - GLASS_SINK) / 2),
-                        (SILL_Z + WINDOW_TOP_Z) / 2), GLASS))
-    parts.append(c.box((0.03, 0.30, 0.16), (CAB_X[1], side * LIGHT_Y, LIGHT_Z), GLASS))
-parts.append(c.box((0.03, 2 * GRILLE_HALF_Y, GRILLE_Z[1] - GRILLE_Z[0]),
-                   (CAB_X[1], 0, (GRILLE_Z[0] + GRILLE_Z[1]) / 2), FRAME))
-parts.append(c.box((BUMPER_X[1] - BUMPER_X[0], 2 * BODY_HALF_Y, BUMPER_Z[1] - BUMPER_Z[0]),
-                   ((BUMPER_X[0] + BUMPER_X[1]) / 2, 0, (BUMPER_Z[0] + BUMPER_Z[1]) / 2), FRAME,
-                   bevel=0.04))
+    # Door on the left (-Y) side: seams, handle and the steps in front of the wheel.
+    door_top = t.cab_roof_z - 0.08
+    door_zm = (door_z0 + door_top) / 2
+    for x in door_x:
+        parts.append(c.box((SEAM_W, SEAM_W, door_top - door_z0), (x, -panel_half_y, door_zm), FRAME))
+    for z in (door_z0, door_top):
+        parts.append(c.box((door_x[1] - door_x[0] + SEAM_W, SEAM_W, SEAM_W),
+                           ((door_x[0] + door_x[1]) / 2, -panel_half_y, z), FRAME))
+    parts.append(c.box((0.16, 0.04, 0.05), (door_x[0] + 0.16, -panel_half_y, sill_z - 0.14), FRAME))
+    step_rise = 0.0 if t.steps == 1 else (door_z0 - 0.12 - (skirt_z + 0.20)) / (t.steps - 1)
+    for i in range(t.steps):
+        parts.append(c.box((cab_x[1] - skirt_x - 0.04, 0.04, 0.05),
+                           ((skirt_x + cab_x[1]) / 2, -panel_half_y, skirt_z + 0.20 + i * step_rise), FRAME))
 
-# Door on the left (-Y) side: seams, handle and a step in front of the wheel.
-door_zm = (DOOR_Z0 + ROOF_Z - 0.08) / 2
-for x in DOOR_X:
-    parts.append(c.box((SEAM_W, SEAM_W, ROOF_Z - 0.08 - DOOR_Z0), (x, -PANEL_HALF_Y, door_zm), FRAME))
-for z in (DOOR_Z0, ROOF_Z - 0.08):
-    parts.append(c.box((DOOR_X[1] - DOOR_X[0] + SEAM_W, SEAM_W, SEAM_W),
-                       ((DOOR_X[0] + DOOR_X[1]) / 2, -PANEL_HALF_Y, z), FRAME))
-parts.append(c.box((0.16, 0.04, 0.05), (DOOR_X[0] + 0.16, -PANEL_HALF_Y, SILL_Z - 0.14), FRAME))
-parts.append(c.box((CAB_X[1] - SKIRT_X - 0.04, 0.04, 0.05),
-                   ((SKIRT_X + CAB_X[1]) / 2, -PANEL_HALF_Y, SKIRT_Z + 0.20), FRAME))
+    # --- tank(s) on two saddles: domed ends, yellow straps, filler hatch -------
+    for ty in t.tank_ys:
+        parts.append(c.lathe([(0.0, -tank_half), (0.40 * k, -tank_half + 0.06 * k),
+                              (t.tank_r, -tank_half + 0.20 * k), (t.tank_r, tank_half - 0.20 * k),
+                              (0.40 * k, tank_half - 0.06 * k), (0.0, tank_half)],
+                             (tank_mid, ty, tank_z), "X", METAL, segments=20))
+        for x in strap_xs:
+            parts.append(c.ring(t.tank_r - 0.02, t.tank_r + 0.02, -0.06, 0.06, (x, ty, tank_z), "X", BODY, 20))
+            parts.append(c.extrude([(ty - 0.50 * k, deck_z[1]), (ty + 0.50 * k, deck_z[1]),
+                                    (ty + 0.34 * k, tank_z - 0.24 * k), (ty - 0.34 * k, tank_z - 0.24 * k)],
+                                   x - 0.09, x + 0.09, "X", FRAME))
+        parts.append(c.cylinder(0.20, 0.08, (tank_mid, ty, tank_z + t.tank_r + 0.02), "Z", METAL, segments=12,
+                                cap_bottom=False, cap_top=False))
+        parts.append(c.cylinder(0.23, 0.03, (tank_mid, ty, tank_z + t.tank_r + 0.065), "Z", FRAME, segments=12))
+        # Feed pipe from the tank's rear dome down to the bar.
+        parts.append(c.beam((tank_x[0] + 0.15, ty, feed_z), (feed_x, ty, feed_z), 0.05, METAL, segments=8,
+                            cap_start=False))
+        parts.append(c.beam((feed_x, ty, feed_z + 0.05), (feed_x, ty, bar_zm), 0.05, METAL, segments=8,
+                            cap_end=False))
 
-# Tank on two saddles: domed ends, yellow straps, filler hatch; exhaust stack.
-tank_mid = (TANK_X[0] + TANK_X[1]) / 2
-tank_half = (TANK_X[1] - TANK_X[0]) / 2
-parts.append(c.lathe([(0.0, -tank_half), (0.40, -tank_half + 0.06), (TANK_R, -tank_half + TANK_DOME),
-                      (TANK_R, tank_half - TANK_DOME), (0.40, tank_half - 0.06), (0.0, tank_half)],
-                     (tank_mid, 0, TANK_Z), "X", METAL, segments=20))
-for x in STRAP_XS:
-    parts.append(c.ring(TANK_R - 0.02, TANK_R + 0.02, -0.06, 0.06, (x, 0, TANK_Z), "X", BODY, 20))
-    parts.append(c.extrude([(-SADDLE_HALF_Y[0], DECK_Z[1]), (SADDLE_HALF_Y[0], DECK_Z[1]),
-                            (SADDLE_HALF_Y[1], SADDLE_TOP_Z), (-SADDLE_HALF_Y[1], SADDLE_TOP_Z)],
-                           x - 0.09, x + 0.09, "X", FRAME))
-parts.append(c.cylinder(0.20, 0.08, (HATCH_X, 0, TANK_Z + TANK_R + 0.02), "Z", METAL, segments=12,
-                        cap_bottom=False, cap_top=False))
-parts.append(c.cylinder(0.23, 0.03, (HATCH_X, 0, TANK_Z + TANK_R + 0.065), "Z", FRAME, segments=12))
-sx, sy = STACK_XY
-parts.append(c.cylinder(STACK_R, STACK_TOP_Z - DECK_Z[1], (sx, sy, (DECK_Z[1] + STACK_TOP_Z) / 2), "Z",
-                        FRAME, segments=8, cap_bottom=False))
-parts.append(c.box((0.14, 0.14, 0.30), (sx, sy, DECK_Z[1] + 0.15), FRAME))           # silencer
+    # --- exhaust stack(s) with a silencer ---------------------------------------
+    silencer = 0.14 * t.stack_r / 0.05
+    for side in t.stack_sides:
+        parts.append(c.cylinder(t.stack_r, stack_top_z - deck_z[1],
+                                (stack_x, side * stack_y, (deck_z[1] + stack_top_z) / 2), "Z",
+                                FRAME, segments=8, cap_bottom=False))
+        parts.append(c.box((0.14, silencer, 0.30 * t.stack_r / 0.05),
+                           (stack_x, side * stack_y, deck_z[1] + 0.15 * t.stack_r / 0.05), FRAME))
 
-# Rear spreader bar: bar with nozzles, two arms, braces to the deck corners, feed pipe.
-bar_xm = (BAR_X[0] + BAR_X[1]) / 2
-bar_zm = (BAR_Z[0] + BAR_Z[1]) / 2
-parts.append(c.box((BAR_X[1] - BAR_X[0], 2 * BAR_HALF_Y, BAR_Z[1] - BAR_Z[0]), (bar_xm, 0, bar_zm), METAL))
-for i in range(NOZZLE_COUNT):
-    y = (BAR_HALF_Y - 0.10) * (2.0 * i / (NOZZLE_COUNT - 1) - 1.0)
-    parts.append(c.cone(0.025, 0.045, BAR_Z[0] - NOZZLE_TIP_Z, (bar_xm, y, (BAR_Z[0] + NOZZLE_TIP_Z) / 2),
-                        "-Z", TYRE, segments=6, cap_bottom=False))
-for side in (1, -1):
-    parts.append(c.bar((CHASSIS_X[0] + 0.06, side * ARM_Y, CHASSIS_Z[0] + 0.15),
-                       (bar_xm, side * ARM_Y, bar_zm), 0.10, 0.10, FRAME))
-    parts.append(c.bar((bar_xm, side * BRACE_Y[0], bar_zm),
-                       (DECK_X[0] + 0.05, side * BRACE_Y[1], DECK_Z[0] + 0.03), 0.06, 0.06, FRAME))
-parts.append(c.beam((TANK_X[0] + 0.15, 0, FEED_Z), (FEED_X, 0, FEED_Z), 0.05, METAL, segments=8,
-                    cap_start=False))
-parts.append(c.beam((FEED_X, 0, FEED_Z + 0.05), (FEED_X, 0, bar_zm), 0.05, METAL, segments=8, cap_end=False))
+    # --- rear spreader bar: bar with nozzles, two arms, braces to the deck corners
+    parts.append(c.box((bar_x[1] - bar_x[0], 2 * t.bar_half_y, bar_z[1] - bar_z[0]), (bar_xm, 0, bar_zm), METAL))
+    nozzle_count = int(round(2 * (t.bar_half_y - 0.10) / NOZZLE_PITCH)) + 1
+    for i in range(nozzle_count):
+        y = (t.bar_half_y - 0.10) * (2.0 * i / (nozzle_count - 1) - 1.0)
+        parts.append(c.cone(0.025, 0.045, bar_z[0] - NOZZLE_TIP_Z, (bar_xm, y, (bar_z[0] + NOZZLE_TIP_Z) / 2),
+                            "-Z", TYRE, segments=6, cap_bottom=False))
+    for side in (1, -1):
+        parts.append(c.bar((chassis_x[0] + 0.06, side * arm_y, chassis_z[0] + 0.15),
+                           (bar_xm, side * arm_y, bar_zm), 0.10, 0.10, FRAME))
+        parts.append(c.bar((bar_xm, side * brace_y[0], bar_zm),
+                           (deck_x[0] + 0.05, side * brace_y[1], deck_z[0] + 0.03), 0.06, 0.06, FRAME))
+        if t.rams:                                   # hydraulic ram from the deck's rear edge down to the bar
+            ram_y = side * (arm_y + 0.30)
+            parts.append(c.beam((deck_x[0] + 0.12, ram_y, deck_z[1] + 0.10), (bar_xm, ram_y, bar_z[1]), 0.045,
+                                METAL, segments=8))
+            parts.append(c.box((0.14, 0.14, 0.12), (deck_x[0] + 0.12, ram_y, deck_z[1] + 0.06), FRAME))
+        if t.end_plates:                             # yellow plate on each end of the bar
+            parts.append(c.box((t.bar_depth, 0.02, bar_z[1] - bar_z[0] + 0.06),
+                               (bar_xm, side * (t.bar_half_y - 0.01), bar_zm + 0.03), BODY))
 
-c.finish(parts, NAME)
+    # --- what the heavier tiers add ---------------------------------------------
+    if t.visor:                                      # sun visor over the windscreen
+        parts.append(c.box((0.18, 2 * screen_half_y + 0.10, 0.04),
+                           (on_screen(window_top_z) + 0.07, 0, window_top_z + 0.04), FRAME))
+    if t.mirrors:                                    # mirror on an arm at each front corner of the cab
+        mirror_z = sill_z + 0.5 * (window_top_z - sill_z)
+        for side in (1, -1):
+            parts.append(c.box((0.03, 0.16, 0.03), (cab_x[1] - 0.16, side * (panel_half_y + 0.07), mirror_z + 0.10),
+                               FRAME))
+            parts.append(c.box((0.04, 0.12, 0.30), (cab_x[1] - 0.16, side * (panel_half_y + 0.16), mirror_z), FRAME))
+    if t.roof_lights:                                # light bar on the roof: beacons on the ends, lamps between
+        bar_cx = cab_x[1] - 0.50
+        rail_half = panel_half_y - 0.18
+        top = t.height - t.cab_roof_z
+        parts.append(c.box((0.14, 2 * rail_half, 0.03), (bar_cx, 0, t.cab_roof_z + 0.015), FRAME))
+        for i in range(t.roof_lights):
+            y = (rail_half - 0.10) * (2.0 * i / (t.roof_lights - 1) - 1.0)
+            if i in (0, t.roof_lights - 1):
+                parts.append(c.cylinder(0.07, top - 0.03, (bar_cx, y, t.cab_roof_z + 0.03 + (top - 0.03) / 2),
+                                        "Z", BODY, segments=8, cap_bottom=False))
+            else:
+                parts.append(c.box((0.08, 0.20, top - 0.05), (bar_cx, y, t.cab_roof_z + 0.03 + (top - 0.05) / 2),
+                                   GLASS))
+    if t.bull_bar:                                   # steel tubes in front of the bumper and the grille
+        tube_r = 0.04
+        tube_x = t.half_x - tube_r                   # front of the tubes = envelope
+        post_y = grille_half_y + 0.12
+        bull_z = (bumper_z[0] + 0.04, grille_z[1] - 0.06)
+        for side in (1, -1):
+            parts.append(c.beam((tube_x, side * post_y, bull_z[0]), (tube_x, side * post_y, bull_z[1]), tube_r,
+                                METAL, segments=8))
+            # stay from the post back to the cab front
+            parts.append(c.box((tube_x - cab_x[1], 0.05, 0.05),
+                               ((tube_x + cab_x[1]) / 2, side * post_y, bull_z[1] - 0.10), FRAME))
+        for z in (bull_z[1], (bull_z[0] + bull_z[1]) / 2 + 0.05):
+            parts.append(c.beam((tube_x, -post_y - 0.10, z), (tube_x, post_y + 0.10, z), tube_r, METAL, segments=8))
+    if t.ladder:                                     # ladder up the right side of the (right) tank
+        rail_y = max(t.tank_ys) + t.tank_r + 0.05
+        ladder_x = tank_mid + 0.55
+        ladder_top = tank_z + 0.55 * t.tank_r
+        for dx in (-0.20, 0.20):
+            parts.append(c.box((0.04, 0.04, ladder_top - deck_z[1]),
+                               (ladder_x + dx, rail_y, (deck_z[1] + ladder_top) / 2), FRAME))
+        rungs = int((ladder_top - deck_z[1] - 0.10) / 0.28)
+        for i in range(rungs):
+            parts.append(c.box((0.36, 0.03, 0.03), (ladder_x, rail_y, deck_z[1] + 0.22 + i * 0.28), FRAME))
+    if t.catwalk:                                    # walkway on top between the two tanks, with a hand rail
+        walk_z = tank_z + 0.80 * t.tank_r
+        walk_x = (tank_x[0] + 0.45, tank_x[1] - 0.45)
+        walk_xm = (walk_x[0] + walk_x[1]) / 2
+        parts.append(c.box((walk_x[1] - walk_x[0], 0.56, 0.04), (walk_xm, 0, walk_z), FRAME))
+        rail_z = tank_z + t.tank_r + 0.16           # level with the top of the filler hatches' covers plus a hand
+        for x in (walk_x[0] + 0.03, walk_xm, walk_x[1] - 0.03):
+            parts.append(c.box((0.03, 0.03, rail_z - walk_z), (x, 0, (walk_z + rail_z) / 2), FRAME))
+        parts.append(c.box((walk_x[1] - walk_x[0], 0.03, 0.03), (walk_xm, 0, rail_z), BODY))
+
+    c.finish(parts, t.name)
+
+
+for _tier in TIERS:
+    build(_tier)
