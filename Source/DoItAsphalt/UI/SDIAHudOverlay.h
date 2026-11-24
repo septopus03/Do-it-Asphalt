@@ -15,7 +15,7 @@ class UDIAWorldSubsystem;
 /**
  * The HUD layout, drawn as hazard signage (yellow and black plates): credits top left, progress and the next unlock step
  * top right, toasts top centre, with the check view's arrow and distance below them while V is held, and the crosshair in
- * the middle of the screen. The bottom centre is a stack, from the top: the plant's stock (in the refill zone), the
+ * the middle of the screen, and the controls legend at the bottom left. The bottom centre is a stack, from the top: the plant's stock (in the refill zone), the
  * contextual prompt, the hand line (what is in the hands, with how much it holds) and the hotbar with its stripes. It owns
  * no game state: the numbers come from the world subsystem through FDIAHudModel, which is refreshed on OnStateChanged but
  * only changes what the widgets show when a displayed value changed; the widgets read the cached view through attribute
@@ -36,6 +36,11 @@ public:
 
 	const FDIAHudModel& GetModel() const { return Model; }
 
+	/** The controls legend and its two variants (on foot, in the car), for tests: a variant is shown only while the legend is. */
+	TSharedPtr<SWidget> GetControlsLegend() const { return ControlsLegend; }
+	TSharedPtr<SWidget> GetLegendOnFoot() const { return LegendOnFoot; }
+	TSharedPtr<SWidget> GetLegendInCar() const { return LegendInCar; }
+
 private:
 	void HandleStateChanged();
 
@@ -47,6 +52,8 @@ private:
 	TSharedRef<SWidget> BuildHotbarSlot(ELotHand Hand);
 	TSharedRef<SWidget> BuildCheckView();
 	TSharedRef<SWidget> BuildToasts();
+	/** The controls legend at the bottom left: a sign plate with the keys of DIAControlsLegend (the car's keys while the player drives). */
+	TSharedRef<SWidget> BuildControlsLegend();
 	/** The dot in the middle of the screen that shows where the player looks; gone while a menu, the shop or the win screen has the mouse. */
 	TSharedRef<SWidget> BuildCrosshair();
 
@@ -58,6 +65,9 @@ private:
 	TWeakObjectPtr<ADIAHUD> Hud;
 	TWeakObjectPtr<UDIAWorldSubsystem> Subsystem;
 	FDelegateHandle StateHandle;
+	TSharedPtr<SWidget> ControlsLegend;
+	TSharedPtr<SWidget> LegendOnFoot;
+	TSharedPtr<SWidget> LegendInCar;
 
 	FDIAHudModel Model;
 	FString PromptSource;

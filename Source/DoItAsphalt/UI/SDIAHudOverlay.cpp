@@ -7,8 +7,10 @@
 #include "Styling/CoreStyle.h"
 #include "GameFramework/PlayerController.h"
 #include "Player/DIACharacter.h"
+#include "UI/DIAControlsLegend.h"
 #include "UI/DIAHUD.h"
 #include "UI/DIAHudStyle.h"
+#include "UI/DIAIcons.h"
 #include "UI/DIAHudText.h"
 #include "UI/DIAHudWidgets.h"
 #include "UI/SDIAHazardStripes.h"
@@ -110,6 +112,10 @@ void SDIAHudOverlay::Construct(const FArguments& InArgs)
 		[
 			BuildBottom()
 		]
+		+ SOverlay::Slot().HAlign(HAlign_Left).VAlign(VAlign_Bottom).Padding(AsphaltHud::ScreenMargin, 0.f, 0.f, AsphaltHud::BottomMargin)
+		[
+			BuildControlsLegend()
+		]
 	];
 }
 
@@ -169,8 +175,7 @@ TSharedRef<SWidget> SDIAHudOverlay::BuildTopLeft()
 
 TSharedRef<SWidget> SDIAHudOverlay::BuildTopRight()
 {
-	return AsphaltHud::MakePlate(AsphaltHud::SignBlack, AsphaltHud::SignYellow, AsphaltHud::Inset(22.f, 12.f, 22.f, 16.f),
-		SNew(SVerticalBox)
+	TSharedRef<SVerticalBox> Lines = SNew(SVerticalBox)
 		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Right)
 		[
 			Text(TAttribute<FText>::CreateLambda([this]() { return Model.GetView().Progress; }), EDIAFontWeight::ExtraBold, AsphaltHud::HudProgressFont, AsphaltHud::SignWhite)
@@ -202,16 +207,20 @@ TSharedRef<SWidget> SDIAHudOverlay::BuildTopRight()
 			[
 				Text(TAttribute<FText>::CreateLambda([this]() { return GetNextText(); }), EDIAFontWeight::Bold, AsphaltHud::HudNextFont, AsphaltHud::SignWhite)
 			]
-		]
-		// The auto paver (hidden until it is owned).
-		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Right).Padding(0.f, 6.f, 0.f, 0.f)
+		];
+	// One line per robot, stacked in robot order (a robot that is not owned has no text and takes no room).
+	for (int32 Paver = 0; Paver < MaxAutoPavers; ++Paver)
+	{
+		Lines->AddSlot().AutoHeight().HAlign(HAlign_Right).Padding(0.f, 6.f, 0.f, 0.f)
 		[
 			SNew(SBox)
-			.Visibility_Lambda([this]() { return Model.GetView().Paver.IsEmpty() ? EVisibility::Collapsed : EVisibility::HitTestInvisible; })
+			.Visibility_Lambda([this, Paver]() { return Model.GetView().Pavers[Paver].IsEmpty() ? EVisibility::Collapsed : EVisibility::HitTestInvisible; })
 			[
-				Text(TAttribute<FText>::CreateLambda([this]() { return Model.GetView().Paver; }), EDIAFontWeight::Bold, AsphaltHud::HudNextFont, AsphaltHud::SignWhite)
+				Text(TAttribute<FText>::CreateLambda([this, Paver]() { return Model.GetView().Pavers[Paver]; }), EDIAFontWeight::Bold, AsphaltHud::HudNextFont, AsphaltHud::SignWhite)
 			]
-		]);
+		];
+	}
+	return AsphaltHud::MakePlate(AsphaltHud::SignBlack, AsphaltHud::SignYellow, AsphaltHud::Inset(22.f, 12.f, 22.f, 16.f), Lines);
 }
 
 TSharedRef<SWidget> SDIAHudOverlay::BuildHotbar()
@@ -219,9 +228,21 @@ TSharedRef<SWidget> SDIAHudOverlay::BuildHotbar()
 	TSharedRef<SHorizontalBox> Slots = SNew(SHorizontalBox);
 	for (int32 Index = 0; Index < static_cast<int32>(ELotHand::Count); ++Index)
 	{
-		Slots->AddSlot().AutoWidth().Padding(Index == 0 ? 0.f : AsphaltHud::HotbarGap, 0.f, 0.f, 0.f)
+		// Only what the player owns is shown; the bowl is always there. The gap goes with the slot, so that a hidden one leaves none.
+		const ELotHand Hand = static_cast<ELotHand>(Index);
+		TWeakObjectPtr<UDIAWorldSubsystem> WeakSubsystem = Subsystem;
+		Slots->AddSlot().AutoWidth()
 		[
-			BuildHotbarSlot(static_cast<ELotHand>(Index))
+			SNew(SBox)
+			.Padding(Index == 0 ? 0.f : AsphaltHud::HotbarGap, 0.f, 0.f, 0.f)
+			.Visibility_Lambda([WeakSubsystem, Hand]()
+			{
+				const UDIAWorldSubsystem* S = WeakSubsystem.Get();
+				return S && S->GetGame().CanSelectHand(Hand) ? EVisibility::SelfHitTestInvisible : EVisibility::Collapsed;
+			})
+			[
+				BuildHotbarSlot(Hand)
+			]
 		];
 	}
 	return SNew(SVerticalBox)
@@ -317,9 +338,13 @@ TSharedRef<SWidget> SDIAHudOverlay::BuildHotbarSlot(ELotHand Hand)
 							}))
 					]
 				]
-				+ SVerticalBox::Slot().FillHeight(1.f)
+				// The picture of the tool or vessel.
+				+ SVerticalBox::Slot().FillHeight(1.f).HAlign(HAlign_Center).VAlign(VAlign_Center)
 				[
-					SNew(SSpacer)
+					SNew(SBox).WidthOverride(DIAIcons::HandIconSize).HeightOverride(DIAIcons::HandIconSize)
+					[
+						SNew(SImage).Image(DIAIcons::HandBrush(Hand))
+					]
 				]
 				// The fill of a vessel; a tool without content has an empty track, a slot that cannot be taken shows no gauge.
 				+ SVerticalBox::Slot().AutoHeight().Padding(2.f, 0.f)
@@ -463,6 +488,93 @@ TSharedRef<SWidget> SDIAHudOverlay::BuildBottom()
 		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center)
 		[
 			BuildHotbar()
+		];
+}
+
+TSharedRef<SWidget> SDIAHudOverlay::BuildControlsLegend()
+{
+	// One column of lines (key caps, then the action) per variant; the one that does not apply is collapsed and takes no room.
+	auto BuildLines = [](const TArray<DIAControlsLegend::FLine>& Lines)
+	{
+		TSharedRef<SVerticalBox> Box = SNew(SVerticalBox);
+		for (int32 Index = 0; Index < Lines.Num(); ++Index)
+		{
+			const DIAControlsLegend::FLine& Line = Lines[Index];
+			TSharedRef<SHorizontalBox> Caps = SNew(SHorizontalBox);
+			for (int32 Cap = 0; Cap < Line.Caps.Num(); ++Cap)
+			{
+				Caps->AddSlot().AutoWidth().Padding(Cap == 0 ? 0.f : AsphaltHud::LegendKeyGap, 0.f, 0.f, 0.f)
+				[
+					SNew(SBox)
+					.MinDesiredWidth(AsphaltHud::LegendKeyMinWidth)
+					.HeightOverride(AsphaltHud::LegendKeyHeight)
+					[
+						SNew(SBorder)
+						.BorderImage(WhiteBrush())
+						.BorderBackgroundColor(AsphaltHud::SignYellow)
+						.HAlign(HAlign_Center)
+						.VAlign(VAlign_Center)
+						.Padding(FMargin(6.f, 0.f))
+						[
+							Text(Line.Caps[Cap].Label, EDIAFontWeight::ExtraBold, AsphaltHud::LegendKeyFont, AsphaltHud::SignBlack)
+						]
+					]
+				];
+			}
+			Box->AddSlot().AutoHeight().Padding(0.f, Index == 0 ? 0.f : AsphaltHud::LegendLineGap, 0.f, 0.f)
+			[
+				SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
+				[
+					SNew(SBox).WidthOverride(AsphaltHud::LegendKeyColumnWidth)
+					[
+						Caps
+					]
+				]
+				+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(AsphaltHud::LegendActionGap, 0.f, 0.f, 0.f)
+				[
+					Text(Line.Action, EDIAFontWeight::Bold, AsphaltHud::LegendActionFont, AsphaltHud::SignWhite)
+				]
+			];
+		}
+		return Box;
+	};
+
+	TWeakObjectPtr<UDIAWorldSubsystem> WeakSubsystem = Subsystem;
+	auto InCar = [WeakSubsystem]()
+	{
+		const UDIAWorldSubsystem* S = WeakSubsystem.Get();
+		return S && S->GetGame().World().bPlayerInCar;
+	};
+	return SAssignNew(ControlsLegend, SBox)
+		.Visibility_Lambda([this]()
+		{
+			const ADIAHUD* H = Hud.Get();
+			return (H && H->IsControlsLegendShown()) ? EVisibility::HitTestInvisible : EVisibility::Collapsed;
+		})
+		[
+			AsphaltHud::MakePlate(AsphaltHud::SignBlack, AsphaltHud::SignYellow, AsphaltHud::Inset(18.f, 10.f, 20.f, 14.f),
+				SNew(SVerticalBox)
+				+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 0.f, 0.f, 8.f)
+				[
+					Text(DIAControlsLegend::Title(), EDIAFontWeight::ExtraBold, AsphaltHud::LegendTitleFont, AsphaltHud::SignYellow)
+				]
+				+ SVerticalBox::Slot().AutoHeight()
+				[
+					SAssignNew(LegendOnFoot, SBox)
+					.Visibility_Lambda([InCar]() { return InCar() ? EVisibility::Collapsed : EVisibility::HitTestInvisible; })
+					[
+						BuildLines(DIAControlsLegend::OnFoot())
+					]
+				]
+				+ SVerticalBox::Slot().AutoHeight()
+				[
+					SAssignNew(LegendInCar, SBox)
+					.Visibility_Lambda([InCar]() { return InCar() ? EVisibility::HitTestInvisible : EVisibility::Collapsed; })
+					[
+						BuildLines(DIAControlsLegend::InCar())
+					]
+				])
 		];
 }
 

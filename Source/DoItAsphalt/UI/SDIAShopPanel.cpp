@@ -9,6 +9,9 @@
 #include "UI/DIAHudFont.h"
 #include "UI/DIAHudStyle.h"
 #include "UI/DIAHudWidgets.h"
+#include "UI/DIAIcons.h"
+#include "Player/DIACharacter.h"
+#include "Widgets/Images/SImage.h"
 #include "UI/DIAShopLook.h"
 #include "UI/SDIAHazardStripes.h"
 #include "Widgets/Input/SButton.h"
@@ -24,6 +27,23 @@
 
 namespace
 {
+	/** Which robot a row is the card of (0-based), INDEX_NONE for any other row (the plant, an item, an upgrade row). */
+	int32 RobotOfRow(const FDIAShopRow& Row)
+	{
+		if (Row.bPlant || Row.bPaverUpgrade)
+		{
+			return INDEX_NONE;
+		}
+		for (int32 Paver = 0; Paver < MaxAutoPavers; ++Paver)
+		{
+			if (Row.Item == AutoPaverItem[Paver])
+			{
+				return Paver;
+			}
+		}
+		return INDEX_NONE;
+	}
+
 	/** The look of each state, built once (building one looks its label up). */
 	const FDIAShopLook& LookOf(EDIAShopState State)
 	{
@@ -84,16 +104,11 @@ void SDIAShopPanel::Construct(const FArguments& InArgs)
 
 	// The grid pads every slot by half the gap; the panel's padding takes that off so that the cards sit where the mockup puts them.
 	const float HalfGap = AsphaltHud::ShopCardGap / 2.f;
-	TSharedRef<SUniformGridPanel> Grid = SNew(SUniformGridPanel)
+	Grid = SNew(SUniformGridPanel)
 		.SlotPadding(FMargin(HalfGap))
 		.MinDesiredSlotHeight(AsphaltHud::ShopCardHeight);
-	for (int32 Row = 0; Row < FDIAShopModel::NumRows; ++Row)
-	{
-		Grid->AddSlot(Row % AsphaltHud::ShopColumns, Row / AsphaltHud::ShopColumns)
-		[
-			BuildCard(Row)
-		];
-	}
+	Body = SNew(SBox);
+	FillGrid();
 
 	TWeakObjectPtr<UDIAWorldSubsystem> WeakSubsystem = Subsystem;
 	// The root takes no mouse, so that the game is clickable around the panel; the panel itself is hit-testable.
@@ -130,11 +145,11 @@ void SDIAShopPanel::Construct(const FArguments& InArgs)
 								SNew(SVerticalBox)
 								+ SVerticalBox::Slot().AutoHeight()
 								[
-									AsphaltHud::MakeText(NSLOCTEXT("DIAHud", "ShopTitle", "SHOP"), EDIAFontWeight::ExtraBold, AsphaltHud::ShopTitleFont, FSlateColor(AsphaltHud::SignYellow))
+									AsphaltHud::MakeText(TAttribute<FText>::CreateLambda([this]() { return DIAFormat::ShopName(Shop); }), EDIAFontWeight::ExtraBold, AsphaltHud::ShopTitleFont, FSlateColor(AsphaltHud::SignYellow))
 								]
 								+ SVerticalBox::Slot().AutoHeight()
 								[
-									AsphaltHud::MakeText(NSLOCTEXT("DIAHud", "ShopSubtitle", "Tools and machines for the car park"), EDIAFontWeight::Bold, AsphaltHud::ShopSubtitleFont, FSlateColor(AsphaltHud::SignWhite))
+									AsphaltHud::MakeText(TAttribute<FText>::CreateLambda([this]() { return DIAFormat::ShopSubtitle(Shop); }), EDIAFontWeight::Bold, AsphaltHud::ShopSubtitleFont, FSlateColor(AsphaltHud::SignWhite))
 								]
 							]
 							+ SHorizontalBox::Slot().FillWidth(1.f)
@@ -160,19 +175,179 @@ void SDIAShopPanel::Construct(const FArguments& InArgs)
 									AsphaltHud::HudRingWidth)
 							]
 						]
+						+ SVerticalBox::Slot().AutoHeight().Padding(HalfGap, 0.f, HalfGap, AsphaltHud::ShopSectionGap - HalfGap)
+						[
+							SNew(SBox)
+							.Visibility_Lambda([this]() { return IsHandStripShown() ? EVisibility::Visible : EVisibility::Collapsed; })
+							[
+								BuildHandSelector()
+							]
+						]
 						+ SVerticalBox::Slot().AutoHeight()
 						[
-							Grid
+							Body.ToSharedRef()
 						]
 						+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0.f, AsphaltHud::ShopSectionGap - HalfGap, 0.f, 0.f)
 						[
-							AsphaltHud::MakeText(NSLOCTEXT("DIAHud", "ShopHint", "Tab / Esc - close"), EDIAFontWeight::Bold, AsphaltHud::ShopHintFont, FSlateColor(AsphaltHud::SignWhite))
+							AsphaltHud::MakeText(NSLOCTEXT("DIAHud", "ShopHint", "E / Esc - close"), EDIAFontWeight::Bold, AsphaltHud::ShopHintFont, FSlateColor(AsphaltHud::SignWhite))
 						]
 					]
 				]
 			]
 		]
 	];
+}
+
+void SDIAShopPanel::FillGrid()
+{
+	Grid->ClearChildren();
+	BuyButtons.Reset();
+	UpgradeCards.Reset();
+	for (TSharedPtr<SWidget>& Hint : UpgradeHints)
+	{
+		Hint.Reset();
+	}
+	// The model has no rows before its first update (every row would read as Tools); nothing is shown then.
+	ShownRows = Model.GetRebuildCount() > 0 ? Model.RowsOf(Shop) : TArray<int32>();
+	if (Shop == ELotShop::Robots)
+	{
+		Body->SetContent(BuildRobotsLayout());
+		return;
+	}
+	for (int32 Slot = 0; Slot < ShownRows.Num(); ++Slot)
+	{
+		Grid->AddSlot(Slot % AsphaltHud::ShopColumns, Slot / AsphaltHud::ShopColumns)
+		[
+			BuildCard(ShownRows[Slot], AsphaltHud::ShopCardHeight)
+		];
+	}
+	Body->SetContent(Grid.ToSharedRef());
+}
+
+TSharedRef<SWidget> SDIAShopPanel::BuildRobotsLayout()
+{
+	// Every card sits in a slot padded by half the gap, as in the grid, so the cards keep the grid's spacing.
+	const float HalfGap = AsphaltHud::ShopCardGap / 2.f;
+	TSharedRef<SHorizontalBox> Columns = SNew(SHorizontalBox);
+
+	// The first column: what is neither a robot nor an upgrade (the portable station), from the top.
+	TSharedRef<SVerticalBox> First = SNew(SVerticalBox);
+	for (const int32 Row : ShownRows)
+	{
+		const FDIAShopRow& R = Model.GetRow(Row);
+		if (RobotOfRow(R) == INDEX_NONE && !R.bPaverUpgrade)
+		{
+			First->AddSlot().AutoHeight().Padding(HalfGap)
+			[
+				BuildCard(Row, AsphaltHud::ShopRobotCardHeight)
+			];
+		}
+	}
+	Columns->AddSlot().FillWidth(1.f)
+	[
+		First
+	];
+
+	// One column per robot: its card, then the room of its two upgrades.
+	for (int32 Paver = 0; Paver < MaxAutoPavers; ++Paver)
+	{
+		TSharedRef<SVerticalBox> Column = SNew(SVerticalBox);
+		for (const int32 Row : ShownRows)
+		{
+			const FDIAShopRow& R = Model.GetRow(Row);
+			if (RobotOfRow(R) == Paver)
+			{
+				Column->AddSlot().AutoHeight().Padding(HalfGap)
+				[
+					BuildCard(Row, AsphaltHud::ShopRobotCardHeight)
+				];
+			}
+		}
+
+		// The room is a fixed size whether the cards are there or not: the panel must not change size when a robot is bought.
+		TSharedRef<SVerticalBox> Cards = SNew(SVerticalBox);
+		for (int32 Kind = 0; Kind < static_cast<int32>(ELotPaverUpgrade::Count); ++Kind)
+		{
+			const int32 Row = FDIAShopModel::UpgradeRow(Paver, static_cast<ELotPaverUpgrade>(Kind));
+			if (!ShownRows.Contains(Row))
+			{
+				continue;
+			}
+			const TSharedRef<SBox> Card = SNew(SBox)
+				.Visibility_Lambda([this, Row]() { return Model.GetRow(Row).State == EDIAShopState::Locked ? EVisibility::Hidden : EVisibility::Visible; })
+				[
+					BuildCard(Row, AsphaltHud::ShopUpgradeCardHeight)
+				];
+			UpgradeCards.Add(Row, Card);
+			Cards->AddSlot().AutoHeight().Padding(HalfGap)
+			[
+				Card
+			];
+		}
+		const TSharedRef<SBox> Hint = SNew(SBox)
+			.Visibility_Lambda([this, Paver]() { return Model.GetRow(FDIAShopModel::UpgradeRow(Paver, ELotPaverUpgrade::Speed)).State == EDIAShopState::Locked ? EVisibility::HitTestInvisible : EVisibility::Collapsed; })
+			.HAlign(HAlign_Center)
+			.VAlign(VAlign_Center)
+			.Padding(AsphaltHud::ShopCardPaddingH, 0.f)
+			[
+				SNew(STextBlock)
+				.Text(NSLOCTEXT("DIAHud", "ShopUpgradesClosed", "Upgrades open once the robot is bought"))
+				.Font(AsphaltHud::Font(EDIAFontWeight::SemiBold, AsphaltHud::ShopUpgradeHintFont))
+				.ColorAndOpacity(FSlateColor(AsphaltHud::SignDimText))
+				.Justification(ETextJustify::Center)
+				.AutoWrapText(true)
+			];
+		UpgradeHints[Paver] = Hint;
+		Column->AddSlot().AutoHeight()
+		[
+			SNew(SBox).HeightOverride(2.f * (AsphaltHud::ShopUpgradeCardHeight + AsphaltHud::ShopCardGap))
+			[
+				SNew(SOverlay)
+				+ SOverlay::Slot()
+				[
+					Cards
+				]
+				+ SOverlay::Slot()
+				[
+					Hint
+				]
+			]
+		];
+		Columns->AddSlot().FillWidth(1.f)
+		[
+			Column
+		];
+	}
+	return Columns;
+}
+
+TSharedPtr<SWidget> SDIAShopPanel::FindUpgradeCard(int32 Paver, ELotPaverUpgrade Upgrade) const
+{
+	const TSharedPtr<SWidget>* Card = UpgradeCards.Find(FDIAShopModel::UpgradeRow(Paver, Upgrade));
+	return Card ? *Card : nullptr;
+}
+
+TSharedPtr<SWidget> SDIAShopPanel::FindUpgradeHint(int32 Paver) const
+{
+	return Paver >= 0 && Paver < MaxAutoPavers ? UpgradeHints[Paver] : nullptr;
+}
+
+TSharedPtr<SDIAShopButton> SDIAShopPanel::FindBuyButton(int32 Row) const
+{
+	const TSharedPtr<SDIAShopButton>* Button = BuyButtons.Find(Row);
+	return Button ? *Button : nullptr;
+}
+
+void SDIAShopPanel::SetShop(ELotShop NewShop)
+{
+	if (NewShop == ELotShop::Count)
+	{
+		return;
+	}
+	// A held press belongs to a card that is about to go.
+	Pressed = FDIAShopTarget();
+	Shop = NewShop;
+	FillGrid();
 }
 
 void SDIAShopPanel::Unbind()
@@ -230,7 +405,93 @@ FReply SDIAShopPanel::HandleBuy(int32 Row)
 	return FReply::Handled();
 }
 
-TSharedRef<SWidget> SDIAShopPanel::BuildCard(int32 Row)
+FReply SDIAShopPanel::HandleSelectHand(ELotHand Hand)
+{
+	UDIAWorldSubsystem* S = Subsystem.Get();
+	if (!S)
+	{
+		return FReply::Handled();
+	}
+	if (S->GetGame().GetHand() == Hand)
+	{
+		return FReply::Handled();
+	}
+	ADIACharacter* Character = ADIACharacter::GetLocal(S);
+	if (!Character || !Character->SelectHand(Hand))
+	{
+		if (ADIAHUD* H = Hud.Get())
+		{
+			H->ShowToast(NSLOCTEXT("DIAHud", "HandBusy", "Let go of what you are holding first"));
+		}
+		return FReply::Handled();
+	}
+	S->OnStateChanged.Broadcast();
+	return FReply::Handled();
+}
+
+TSharedRef<SWidget> SDIAShopPanel::BuildHandSelector()
+{
+	TWeakObjectPtr<UDIAWorldSubsystem> WeakSubsystem = Subsystem;
+	TSharedRef<SHorizontalBox> Buttons = SNew(SHorizontalBox);
+	for (int32 Index = 0; Index < static_cast<int32>(ELotHand::Count); ++Index)
+	{
+		const ELotHand Hand = static_cast<ELotHand>(Index);
+		auto IsOwned = [WeakSubsystem, Hand]()
+		{
+			const UDIAWorldSubsystem* S = WeakSubsystem.Get();
+			return S && S->GetGame().CanSelectHand(Hand);
+		};
+		auto IsInUse = [WeakSubsystem, Hand]()
+		{
+			const UDIAWorldSubsystem* S = WeakSubsystem.Get();
+			return S && S->GetGame().GetHand() == Hand;
+		};
+		// The one in use is a yellow plate with black ink; the others are black with yellow ink.
+		auto PlateColor = [IsInUse]() { return IsInUse() ? AsphaltHud::SignYellow : AsphaltHud::SignBlack; };
+		auto InkColor = [IsInUse]() { return IsInUse() ? AsphaltHud::SignBlack : AsphaltHud::SignYellow; };
+
+		Buttons->AddSlot().AutoWidth().Padding(0.f, 0.f, 12.f, 0.f)
+		[
+			SNew(SBox)
+			.Visibility_Lambda([IsOwned]() { return IsOwned() ? EVisibility::Visible : EVisibility::Collapsed; })
+			[
+				SNew(SDIAShopButton)
+				.ButtonStyle(&ButtonStyle)
+				.IsFocusable(false)
+				.ContentPadding(FMargin(0.f))
+				.OnClicked(FOnClicked::CreateSP(this, &SDIAShopPanel::HandleSelectHand, Hand))
+				[
+					AsphaltHud::MakePlate(TAttribute<FLinearColor>::CreateLambda(PlateColor), TAttribute<FLinearColor>::CreateLambda(InkColor), AsphaltHud::Inset(12.f, 5.f, 18.f, 6.f),
+						SNew(SHorizontalBox)
+						+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0.f, 0.f, 8.f, 0.f)
+						[
+							SNew(SBox).WidthOverride(DIAIcons::HandIconSize).HeightOverride(DIAIcons::HandIconSize)
+							[
+								SNew(SImage).Image(DIAIcons::HandBrush(Hand))
+							]
+						]
+						+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
+						[
+							AsphaltHud::MakeText(DIAFormat::HandName(Hand), EDIAFontWeight::ExtraBold, AsphaltHud::ShopNameFont,
+								TAttribute<FSlateColor>::CreateLambda([InkColor]() { return FSlateColor(InkColor()); }))
+						],
+						AsphaltHud::HudRingWidth)
+				]
+			]
+		];
+	}
+	return SNew(SHorizontalBox)
+		+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0.f, 0.f, 18.f, 0.f)
+		[
+			AsphaltHud::MakeText(NSLOCTEXT("DIAHud", "ShopInHand", "IN HAND"), EDIAFontWeight::ExtraBold, AsphaltHud::ShopSubtitleFont, FSlateColor(AsphaltHud::SignYellow))
+		]
+		+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
+		[
+			Buttons
+		];
+}
+
+TSharedRef<SWidget> SDIAShopPanel::BuildCard(int32 Row, float Height)
 {
 	const int32 Index = Row;
 	auto StateOf = [this, Index]() { return Model.GetRow(Index).State; };
@@ -240,7 +501,7 @@ TSharedRef<SWidget> SDIAShopPanel::BuildCard(int32 Row)
 	const TAttribute<FLinearColor> Ring = TAttribute<FLinearColor>::CreateLambda([Look]() { return Look().Ring; });
 
 	// A name that is wider than the card shrinks to fit on one line: two lines of name would push the value, the reason and the
-	// price into each other on a card that is only 172 high.
+	// price into each other on a card that is only ShopCardHeight high (the robot cards are taller, but the same holds).
 	const TSharedRef<STextBlock> Name = AsphaltHud::MakeText(TAttribute<FText>::CreateLambda([this, Index]() { return Model.GetRow(Index).Name; }),
 		EDIAFontWeight::ExtraBold, AsphaltHud::ShopNameFont,
 		TAttribute<FSlateColor>::CreateLambda([Look]() { return FSlateColor(Look().Text); }));
@@ -301,6 +562,7 @@ TSharedRef<SWidget> SDIAShopPanel::BuildCard(int32 Row)
 			]
 		];
 
+	TSharedPtr<SDIAShopButton> BuyButton;
 	// The bottom line: the price on the left, the button (or OWNED with a tick) on the right.
 	const TSharedRef<SWidget> BottomLine =
 		SNew(SHorizontalBox)
@@ -320,9 +582,9 @@ TSharedRef<SWidget> SDIAShopPanel::BuildCard(int32 Row)
 				.HeightOverride(AsphaltHud::ShopButtonHeight)
 				.Visibility_Lambda([Look]() { return Look().bShowsButton ? EVisibility::Visible : EVisibility::Collapsed; })
 				[
-					SNew(SDIAShopButton)
+					SAssignNew(BuyButton, SDIAShopButton)
 					.ButtonStyle(&ButtonStyle)
-					// Focus would take the Tab key from the game and the shop could not be closed with it.
+					// Focus would take the close key from the game and the shop could not be closed with it.
 					.IsFocusable(false)
 					.HAlign(HAlign_Center)
 					.VAlign(VAlign_Center)
@@ -354,8 +616,10 @@ TSharedRef<SWidget> SDIAShopPanel::BuildCard(int32 Row)
 			]
 		];
 
+	BuyButtons.Add(Row, BuyButton);
+
 	// The plate is the card; its content fills the card's height, the bottom line sits at the bottom.
-	return SNew(SBox).HeightOverride(AsphaltHud::ShopCardHeight)
+	return SNew(SBox).HeightOverride(Height)
 		[
 			AsphaltHud::MakePlate(Plate, Ring, AsphaltHud::Inset(AsphaltHud::ShopCardPaddingH, AsphaltHud::ShopCardPaddingV, AsphaltHud::ShopCardPaddingH, AsphaltHud::ShopCardPaddingV),
 				SNew(SVerticalBox)

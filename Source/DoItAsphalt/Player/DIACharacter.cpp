@@ -240,7 +240,6 @@ void ADIACharacter::HandleGameReset()
 {
 	SetSprinting(false);
 	SetUsing(false);
-	SetFlap(false);
 	SetFilling(false);
 	SetWorkView(false);
 
@@ -274,8 +273,8 @@ void ADIACharacter::UpdateMovementSettings()
 	const FLotGame* Game = Subsystem ? &Subsystem->GetGame() : nullptr;
 	switch (Game ? Game->GetHeld() : ELotMovable::Count)
 	{
-	case ELotMovable::Suitcase:
-		Speed = LotBalance::SuitcasePullSpeedCmS;
+	case ELotMovable::Trolley:
+		Speed = LotBalance::TrolleyPushSpeedCmS;
 		break;
 	case ELotMovable::Cart:
 		Speed = bUsing ? LotBalance::CartLaySpeedCmS : LotBalance::CartPushSpeedCmS;
@@ -586,7 +585,7 @@ void ADIACharacter::UseHand(UDIAWorldSubsystem& Subsystem, float DeltaSeconds)
 
 	if (Game.GetHeld() != ELotMovable::Count)
 	{
-		// The hands are on a suitcase, cart or machine: what they do is that object's own (the cart lays its strip from its own tick).
+		// The hands are on a trolley, cart or machine: what they do is that object's own (the cart lays its strip from its own tick).
 		return;
 	}
 
@@ -616,7 +615,7 @@ void ADIACharacter::FillHand(UDIAWorldSubsystem& Subsystem, float DeltaSeconds)
 	{
 		if (ELotSource Source; ADIAMovable::FindTapAt(GetWorld(), Aim, Source))
 		{
-			// The tap of a standing suitcase or cart comes before the outlet: the vessel fills from what stands there.
+			// The tap of a standing trolley or cart comes before the outlet: the vessel fills from what stands there.
 			Game.FillVessel(Hand, Source, DeltaSeconds);
 			bFillActive = bRoom;
 		}

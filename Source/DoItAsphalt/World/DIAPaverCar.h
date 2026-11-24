@@ -6,6 +6,7 @@
 #include "Game/DIAModelSizes.h"
 #include "Game/DIAWorldSubsystem.h"
 #include "GameFramework/Pawn.h"
+#include "LotBalance.h"
 #include "World/DIAInteractable.h"
 #include "World/DIAToolPath.h"
 #include "DIAPaverCar.generated.h"
@@ -21,10 +22,22 @@ namespace DIAPaverCar
 {
 	/** The collision box rests this far above the ground, so that driving does not scrape along it. */
 	inline constexpr double GroundLiftCm = 1.0;
-	/** The actor's origin is the centre of the collision box: half the box height plus the lift. */
-	inline double OriginHeightCm()
+	/** Number of tiers (the car level is 0..NumLevels-1); a level outside it counts as the nearest one. */
+	inline constexpr int32 NumLevels = LotBalance::NumCarLevels;
+	inline int32 ClampLevel(int32 Level)
 	{
-		return DIAModelSizes::PaverCarBodyCm.Z * 0.5 + GroundLiftCm;
+		return FMath::Clamp(Level, 0, NumLevels - 1);
+	}
+	/** The model of a tier: /Game/Models/<name>. */
+	inline const TCHAR* MeshName(int32 Level)
+	{
+		static const TCHAR* const Names[NumLevels] = {TEXT("SM_PaverCar"), TEXT("SM_PaverCar_T2"), TEXT("SM_PaverCar_T3"), TEXT("SM_PaverCar_T4")};
+		return Names[ClampLevel(Level)];
+	}
+	/** The actor's origin is the centre of the collision box: half the box height of the tier plus the lift. */
+	inline double OriginHeightCm(int32 Level = 0)
+	{
+		return DIAModelSizes::PaverCarBodyCm[ClampLevel(Level)].Z * 0.5 + GroundLiftCm;
 	}
 
 	/**
@@ -34,14 +47,28 @@ namespace DIAPaverCar
 	 */
 	inline constexpr double ArmLengthCm = 900.0;
 	inline constexpr double PivotHeightCm = 170.0;
+	/** The two numbers above are those of tier 1; a bigger truck gets a boom longer in proportion to its length and a pivot higher in proportion to its height, so that it is framed alike. */
+	inline double ArmLengthFor(int32 Level)
+	{
+		return ArmLengthCm * DIAModelSizes::PaverCarCm[ClampLevel(Level)].X / DIAModelSizes::PaverCarCm[0].X;
+	}
+	inline double PivotHeightFor(int32 Level)
+	{
+		return PivotHeightCm * DIAModelSizes::PaverCarCm[ClampLevel(Level)].Z / DIAModelSizes::PaverCarCm[0].Z;
+	}
 	inline constexpr double DefaultPitchDeg = -16.0;
 	inline constexpr double LookPitchMinDeg = -70.0;
 	inline constexpr double LookPitchMaxDeg = 10.0;
 	/** How fast the boom swings back behind the car while the mouse is left alone, in degrees per second (0 = never). */
 	inline constexpr double RecentreDegPerSec = 0.0;
 
-	/** The player gets out this far to the side of the car (the door is on the left, -Y; the other side is the second choice). */
-	inline constexpr double ExitSideCm = 200.0;
+	/** The player gets out this far beyond the side of the body (the door is on the left, -Y; the other side is the second choice). */
+	inline constexpr double ExitMarginCm = 90.0;
+	/** Distance of the exit spot from the car's centre: the half width of the tier's body plus the margin (200 cm for tier 1). */
+	inline double ExitSideCm(int32 Level = 0)
+	{
+		return DIAModelSizes::PaverCarBodyCm[ClampLevel(Level)].Y * 0.5 + ExitMarginCm;
+	}
 	/** The free-space test for the exit lifts the capsule this high, so that the ground does not count as blocking. */
 	inline constexpr double ExitClearanceLiftCm = 2.0;
 
@@ -92,7 +119,7 @@ public:
 	/** Input routing, called by the player controller: swings the camera boom round the car. */
 	void DoLook(float Yaw, float Pitch);
 
-	/** Where the spreader bar lays asphalt: actor XY - forward * LotBalance::CarBarBehindCm. */
+	/** Where the spreader bar lays asphalt: actor XY - forward * LotBalance::CarBarBehindCm[level]. */
 	FVector2D GetBarPoint() const;
 	/** Writes the pose the car has now into the core (and the player's with it while someone drives): a save asks for it so that it does not depend on the frame. */
 	void WritePoseToCore();
@@ -100,8 +127,8 @@ public:
 	double GetSpeed() const { return Speed; }
 
 	UStaticMeshComponent* GetBodyMesh() const { return BodyMesh; }
-	/** The wide bar (SM_PaverCar_WideBar), shown once the car owns it. */
-	UStaticMeshComponent* GetWideBarMesh() const { return WideBarMesh; }
+	/** The car level the actor shows now (0..3; the core's level, the actor follows it in SyncFromCore). */
+	int32 GetShownLevel() const { return ShownLevel; }
 	UBoxComponent* GetCollision() const { return Collision; }
 	UCameraComponent* GetCamera() const { return Camera; }
 	USpringArmComponent* GetBoom() const { return Boom; }
@@ -126,8 +153,12 @@ private:
 	void Pour(UDIAWorldSubsystem& Subsystem, float DeltaSeconds);
 	/** Where the driver can stand beside the car; false if neither side is free. */
 	bool FindExitSpot(const ADIACharacter* Character, FVector& OutSpot) const;
-	/** Shows the wide bar if the core says the car has it. */
-	void UpdateBar();
+	/** The core's car level, at least 0 (the actor exists as the plain car before it is bought). */
+	int32 CoreLevel() const;
+	/** Shows the tier the core says the car has: mesh, collision box, height above the ground, boom. bCheckRoom: a bigger box that overlaps something is moved to the car's spawn. */
+	void UpdateTier(bool bCheckRoom);
+	/** True if the collision box of the shown tier at the given place blocks nothing. */
+	bool HasRoomAt(const FVector& Location, double YawDeg) const;
 	void UpdateCamera();
 	/** The top speed now: the pouring speed of the bar while pouring, else the driving speed. */
 	double TopSpeed() const;
@@ -138,8 +169,6 @@ private:
 	TObjectPtr<UBoxComponent> Collision;
 	UPROPERTY()
 	TObjectPtr<UStaticMeshComponent> BodyMesh;
-	UPROPERTY()
-	TObjectPtr<UStaticMeshComponent> WideBarMesh;
 	UPROPERTY()
 	TObjectPtr<USpringArmComponent> Boom;
 	UPROPERTY()
@@ -156,6 +185,9 @@ private:
 	bool bPouring = false;
 	double Speed = 0.0;
 	FDIAToolPath ToolPath;
+	/** The heading the car had when the bar's last point was taken; with it a turn is laid as one swept strip. */
+	FVector2D PreviousBarHeading = FVector2D(1.0, 0.0);
+	bool bHasPreviousHeading = false;
 	/** The boom's turn against the car's heading. */
 	double LookYawDeg = 0.0;
 	double LookPitchDeg = DIAPaverCar::DefaultPitchDeg;
@@ -165,7 +197,8 @@ private:
 	FVector2D WrittenPos = FVector2D::ZeroVector;
 	double WrittenYawDeg = 0.0;
 	bool bHasWritten = false;
-	bool bShowsWideBar = false;
+	/** The tier whose mesh and box the actor has now; -1 until BeginPlay has set the first one. */
+	int32 ShownLevel = -1;
 
 	/** The prompt text of the state it was built for; the prompt is queried every frame. */
 	mutable int32 PromptKey = -1;

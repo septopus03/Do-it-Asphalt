@@ -45,13 +45,13 @@ namespace DIAModelSizes
 	inline const FVector AutoPaverCm(100.0, 80.0, 60.0);
 
 	/**
-	 * Paver truck (cab in front +X, tank, four wheels, the spreader bar at the rear X = -2.3 m just above the ground, the door on -Y;
-	 * origin at the centre of the footprint, on the ground). The whole model is 4.6 x 3.0 x 2.4 m; the body without the bar is 2.2 m
-	 * wide and is what the collision box and the placeholder box measure. The placeholder bar is a thin flat strip as wide as the real one.
+	 * Paver truck, one model per tier (cab in front +X, tank, wheels, the spreader bar at the rear just above the ground, the door on -Y;
+	 * origin at the centre of the footprint, on the ground), indexed by the car level 0..3 (SM_PaverCar, SM_PaverCar_T2..T4). PaverCarCm is
+	 * the whole model (the width is the bar's); PaverCarBodyCm is the body without the bar, narrower, and is what the collision box and the
+	 * placeholder box measure.
 	 */
-	inline const FVector PaverCarCm(460.0, 300.0, 240.0);
-	inline const FVector PaverCarBodyCm(460.0, 220.0, 240.0);
-	inline const FVector PaverCarBarCm(10.0, 300.0, 10.0);
+	inline const FVector PaverCarCm[4] = {FVector(460.0, 300.0, 240.0), FVector(560.0, 360.0, 270.0), FVector(680.0, 420.0, 300.0), FVector(820.0, 500.0, 340.0)};
+	inline const FVector PaverCarBodyCm[4] = {FVector(460.0, 220.0, 240.0), FVector(560.0, 250.0, 270.0), FVector(680.0, 280.0, 300.0), FVector(820.0, 310.0, 340.0)};
 
 	/** Old road behind the end of a road (origin at the centre of the near edge, runs towards +X) and the barrier that closes it (origin at the centre of the footprint). */
 	inline const FVector RoadStubCm(1200.0, 340.0, 5.0);
@@ -95,12 +95,12 @@ namespace DIAModelSizes
 	inline const FVector BucketBailCm(0.0, 0.0, 37.0);
 
 	/**
-	 * Suitcase (origin on the ground below the centre of the wheel axis; the handle is on the -X side, the flap mouth on +X) and
-	 * the cart (origin at the centre of the footprint on the ground; handle at the back -X, the outlet mouth at the front +X).
+	 * The trolley and the cart (origin at the centre of the footprint on the ground; handle at the back -X, the outlet mouth at the
+	 * front +X; both are pushed towards +X).
 	 */
-	inline const FVector SuitcaseCm(42.0, 51.0, 105.5);
-	inline const FVector SuitcaseHandleCm(2.2, 0.0, 104.0);
-	inline const FVector SuitcaseMouthCm(34.5, 0.0, 4.5);
+	inline const FVector TrolleyCm(96.0, 52.0, 89.8);
+	inline const FVector TrolleyHandleCm(-48.0, 0.0, 88.0);
+	inline const FVector TrolleyMouthCm(43.5, 0.0, 0.0);
 	inline const FVector CartCm(126.0, 67.0, 99.0);
 	inline const FVector CartHandleCm(-63.0, 0.0, 97.0);
 	inline const FVector CartMouthCm(58.5, 0.0, 6.0);
@@ -115,9 +115,8 @@ namespace DIAModelSizes
 	/** The trough (origin at the centre of the footprint on the ground). */
 	inline const FVector TroughCm(128.0, 60.0, 50.0);
 
-	/** Curb piece (origin at the centre of the footprint on the ground; pieces tile along Y, the bevel faces +X towards the lot) and the wide bar of the car (origin = the car's origin, no offset). */
+	/** Curb piece (origin at the centre of the footprint on the ground; pieces tile along Y, the bevel faces +X towards the lot). */
 	inline const FVector CurbCm(15.0, 200.0, 12.0);
-	inline const FVector WideBarCm(14.0, 350.0, 17.0);
 
 	/**
 	 * Shopping mall (origin at the centre of the footprint on the ground; the facades face the lot on -X and -Y). The name sign on the
@@ -126,4 +125,12 @@ namespace DIAModelSizes
 	inline const FVector MallCm(10000.0, 10000.0, 1430.0);
 	inline const FVector MallSignCm(-5000.0, 500.0, 1060.0);
 	inline const FVector2D MallSignSizeCm(1600.0, 400.0);
+
+	/**
+	 * The three shop buildings (envelopes from Tools/ModelGen/manifest.json; the origins are not the centres, see docs/03-3d-modely.md,
+	 * chapter 4.5): the tool shop, the paver depot and the garage.
+	 */
+	inline const FVector ToolShopCm(353.0, 608.0, 400.0);
+	inline const FVector PaverDepotCm(350.0, 620.0, 341.0);
+	inline const FVector GarageCm(1215.0, 800.0, 559.0);
 }

@@ -27,6 +27,13 @@ namespace DIAFormat
 
 	DOITASPHALT_API FText ItemName(ELotItem Item);
 	DOITASPHALT_API FText UnlockName(ELotUnlock Unlock);
+
+	/** The name of a shop building as the sign shows it ("Tools", "Robots", "Garage"); the sign writes it in capitals. */
+	DOITASPHALT_API FText ShopName(ELotShop Shop);
+	/** The prompt at the buy point of a building: "E – Tools", "E – Robots", "E – Garage". */
+	DOITASPHALT_API FText ShopPrompt(ELotShop Shop);
+	/** What a shop building sells, in one line under its name on the panel: "Hand tools and the plant", "Robots and the portable station", "Trucks". */
+	DOITASPHALT_API FText ShopSubtitle(ELotShop Shop);
 	DOITASPHALT_API FText HandName(ELotHand Hand);
 	/** One short sentence on what an unlock step opens, for the toast; the entry boards show the name only. */
 	DOITASPHALT_API FText UnlockEffect(ELotUnlock Unlock);
@@ -34,11 +41,11 @@ namespace DIAFormat
 	/** What the player holds: the movable pulled or pushed along, else the item in the hand ("Bowl"); "Car" while driving. */
 	DOITASPHALT_API FText HandLabel(const FLotGame& Game);
 	/**
-	 * The vessel in the hand: "1.3 / 2.5 l"; the suitcase or the cart while one is held (their content); the car's tank while driving;
+	 * The vessel in the hand: "1.3 / 2.5 l"; the trolley or the cart while one is held (their content); the car's tank while driving;
 	 * empty for the trowel and for any other held movable.
 	 */
 	DOITASPHALT_API FText HandGauge(const FLotGame& Game);
-	/** True if the player stands where asphalt can be drawn by hand. A held suitcase or cart does not count: only a standing one fills. */
+	/** True if the player stands where asphalt can be drawn by hand. A held trolley or cart does not count: only a standing one fills. */
 	DOITASPHALT_API bool IsInRefillZone(const FLotGame& Game);
 	/** The plant stock while in the refill zone: "42 / 600 l"; empty elsewhere. */
 	DOITASPHALT_API FText RefillLine(const FLotGame& Game);
@@ -62,6 +69,8 @@ namespace DIAFormat
 	DOITASPHALT_API FText UnlockToast(ELotUnlock Unlock);
 	DOITASPHALT_API FText ItemBoughtToast(ELotItem Item);
 	DOITASPHALT_API FText PlantToast(int32 Level);
+	/** After a robot upgrade was bought: "Paver 2: speed 150 cells/min" or "Paver 2: tank 3,000 l" (just "Paver" with one robot owned); the numbers are the robot's new values. */
+	DOITASPHALT_API FText PaverUpgradeToast(const FLotGame& Game, int32 Paver, ELotPaverUpgrade Upgrade);
 	DOITASPHALT_API FText ExitToast();
 	/** The prompt of the paver car: "E – Get in" beside it, "E – Get out" while driving. */
 	DOITASPHALT_API FText CarPrompt(bool bInCar);
@@ -72,20 +81,25 @@ namespace DIAFormat
 
 	/** The sector number the player sees: the index counted from 1 (the entries are numbered the same way). */
 	DOITASPHALT_API FText SectorNumber(int32 Sector);
-	/** "Paver → sector 12" (Sector is the 0-based index). */
-	DOITASPHALT_API FText PaverSentToast(int32 Sector);
+	/** "Paver → sector 12" with one robot owned, "Paver 2 → sector 12" with more (Paver is the 0-based robot, NumPavers how many are owned, Sector the 0-based index). */
+	DOITASPHALT_API FText PaverSentToast(int32 Paver, int32 NumPavers, int32 Sector);
 	/** The toast of SendPaver without the auto paver. */
 	DOITASPHALT_API FText PaverNoneToast();
 	/** The toast of SendPaver while the player stands outside the sectors (the strip, the mall quadrant). */
 	DOITASPHALT_API FText PaverOffLotToast();
-	/** The toast of SendPaver to the sector the paver works in already. */
-	DOITASPHALT_API FText PaverAlreadyHereToast();
-	/** The HUD line of the auto paver: "Paver: sector 12 · 143 / 400 · tank 1,200 / 2,000 l", "Paver → station", "Paver: waiting – press G for the map"; empty without the auto paver. */
-	DOITASPHALT_API FText PaverLine(const FLotGame& Game);
+	/** The toast of SendPaver to the sector the paver works in already: "Paver is already here" with one robot owned, "Paver 2 is already here" with more (parameters as for PaverSentToast). */
+	DOITASPHALT_API FText PaverAlreadyHereToast(int32 Paver, int32 NumPavers);
+	/** The toast after the AUTO switch of the paver map was clicked. */
+	DOITASPHALT_API FText PaverAutoToast(bool bAuto);
+	/**
+	 * The HUD line of one robot: "Paver: sector 12 · 143 / 400 · tank 1,200 / 2,000 l", "Paver → station", "Paver: waiting – press M for the map";
+	 * with more than one robot owned the name carries its number ("Paver 2: ..."). Empty for a robot that is not owned.
+	 */
+	DOITASPHALT_API FText PaverLine(const FLotGame& Game, int32 Paver);
 
 	/**
-	 * The prompt of a suitcase, cart, station or finisher: "E – Pull" (suitcase), "E – Push" (cart), "E – Carry" (station) or "E – Guide" (finisher) while it
-	 * stands, "E – Let go" while it is held ("E – Put down" for the station); a standing suitcase adds "F – Open flap" on a second line. Empty for an invalid kind.
+	 * The prompt of a trolley, cart, station or finisher: "E – Push" (trolley or cart), "E – Carry" (station) or "E – Guide" (finisher) while it
+	 * stands, "E – Let go" while it is held ("E – Put down" for the station). Empty for an invalid kind.
 	 */
 	DOITASPHALT_API FText MovablePrompt(ELotMovable Movable, bool bHeld);
 	/** The toast when a held movable cannot be set down because something is in the way. */
@@ -108,8 +122,8 @@ struct FDIAHudView
 	FText RefillCaption;
 	/** The next unlock step and how far it is. */
 	FText Next;
-	/** The auto paver's line; empty without the auto paver. */
-	FText Paver;
+	/** The line of each robot, in robot order; empty for a robot that is not owned. */
+	FText Pavers[MaxAutoPavers];
 };
 
 /**
@@ -147,12 +161,17 @@ private:
 		/** The next step (ELotUnlock::Count when none) and its entry progress. */
 		int32 NextStep = -1;
 		int32 NextEntryCells = -1;
-		/** The auto paver: -2 while not owned, INDEX_NONE while waiting, else its sector; and the step of that sector (0 while waiting). */
-		int32 PaverSector = -2;
-		int32 PaverStep = 0;
-		/** The paver's phase (ELotPaverPhase) and its tank in tenths of litres. */
-		int32 PaverPhase = -1;
-		int32 PaverTankTenths = -1;
+		static_assert(MaxAutoPavers == 3, "the Paver* arrays list three initialisers: extend them with MaxAutoPavers");
+		/** Per robot: -2 while not owned, INDEX_NONE while waiting, else its sector; and the step of that sector (0 while waiting). */
+		int32 PaverSector[MaxAutoPavers] = {-2, -2, -2};
+		int32 PaverStep[MaxAutoPavers] = {0, 0, 0};
+		/** The robot's phase (ELotPaverPhase) and its tank in tenths of litres. */
+		int32 PaverPhase[MaxAutoPavers] = {-1, -1, -1};
+		/** The AUTO mode and whether the robot waits for asphalt (0/1 each). */
+		int32 PaverFlags[MaxAutoPavers] = {0, 0, 0};
+		int32 PaverTankTenths[MaxAutoPavers] = {-1, -1, -1};
+		/** How many robots are owned (the name in their lines changes with it). */
+		int32 NumPavers = -1;
 		/** The car's line: -1 outside the car, 0 nothing, 1 "tank low", 2 at a station. */
 		int32 CarLine = -1;
 
@@ -214,14 +233,20 @@ struct FDIAShopRow
 	/** True for the plant's next level; otherwise Item is the row's item. */
 	bool bPlant = false;
 	ELotItem Item = ELotItem::Count;
+	/** True for one upgrade of one robot (Item is Count then): Paver is the robot, 0..MaxAutoPavers - 1, and Upgrade the kind. */
+	bool bPaverUpgrade = false;
+	int32 Paver = INDEX_NONE;
+	ELotPaverUpgrade Upgrade = ELotPaverUpgrade::Count;
 	FText Name;
 	/** What it gives: "150 → 300 l/min", "60 l". */
 	FText Value;
 	/** The price in credits; empty when owned. */
 	FText Price;
-	/** Why the row is locked: "350 cells + entry 3", "needs Auto Paver"; empty otherwise. */
+	/** Why the row is locked: "350 cells + entry 3", "needs Auto Paver 1"; empty otherwise. */
 	FText Reason;
 	EDIAShopState State = EDIAShopState::Locked;
+	/** The building that sells it (the plant: LotBalance::PlantShop). */
+	ELotShop Shop = ELotShop::Tools;
 };
 
 /**
@@ -235,25 +260,40 @@ struct FDIAShopTarget
 	ELotItem Item = ELotItem::Count;
 	/** For the plant: the level the player has now, i.e. the level before the purchase. */
 	int32 PlantLevel = -1;
+	/** A robot's upgrade: which robot and which kind (Item is Count then), and the level the robot has now, i.e. the level before the purchase. */
+	bool bPaverUpgrade = false;
+	int32 Paver = INDEX_NONE;
+	ELotPaverUpgrade Upgrade = ELotPaverUpgrade::Count;
+	int32 UpgradeLevel = -1;
 };
 
 /**
- * The rows of the shop: the plant's next level first, then the items in ELotItem order. A purchase turns its row to Owned in
+ * The rows of the shop: the plant's next level first, then the items in ELotItem order, then the upgrades of the robots (robot 1
+ * speed, robot 1 capacity, robot 2 speed, ...). A purchase turns its row to Owned in
  * place and no row ever moves, so what was bought stays where the player saw it and a second click on the same spot can only meet
  * the same row.
  * Like FDIAHudModel the model rebuilds the texts only when something shown changed: the state of each row, the reason a row
- * is locked and the plant level (the credits themselves are not shown); the subsystem reports a state change on every tick.
+ * is locked, the plant level and the upgrade levels of the robots (the credits themselves are not shown); the subsystem reports a state change on every tick.
  */
 class DOITASPHALT_API FDIAShopModel
 {
 public:
-	/** The plant row and one row per item. */
-	static constexpr int32 NumRows = 1 + static_cast<int32>(ELotItem::Count);
+	/** The plant row, one row per item and two rows (speed, capacity) per robot that can be owned. */
+	static constexpr int32 NumRows = 1 + static_cast<int32>(ELotItem::Count) + MaxAutoPavers * static_cast<int32>(ELotPaverUpgrade::Count);
+	/** The index of the first upgrade row. */
+	static constexpr int32 FirstUpgradeRow = 1 + static_cast<int32>(ELotItem::Count);
+	/** The row of one robot's upgrade. */
+	static constexpr int32 UpgradeRow(int32 Paver, ELotPaverUpgrade Upgrade)
+	{
+		return FirstUpgradeRow + Paver * static_cast<int32>(ELotPaverUpgrade::Count) + static_cast<int32>(Upgrade);
+	}
 
 	/** Re-reads the game; true (and new texts, in the same rows) only if something shown changed. The first call also sorts. */
 	bool Update(const FLotGame& Game);
 
 	const FDIAShopRow& GetRow(int32 Index) const { return Rows[FMath::Clamp(Index, 0, NumRows - 1)]; }
+	/** The indices of the rows one building sells, in model order. */
+	TArray<int32> RowsOf(ELotShop Shop) const;
 	/** What a row offers, as a purchase request that names what is bought (and the plant level it expects); invalid for a row that cannot be bought. */
 	FDIAShopTarget TargetOf(int32 Index, const FLotGame& Game) const;
 	/**
@@ -269,16 +309,18 @@ private:
 	struct FKey
 	{
 		int32 PlantLevel = -1;
-		/** EDIAShopState of the plant and of each item, in their own order. */
+		/** EDIAShopState of every row (the plant, the items, then the six upgrade rows), in the order of the rows. */
 		int32 States[NumRows] = {};
 		/** Why each item is locked (0 not, 1 its step is closed, 2 an item is missing): the reason text depends on it. */
 		int32 Locks[static_cast<int32>(ELotItem::Count)] = {};
+		/** The level of each robot's upgrades (-1 for a robot that is not owned): the texts of the upgrade rows and of the robot cards depend on it. */
+		int32 Levels[MaxAutoPavers][static_cast<int32>(ELotPaverUpgrade::Count)] = {};
 
 		bool operator==(const FKey& Other) const = default;
 	};
 
 	FKey Key;
-	/** The rows in their order (the plant, then ELotItem order); the rows never move. */
+	/** The rows in their order (the plant, ELotItem order, then each robot's Speed and Capacity upgrade rows); the rows never move. */
 	FDIAShopRow Natural[NumRows];
 	FDIAShopRow Rows[NumRows];
 	int32 RebuildCount = 0;

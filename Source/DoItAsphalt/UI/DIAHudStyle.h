@@ -87,7 +87,7 @@ namespace AsphaltHud
 	inline constexpr float ShopButtonWidth = 108.f;
 	/** The inventory bar at the bottom of the screen: the size of a slot, the gap between slots, the height of a slot's fill gauge. */
 	inline constexpr float HotbarSlotWidth = 168.f;
-	inline constexpr float HotbarSlotHeight = 94.f;
+	inline constexpr float HotbarSlotHeight = 118.f;
 	inline constexpr float HotbarGap = 10.f;
 	inline constexpr float HotbarGaugeHeight = 9.f;
 	inline constexpr int32 HotbarNameFontSize = 20;
@@ -132,6 +132,19 @@ namespace AsphaltHud
 	/** The key square in a hotbar slot. */
 	inline constexpr float HotbarKeySize = 26.f;
 
+	// The controls legend (bottom left): a sign plate with a yellow key cap and a white action text per line.
+	inline constexpr int32 LegendTitleFont = 16;
+	inline constexpr int32 LegendActionFont = 17;
+	inline constexpr int32 LegendKeyFont = 14;
+	/** A key cap: its height, its least width, the gap between caps of one line, and the width of the column that holds the caps (the widest line has four). */
+	inline constexpr float LegendKeyHeight = 24.f;
+	inline constexpr float LegendKeyMinWidth = 24.f;
+	inline constexpr float LegendKeyGap = 4.f;
+	inline constexpr float LegendKeyColumnWidth = 4.f * LegendKeyMinWidth + 3.f * LegendKeyGap + 8.f;
+	/** The gap between the caps and the action text, and between lines. */
+	inline constexpr float LegendActionGap = 12.f;
+	inline constexpr float LegendLineGap = 5.f;
+
 	// The signage shop (CSS pixels of the mockup are Slate units; font sizes are CSS px x 0.75).
 	/** The panel: its width, its corner radius, and the height and band of the stripes along its top edge. */
 	inline constexpr float ShopPanelWidth = 1300.f;
@@ -164,6 +177,13 @@ namespace AsphaltHud
 	inline constexpr int32 ShopOffButtonFont = 17;
 	inline constexpr int32 ShopOwnedFont = 21;
 	inline constexpr int32 ShopHintFont = 17;
+	/**
+	 * The Robots building: the height of the robot cards and of the station (their value is two lines, "150 cells/min · 3,000 l / tank", and a locked one has a reason
+	 * under it), the height of the Speed and Capacity cards under a robot, and the font of the hint that stands in their place while the robot is not owned.
+	 */
+	inline constexpr float ShopRobotCardHeight = 200.f;
+	inline constexpr float ShopUpgradeCardHeight = 156.f;
+	inline constexpr int32 ShopUpgradeHintFont = 16;
 
 	// The signage menu and win screen (CSS pixels of the mockup are Slate units; font sizes are CSS px x 0.75, the brief wins where it names one).
 	/** The plate of a screen: the width of its ring, and the padding inside it (the mockup's padding less one ring width, as in the HUD). */

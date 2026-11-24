@@ -26,8 +26,8 @@ namespace DIAAutoPaver
 
 /**
  * The sector auto paver: a low tracked robot that drives to its sector and paves it cell by cell. The core owns everything
- * (position, sector, litres); this actor shows GetAutoPaverPos() and turns the body towards where it is heading. It has no
- * collision, so it neither blocks the player nor aiming or pouring. The game mode keeps exactly one while the game owns the paver.
+ * (position, sector, litres); this actor shows GetAutoPaverPos(Index) and turns the body towards where it is heading. It has no
+ * collision, so it neither blocks the player nor aiming or pouring. The game mode keeps exactly one per robot the game owns.
  *
  * Because the core moves the machine from cell to cell, the shown position follows the core's with a short smoothing
  * (DIAAutoPaver::FollowRatePerSec); a new or a loaded or restarted game puts it on the core's position at once. The heading
@@ -40,6 +40,9 @@ class DOITASPHALT_API ADIAAutoPaver : public AActor
 
 public:
 	ADIAAutoPaver();
+
+	/** Which of the core's robots this actor shows; set before BeginPlay (the game mode spawns it deferred). */
+	int32 Index = 0;
 
 	UStaticMeshComponent* GetBodyMesh() const { return BodyMesh; }
 

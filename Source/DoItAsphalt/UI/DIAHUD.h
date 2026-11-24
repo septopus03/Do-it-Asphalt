@@ -18,7 +18,7 @@ class UDIAWorldSubsystem;
 
 /**
  * The HUD actor: creates the Slate overlay in the game viewport (not when nothing can render, e.g. in tests), keeps the
- * contextual prompt, the toasts, the shop (Tab), the check view (V), the win screen (shown when the game is won) and the menu (the main menu
+ * contextual prompt, the toasts, the shop panel, the check view (V), the win screen (shown when the game is won) and the menu (the main menu
  * at the start, the pause menu on Esc), and turns the game's events into toasts. The game state stays in the subsystem. Where there
  * is no overlay (tests) the game starts without the menu; the menu's state and the input it takes are the same either way.
  */
@@ -71,15 +71,29 @@ public:
 	EDIAMenuMode GetMenuMode() const { return MenuMode; }
 	bool IsMenuOpen() const { return MenuMode != EDIAMenuMode::None; }
 
-	/** Tab: opens or closes the shop. The game keeps running; the mouse goes to the shop. Nothing opens over a menu or the win screen. */
-	void ToggleShop();
+	/**
+	 * Opens the shop panel on one building's goods (or switches an open panel to it). The game keeps running; the mouse goes to the
+	 * shop, and the paver map closes. Nothing opens over a menu or the win screen.
+	 */
+	void OpenShop(ELotShop Shop);
+	/** The building whose goods are shown; ELotShop::Count while the shop is closed. */
+	ELotShop GetOpenShop() const { return bShopOpen ? LastShop : ELotShop::Count; }
+	/** True opens the building that was open last (Tools at the start); false closes. */
 	void SetShopOpen(bool bOpen);
 	bool IsShopOpen() const { return bShopOpen; }
 
-	/** G: opens or closes the paver map (the auto paver's sectors). Like the shop it takes the mouse; nothing opens over a menu or the win screen, and the shop and the map never stand together. */
+	/** M: opens or closes the paver map (the auto paver's sectors). Like the shop it takes the mouse; nothing opens over a menu or the win screen, and the shop and the map never stand together. */
 	void TogglePaverMap();
 	void SetPaverMapOpen(bool bOpen);
 	bool IsPaverMapOpen() const { return bPaverMapOpen; }
+
+	/** The controls legend is up: not while a menu, the win screen, a shop panel or the paver map has the screen. */
+	bool IsControlsLegendShown() const { return !IsMenuOpen() && !bWinShown && !bShopOpen && !bPaverMapOpen; }
+
+	/** The robot that the map's clicks and H send: always one that is owned (0 when none is, and after a new or loaded game). */
+	int32 GetSelectedPaver() const;
+	/** Selects a robot (0-based); ignored for one that is not owned. The selection stays while the map is closed and opened. */
+	void SelectPaver(int32 Paver);
 
 	/** The check view (V, held): unfinished ground turns orange and the HUD points to the nearest unfinished cell. */
 	void SetCheckView(bool bOn);
@@ -104,6 +118,7 @@ private:
 	void HandleEntryCompleted(int32 Entry);
 	void HandleUnlocked(ELotUnlock Unlock);
 	void HandleItemBought(ELotItem Item);
+	void HandlePaverUpgradeBought(int32 Paver, ELotPaverUpgrade Upgrade);
 	void HandleExitOpened();
 	void HandleWon();
 	/** A game was loaded or started: the win screen goes if that game is not won, and appears if it is. */
@@ -115,7 +130,11 @@ private:
 	FText Prompt;
 	FDIAToasts Toasts;
 	bool bShopOpen = false;
+	/** The building that is shown, or was shown last. */
+	ELotShop LastShop = ELotShop::Tools;
 	bool bPaverMapOpen = false;
+	/** The robot of the map and of H; GetSelectedPaver checks it against the robots owned. */
+	int32 SelectedPaver = 0;
 	bool bCheckView = false;
 	FDIACheckModel CheckModel;
 	TSharedPtr<SDIAHudOverlay> Overlay;
@@ -139,6 +158,7 @@ private:
 	FDelegateHandle EntryHandle;
 	FDelegateHandle UnlockHandle;
 	FDelegateHandle ItemHandle;
+	FDelegateHandle PaverUpgradeHandle;
 	FDelegateHandle ExitHandle;
 	FDelegateHandle WonHandle;
 	FDelegateHandle ResetHandle;

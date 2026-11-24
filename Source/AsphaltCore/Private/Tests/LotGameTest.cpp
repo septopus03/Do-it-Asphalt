@@ -193,8 +193,8 @@ bool FLotPlantLevelsTest::RunTest(const FString& Parameters)
 bool FLotShopPricesTest::RunTest(const FString& Parameters)
 {
 	FLotGame G;
-	const double Expected[11] = {35, 70, 160, 110, 340, 900, 3000, 9000, 22000, 12000, 24000};
-	for (int32 I = 0; I < 11; ++I)
+	const double Expected[13] = {35, 70, 160, 110, 340, 900, 3000, 12000, 24000, 48000, 96000, 40000, 80000};
+	for (int32 I = 0; I < 13; ++I)
 	{
 		TestNearlyEqual(FString::Printf(TEXT("price %d"), I), G.GetItemPrice(static_cast<ELotItem>(I)), Expected[I], Tolerance);
 	}
@@ -239,15 +239,22 @@ bool FLotShopPrerequisitesTest::RunTest(const FString& Parameters)
 	G.DebugCompleteCells(AsphaltLot::NumCells);
 	G.DebugGive(1.0e7 - G.GetCredits());
 	TestTrue(TEXT("all steps unlocked"), G.IsUnlocked(ELotUnlock::Car));
-	TestFalse(TEXT("fast needs the paver"), G.BuyItem(ELotItem::AutoPaverFast));
-	TestFalse(TEXT("faster needs the fast"), G.BuyItem(ELotItem::AutoPaverFaster));
-	TestFalse(TEXT("wide bar needs the car"), G.BuyItem(ELotItem::CarWideBar));
+	TestFalse(TEXT("robot 2 needs robot 1"), G.BuyItem(ELotItem::AutoPaver2));
+	TestFalse(TEXT("robot 3 needs robot 2"), G.BuyItem(ELotItem::AutoPaver3));
+	TestFalse(TEXT("a speed upgrade needs the robot"), G.BuyPaverUpgrade(0, ELotPaverUpgrade::Speed));
+	TestFalse(TEXT("car II needs the car"), G.BuyItem(ELotItem::CarT2));
+	TestFalse(TEXT("car III needs car II"), G.BuyItem(ELotItem::CarT3));
+	TestFalse(TEXT("car IV needs car III"), G.BuyItem(ELotItem::CarT4));
 	TestTrue(TEXT("paver"), G.BuyItem(ELotItem::AutoPaver));
-	TestFalse(TEXT("faster still needs the fast"), G.BuyItem(ELotItem::AutoPaverFaster));
-	TestTrue(TEXT("fast"), G.BuyItem(ELotItem::AutoPaverFast));
-	TestTrue(TEXT("faster"), G.BuyItem(ELotItem::AutoPaverFaster));
+	TestFalse(TEXT("robot 3 still needs robot 2"), G.BuyItem(ELotItem::AutoPaver3));
+	TestTrue(TEXT("the first speed upgrade"), G.BuyPaverUpgrade(0, ELotPaverUpgrade::Speed));
 	TestTrue(TEXT("car"), G.BuyItem(ELotItem::Car));
-	TestTrue(TEXT("wide bar"), G.BuyItem(ELotItem::CarWideBar));
+	TestFalse(TEXT("car III still needs car II"), G.BuyItem(ELotItem::CarT3));
+	TestFalse(TEXT("car IV still needs car III"), G.BuyItem(ELotItem::CarT4));
+	TestTrue(TEXT("car II"), G.BuyItem(ELotItem::CarT2));
+	TestFalse(TEXT("car IV still needs car III once car II is owned"), G.BuyItem(ELotItem::CarT4));
+	TestTrue(TEXT("car III"), G.BuyItem(ELotItem::CarT3));
+	TestTrue(TEXT("car IV"), G.BuyItem(ELotItem::CarT4));
 	TestEqual(TEXT("owned count"), G.GetNumItemsOwned(), 5);
 	G.DebugGrantItem(ELotItem::Canister);
 	G.DebugGrantItem(ELotItem::Count);

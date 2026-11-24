@@ -17,6 +17,8 @@
 #include "UI/DIAHUD.h"
 #include "World/DIAInteractable.h"
 #include "World/DIAPaverCar.h"
+#include "World/DIAShopPoint.h"
+#include "LotLayout.h"
 
 void ADIAPlayerController::InitInputSystem()
 {
@@ -58,9 +60,6 @@ void ADIAPlayerController::SetupInputComponent()
 	Enhanced->BindAction(Input.Use, ETriggerEvent::Started, this, &ADIAPlayerController::OnUseStarted);
 	Enhanced->BindAction(Input.Use, ETriggerEvent::Completed, this, &ADIAPlayerController::OnUseCompleted);
 	Enhanced->BindAction(Input.Use, ETriggerEvent::Canceled, this, &ADIAPlayerController::OnUseCompleted);
-	Enhanced->BindAction(Input.Flap, ETriggerEvent::Started, this, &ADIAPlayerController::OnFlapStarted);
-	Enhanced->BindAction(Input.Flap, ETriggerEvent::Completed, this, &ADIAPlayerController::OnFlapCompleted);
-	Enhanced->BindAction(Input.Flap, ETriggerEvent::Canceled, this, &ADIAPlayerController::OnFlapCompleted);
 	Enhanced->BindAction(Input.Fill, ETriggerEvent::Started, this, &ADIAPlayerController::OnFillStarted);
 	Enhanced->BindAction(Input.Fill, ETriggerEvent::Completed, this, &ADIAPlayerController::OnFillCompleted);
 	Enhanced->BindAction(Input.Fill, ETriggerEvent::Canceled, this, &ADIAPlayerController::OnFillCompleted);
@@ -73,7 +72,6 @@ void ADIAPlayerController::SetupInputComponent()
 	Enhanced->BindAction(Input.Hand3, ETriggerEvent::Started, this, &ADIAPlayerController::OnSelectHand, ELotHand::Canister);
 	Enhanced->BindAction(Input.Hand4, ETriggerEvent::Started, this, &ADIAPlayerController::OnSelectHand, ELotHand::Tub);
 	Enhanced->BindAction(Input.Interact, ETriggerEvent::Started, this, &ADIAPlayerController::OnInteract);
-	Enhanced->BindAction(Input.Shop, ETriggerEvent::Started, this, &ADIAPlayerController::OnShop);
 	Enhanced->BindAction(Input.CheckView, ETriggerEvent::Started, this, &ADIAPlayerController::OnCheckViewStarted);
 	Enhanced->BindAction(Input.CheckView, ETriggerEvent::Completed, this, &ADIAPlayerController::OnCheckViewCompleted);
 	Enhanced->BindAction(Input.CheckView, ETriggerEvent::Canceled, this, &ADIAPlayerController::OnCheckViewCompleted);
@@ -156,22 +154,6 @@ void ADIAPlayerController::OnUseCompleted()
 	else if (ADIAPaverCar* Car = GetDIACar())
 	{
 		Car->SetPouring(false);
-	}
-}
-
-void ADIAPlayerController::OnFlapStarted()
-{
-	if (ADIACharacter* Character = GetDIACharacter(); Character && !IsUiInput())
-	{
-		Character->SetFlap(true);
-	}
-}
-
-void ADIAPlayerController::OnFlapCompleted()
-{
-	if (ADIACharacter* Character = GetDIACharacter())
-	{
-		Character->SetFlap(false);
 	}
 }
 
@@ -260,7 +242,24 @@ IDIAInteractable* ADIAPlayerController::FindInteractable() const
 void ADIAPlayerController::PlayerTick(float DeltaTime)
 {
 	Super::PlayerTick(DeltaTime);
+	CloseShopWhenAway();
 	UpdatePrompt();
+}
+
+void ADIAPlayerController::CloseShopWhenAway()
+{
+	ADIAHUD* Hud = Cast<ADIAHUD>(GetHUD());
+	const ELotShop Shop = Hud ? Hud->GetOpenShop() : ELotShop::Count;
+	if (Shop >= ELotShop::Count)
+	{
+		return;
+	}
+	const ADIACharacter* Character = GetDIACharacter();
+	// On the ground plane: the point stands at the height of the capsule centre, but the player may jump.
+	if (!Character || FVector2D::Distance(FVector2D(Character->GetActorLocation()), LotLayout::ShopPoint(Shop)) > DIAShopPoint::CloseRangeCm)
+	{
+		Hud->SetShopOpen(false);
+	}
 }
 
 void ADIAPlayerController::UpdatePrompt()
@@ -277,6 +276,12 @@ void ADIAPlayerController::UpdatePrompt()
 
 void ADIAPlayerController::OnInteract()
 {
+	// E closes an open shop panel before anything else is looked for (also where another interactable would be found).
+	if (ADIAHUD* Hud = Cast<ADIAHUD>(GetHUD()); Hud && Hud->IsShopOpen())
+	{
+		Hud->SetShopOpen(false);
+		return;
+	}
 	// The search is repeated here instead of trusting the last frame's, so E always acts on what is in front of the player now.
 	if (IDIAInteractable* Interactable = FindInteractable())
 	{
@@ -314,14 +319,16 @@ void ADIAPlayerController::OnSendPaver()
 		return;
 	}
 	// The core restarts a sector's progress when it is assigned again, so the sector the paver works in is left alone.
-	if (Game.GetAutoPaverSector() == Sector)
+	// The robot is the one selected on the map (the first without a HUD).
+	const int32 Paver = Hud ? Hud->GetSelectedPaver() : 0;
+	if (Game.GetAutoPaverSector(Paver) == Sector)
 	{
-		Say(DIAFormat::PaverAlreadyHereToast());
+		Say(DIAFormat::PaverAlreadyHereToast(Paver, Game.GetNumAutoPavers()));
 		return;
 	}
-	if (Game.AssignAutoPaverSector(Sector))
+	if (Game.AssignAutoPaverSector(Paver, Sector))
 	{
-		Say(DIAFormat::PaverSentToast(Sector));
+		Say(DIAFormat::PaverSentToast(Paver, Game.GetNumAutoPavers(), Sector));
 		// The outline and the HUD line show it now, not at the next tick.
 		Subsystem->Dispatch(FLotEvents());
 	}
@@ -349,14 +356,6 @@ void ADIAPlayerController::OnPaverMap()
 	if (!IsUiInput())
 	{
 		Hud->SetPaverMapOpen(true);
-	}
-}
-
-void ADIAPlayerController::OnShop()
-{
-	if (ADIAHUD* Hud = Cast<ADIAHUD>(GetHUD()))
-	{
-		Hud->ToggleShop();
 	}
 }
 
@@ -448,7 +447,7 @@ void ADIAPlayerController::ApplyInputMode()
 	}
 	else if (bUi)
 	{
-		// The shop and the menu are also left with a key (Tab, Esc), which the game has to hear.
+		// The shop and the menu are also left with a key (E, Esc), which the game has to hear.
 		FInputModeGameAndUI Mode;
 		Mode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
 		Mode.SetHideCursorDuringCapture(false);
@@ -467,7 +466,6 @@ void ADIAPlayerController::ReleaseControls()
 		// Releasing a key while a UI is up does not reach the game, so nothing held may stay on.
 		Character->SetSprinting(false);
 		Character->SetUsing(false);
-		Character->SetFlap(false);
 		Character->SetFilling(false);
 		Character->SetWorkView(false);
 	}

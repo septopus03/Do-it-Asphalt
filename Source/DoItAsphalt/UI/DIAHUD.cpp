@@ -41,30 +41,47 @@ void ADIAHUD::ShowToast(const FText& Text)
 	Toasts.Add(Text);
 }
 
-void ADIAHUD::ToggleShop()
+void ADIAHUD::OpenShop(ELotShop Shop)
 {
-	SetShopOpen(!bShopOpen);
+	// The win screen and the menu own the screen.
+	if (Shop >= ELotShop::Count || bWinShown || IsMenuOpen())
+	{
+		return;
+	}
+	const bool bChanges = !bShopOpen || LastShop != Shop;
+	if (!bShopOpen)
+	{
+		SetPaverMapOpen(false);
+	}
+	bShopOpen = true;
+	LastShop = Shop;
+	if (ShopPanel.IsValid())
+	{
+		if (bChanges)
+		{
+			ShopPanel->Refresh();
+			ShopPanel->SetShop(Shop);
+		}
+		ShopPanel->SetVisibility(EVisibility::SelfHitTestInvisible);
+	}
+	UpdatePanelInput();
 }
 
 void ADIAHUD::SetShopOpen(bool bOpen)
 {
-	// The win screen and the menu own the screen.
-	if (bShopOpen == bOpen || (bOpen && (bWinShown || IsMenuOpen())))
+	if (bOpen)
+	{
+		OpenShop(LastShop);
+		return;
+	}
+	if (!bShopOpen)
 	{
 		return;
 	}
-	if (bOpen)
-	{
-		SetPaverMapOpen(false);
-	}
-	bShopOpen = bOpen;
+	bShopOpen = false;
 	if (ShopPanel.IsValid())
 	{
-		if (bShopOpen)
-		{
-			ShopPanel->Refresh();
-		}
-		ShopPanel->SetVisibility(bShopOpen ? EVisibility::SelfHitTestInvisible : EVisibility::Collapsed);
+		ShopPanel->SetVisibility(EVisibility::Collapsed);
 	}
 	UpdatePanelInput();
 }
@@ -94,6 +111,21 @@ void ADIAHUD::SetPaverMapOpen(bool bOpen)
 		PaverMap->SetVisibility(bPaverMapOpen ? EVisibility::Visible : EVisibility::Collapsed);
 	}
 	UpdatePanelInput();
+}
+
+int32 ADIAHUD::GetSelectedPaver() const
+{
+	const UDIAWorldSubsystem* Subsystem = BoundSubsystem.Get();
+	return Subsystem && SelectedPaver < Subsystem->GetGame().GetNumAutoPavers() ? SelectedPaver : 0;
+}
+
+void ADIAHUD::SelectPaver(int32 Paver)
+{
+	const UDIAWorldSubsystem* Subsystem = BoundSubsystem.Get();
+	if (Subsystem && Paver >= 0 && Paver < Subsystem->GetGame().GetNumAutoPavers())
+	{
+		SelectedPaver = Paver;
+	}
 }
 
 void ADIAHUD::UpdatePanelInput()
@@ -318,6 +350,7 @@ void ADIAHUD::BeginPlay()
 		EntryHandle = Subsystem->OnEntryCompleted.AddUObject(this, &ADIAHUD::HandleEntryCompleted);
 		UnlockHandle = Subsystem->OnUnlocked.AddUObject(this, &ADIAHUD::HandleUnlocked);
 		ItemHandle = Subsystem->OnItemBought.AddUObject(this, &ADIAHUD::HandleItemBought);
+		PaverUpgradeHandle = Subsystem->OnPaverUpgradeBought.AddUObject(this, &ADIAHUD::HandlePaverUpgradeBought);
 		ExitHandle = Subsystem->OnExitOpened.AddUObject(this, &ADIAHUD::HandleExitOpened);
 		WonHandle = Subsystem->OnWon.AddUObject(this, &ADIAHUD::HandleWon);
 		ResetHandle = Subsystem->OnGameReset.AddUObject(this, &ADIAHUD::HandleGameReset);
@@ -333,6 +366,7 @@ void ADIAHUD::EndPlay(const EEndPlayReason::Type Reason)
 		Subsystem->OnEntryCompleted.Remove(EntryHandle);
 		Subsystem->OnUnlocked.Remove(UnlockHandle);
 		Subsystem->OnItemBought.Remove(ItemHandle);
+		Subsystem->OnPaverUpgradeBought.Remove(PaverUpgradeHandle);
 		Subsystem->OnExitOpened.Remove(ExitHandle);
 		Subsystem->OnWon.Remove(WonHandle);
 		Subsystem->OnGameReset.Remove(ResetHandle);
@@ -375,6 +409,7 @@ void ADIAHUD::CreateOverlay(UDIAWorldSubsystem* Subsystem)
 	GEngine->GameViewport->AddViewportWidgetContent(Overlay.ToSharedRef(), AsphaltHud::ViewportZOrder);
 
 	ShopPanel = SNew(SDIAShopPanel).Hud(this).Subsystem(Subsystem);
+	ShopPanel->SetShop(LastShop);
 	ShopPanel->SetVisibility(bShopOpen ? EVisibility::SelfHitTestInvisible : EVisibility::Collapsed);
 	GEngine->GameViewport->AddViewportWidgetContent(ShopPanel.ToSharedRef(), AsphaltHud::ShopZOrder);
 
@@ -465,6 +500,14 @@ void ADIAHUD::HandleItemBought(ELotItem Item)
 	ShowToast(DIAFormat::ItemBoughtToast(Item));
 }
 
+void ADIAHUD::HandlePaverUpgradeBought(int32 Paver, ELotPaverUpgrade Upgrade)
+{
+	if (const UDIAWorldSubsystem* Subsystem = BoundSubsystem.Get())
+	{
+		ShowToast(DIAFormat::PaverUpgradeToast(Subsystem->GetGame(), Paver, Upgrade));
+	}
+}
+
 void ADIAHUD::HandleExitOpened()
 {
 	ShowToast(DIAFormat::ExitToast());
@@ -477,6 +520,9 @@ void ADIAHUD::HandleWon()
 
 void ADIAHUD::HandleGameReset()
 {
+	// The game was replaced under the panel (the buildings' goods and the player's place are new): it closes.
+	SetShopOpen(false);
+	SelectedPaver = 0;
 	// A won game that is loaded shows its win screen again; any other game takes it away.
 	const UDIAWorldSubsystem* Subsystem = BoundSubsystem.Get();
 	if (Subsystem && Subsystem->GetGame().HasWon())

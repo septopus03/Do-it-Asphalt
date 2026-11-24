@@ -53,6 +53,13 @@ public:
 	 */
 	FLotPour Stamp(FVector2D A, FVector2D B, double WidthCm, double MaxLitres);
 
+	/**
+	 * Like Stamp, but for a bar of width WidthCm that is perpendicular to ForwardA at A and to ForwardB at B: the
+	 * swept quad between the bar at A and the bar at B, so a bar that turns while it moves leaves an unbroken
+	 * line. With ForwardA == ForwardB == (B - A) it is the same as Stamp. Order and budget as in Stamp.
+	 */
+	FLotPour StampSweep(FVector2D A, FVector2D B, FVector2D ForwardA, FVector2D ForwardB, double WidthCm, double MaxLitres);
+
 	/** Turns free texels within RadiusCm of Centre into Done, nearest to From first (ties by texel index). */
 	FLotPour PourDisc(FVector2D Centre, double RadiusCm, double MaxLitres, FVector2D From);
 
@@ -116,7 +123,7 @@ private:
 	};
 
 	/** Collects the free car-park texels of the stamp rectangle in Candidates, keyed by projection on the axis. */
-	void CollectStampCandidates(FVector2D A, FVector2D B, double WidthCm);
+	void CollectStampCandidates(FVector2D A, FVector2D B, FVector2D ForwardA, FVector2D ForwardB, double WidthCm);
 	/** Sorts Candidates by key, then index. */
 	void SortCandidates();
 	/** Turns candidates (in their order) into Done while Budget texels remain; returns the result. */

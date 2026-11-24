@@ -23,6 +23,7 @@ public:
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnEntry, int32);
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnUnlock, ELotUnlock);
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnItem, ELotItem);
+	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnPaverUpgrade, int32 /*Paver*/, ELotPaverUpgrade);
 
 	/** The subsystem of the world the object lives in; null for an object without a world. Replaces the lookup every actor repeated. */
 	static UDIAWorldSubsystem* Get(const UObject* WorldContext)
@@ -46,6 +47,8 @@ public:
 	bool BuyItem(ELotItem Item);
 	/** Buys the next plant level; broadcasts OnStateChanged on success (and autosaves). */
 	bool BuyPlant();
+	/** Buys the next level of an upgrade of a robot; broadcasts OnPaverUpgradeBought and OnStateChanged on success (and autosaves). */
+	bool BuyPaverUpgrade(int32 Paver, ELotPaverUpgrade Upgrade);
 
 	/**
 	 * Marks the game as won (the player reached the exit gate): the core ignores it while the exit is closed, and nothing
@@ -81,7 +84,7 @@ public:
 	 * stays closed): the cells and the entry segments the steps ask for are completed. For trying the whole game without playing it.
 	 */
 	void DevStart();
-	static constexpr double DevStartCredits = 150000.0;
+	static constexpr double DevStartCredits = 250000.0;
 
 	/**
 	 * The game saves itself only while this is on (every LotBalance::AutosaveIntervalSeconds of game time, after each purchase, when it is won and
@@ -108,6 +111,8 @@ public:
 	FOnEntry OnEntryCompleted;
 	FOnUnlock OnUnlocked;
 	FOnItem OnItemBought;
+	/** A robot upgrade was bought through BuyPaverUpgrade; the HUD shows the toast. */
+	FOnPaverUpgrade OnPaverUpgradeBought;
 	FSimpleMulticastDelegate OnExitOpened;
 	/** The game was won; fires once per game. */
 	FSimpleMulticastDelegate OnWon;

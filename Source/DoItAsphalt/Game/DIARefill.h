@@ -34,7 +34,7 @@ namespace DIARefill
 		return IsNearOutlet(Game, Aim, LotLayout::TroughReachCm);
 	}
 
-	/** The position is within RefillRadiusCm of the same places: the standing suitcase and cart fill there. */
+	/** The position is within RefillRadiusCm of the same places: the standing trolley and cart fill there. */
 	inline bool IsInZone(const FLotGame& Game, FVector2D Pos)
 	{
 		return IsNearOutlet(Game, Pos, LotLayout::RefillRadiusCm);

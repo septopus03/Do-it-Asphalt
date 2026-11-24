@@ -166,6 +166,42 @@ bool FHudNextUnlockLineTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+DIA_TEST(FHudPaverLinesTest, "DoItAsphalt.Game.Hud.PaverLines")
+
+bool FHudPaverLinesTest::RunTest(const FString& Parameters)
+{
+	FLotGame Game;
+	FDIAHudModel Model;
+	const auto NonEmpty = [&Model]()
+	{
+		int32 Count = 0;
+		for (const FText& Line : Model.GetView().Pavers)
+		{
+			Count += Line.IsEmpty() ? 0 : 1;
+		}
+		return Count;
+	};
+	Model.Update(Game);
+	TestEqual(TEXT("no robot, no line"), NonEmpty(), 0);
+	for (int32 Owned = 1; Owned <= MaxAutoPavers; ++Owned)
+	{
+		Game.DebugGrantItem(AutoPaverItem[Owned - 1]);
+		TestTrue(TEXT("a purchase changes the view"), Model.Update(Game));
+		TestEqual(*FString::Printf(TEXT("%d lines for %d robots"), Owned, Owned), NonEmpty(), Owned);
+		for (int32 Paver = 0; Paver < MaxAutoPavers; ++Paver)
+		{
+			TestEqual(*FString::Printf(TEXT("robot %d has a line exactly when owned"), Paver), Model.GetView().Pavers[Paver].IsEmpty(), Paver >= Owned);
+		}
+	}
+	// The robots' lines follow their own state.
+	Game.SetAutoPaverAuto(false);
+	TestTrue(TEXT("assigned"), Game.AssignAutoPaverSector(2, 11));
+	TestTrue(TEXT("robot 3's sector changes the view"), Model.Update(Game));
+	TestTrue(TEXT("robot 3 has a sector"), Model.GetView().Pavers[2].ToString().StartsWith(TEXT("Paver 3")) && Model.GetView().Pavers[2].ToString().Contains(TEXT("sector 12")));
+	TestTrue(TEXT("robot 1 still waits"), Model.GetView().Pavers[0].ToString().StartsWith(TEXT("Paver 1: waiting")));
+	return true;
+}
+
 DIA_TEST(FHudHandGaugeTest, "DoItAsphalt.Game.Hud.HandGauge")
 
 bool FHudHandGaugeTest::RunTest(const FString& Parameters)
@@ -188,13 +224,13 @@ bool FHudHandGaugeTest::RunTest(const FString& Parameters)
 	Model.Update(Game);
 	TestEqual(TEXT("a full bowl"), Model.GetView().HandGauge.ToString(), FString(TEXT("2.5 / 2.5 l")));
 
-	// A held suitcase shows its content instead.
-	Game.DebugGrantItem(ELotItem::Suitcase);
-	Game.FillMovable(ELotMovable::Suitcase, 4.0);
-	TestTrue(TEXT("the suitcase is taken"), Game.Grab(ELotMovable::Suitcase));
+	// A held trolley shows its content instead.
+	Game.DebugGrantItem(ELotItem::Trolley);
+	Game.FillMovable(ELotMovable::Trolley, 4.0);
+	TestTrue(TEXT("the trolley is taken"), Game.Grab(ELotMovable::Trolley));
 	Model.Update(Game);
-	TestEqual(TEXT("the suitcase is held"), Model.GetView().HandLabel.ToString(), FString(TEXT("Suitcase")));
-	TestEqual(TEXT("the content of the suitcase"), Model.GetView().HandGauge.ToString(), FString(TEXT("10 / 60 l")));
+	TestEqual(TEXT("the trolley is held"), Model.GetView().HandLabel.ToString(), FString(TEXT("Trolley")));
+	TestEqual(TEXT("the content of the trolley"), Model.GetView().HandGauge.ToString(), FString(TEXT("10 / 80 l")));
 	Game.Release(FVector2D(0.0, 0.0), 0.0);
 	Model.Update(Game);
 	TestEqual(TEXT("set down: the bowl again"), Model.GetView().HandGauge.ToString(), FString(TEXT("2.5 / 2.5 l")));
@@ -234,15 +270,15 @@ bool FHudRefillLineTest::RunTest(const FString& Parameters)
 	Game.Tick(1.0);
 	TestTrue(TEXT("the stock grows in the zone"), Model.Update(Game));
 
-	// A held suitcase does not fill and does not count, wherever the core last saw it.
+	// A held trolley does not fill and does not count, wherever the core last saw it.
 	Game.World().PlayerPos = LotLayout::PlayerStart;
 	Model.Update(Game);
 	TestTrue(TEXT("out of the zone again"), Model.GetView().Refill.IsEmpty());
-	Game.DebugGrantItem(ELotItem::Suitcase);
-	TestTrue(TEXT("the suitcase is taken"), Game.Grab(ELotMovable::Suitcase));
-	Game.World().Movables[static_cast<int32>(ELotMovable::Suitcase)].Pos = LotLayout::TroughPos + FVector2D(0.0, 100.0);
+	Game.DebugGrantItem(ELotItem::Trolley);
+	TestTrue(TEXT("the trolley is taken"), Game.Grab(ELotMovable::Trolley));
+	Game.World().Movables[static_cast<int32>(ELotMovable::Trolley)].Pos = LotLayout::TroughPos + FVector2D(0.0, 100.0);
 	Model.Update(Game);
-	TestTrue(TEXT("the held suitcase does not show the line"), Model.GetView().Refill.IsEmpty());
+	TestTrue(TEXT("the held trolley does not show the line"), Model.GetView().Refill.IsEmpty());
 	return true;
 }
 

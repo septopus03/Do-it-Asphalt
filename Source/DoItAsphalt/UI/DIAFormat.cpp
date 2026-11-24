@@ -63,7 +63,7 @@ namespace
 	/** Below this fraction of its tank the car's HUD asks for a station. */
 	constexpr double CarLowTankFraction = 0.1;
 
-	/** The vessel in the hand, or the suitcase or cart that is held: how much it holds and how much fits. False when there is none. */
+	/** The vessel in the hand, or the trolley or cart that is held: how much it holds and how much fits. False when there is none. */
 	bool GaugeOf(const FLotGame& Game, double& OutHave, double& OutCapacity)
 	{
 		const ELotMovable Held = Game.GetHeld();
@@ -78,7 +78,7 @@ namespace
 			OutCapacity = Game.GetCarTankCapacity();
 			return true;
 		}
-		if (Held == ELotMovable::Suitcase || Held == ELotMovable::Cart)
+		if (Held == ELotMovable::Trolley || Held == ELotMovable::Cart)
 		{
 			OutHave = Game.GetMovableLitres(Held);
 			OutCapacity = Game.GetMovableCapacity(Held);
@@ -114,16 +114,37 @@ namespace
 		case ELotItem::Bucket: return FText::Format(NSLOCTEXT("DIAShop", "Litres", "{0} l"), TenthsText(Tenths(LotBalance::HandCapacityL[static_cast<int32>(ELotHand::Bucket)])));
 		case ELotItem::Canister: return FText::Format(NSLOCTEXT("DIAShop", "Litres", "{0} l"), TenthsText(Tenths(LotBalance::HandCapacityL[static_cast<int32>(ELotHand::Canister)])));
 		case ELotItem::Tub: return FText::Format(NSLOCTEXT("DIAShop", "Litres", "{0} l"), TenthsText(Tenths(LotBalance::HandCapacityL[static_cast<int32>(ELotHand::Tub)])));
-		case ELotItem::Suitcase: return FText::Format(NSLOCTEXT("DIAShop", "Litres", "{0} l"), TenthsText(Tenths(LotBalance::SuitcaseCapacityL)));
+		case ELotItem::Trolley: return FText::Format(NSLOCTEXT("DIAShop", "Litres", "{0} l"), TenthsText(Tenths(LotBalance::TrolleyCapacityL)));
 		case ELotItem::Cart: return FText::Format(NSLOCTEXT("DIAShop", "Litres", "{0} l"), TenthsText(Tenths(LotBalance::CartCapacityL)));
 		case ELotItem::Station: return NSLOCTEXT("DIAShop", "StationValue", "Refill anywhere");
-		case ELotItem::AutoPaver: return FText::Format(NSLOCTEXT("DIAShop", "Rate", "{0} {1}"), Whole(LotBalance::AutoPaverRateCellsPerMin[0]), PerMinuteCells());
-		case ELotItem::AutoPaverFast: return Change(LotBalance::AutoPaverRateCellsPerMin[0], LotBalance::AutoPaverRateCellsPerMin[1], PerMinuteCells());
-		case ELotItem::AutoPaverFaster: return Change(LotBalance::AutoPaverRateCellsPerMin[1], LotBalance::AutoPaverRateCellsPerMin[2], PerMinuteCells());
 		case ELotItem::Car: return FText::Format(NSLOCTEXT("DIAShop", "Rate", "{0} {1}"), Whole(LotBalance::CarRateCellsPerMin[0]), PerMinuteCells());
-		case ELotItem::CarWideBar: return Change(LotBalance::CarRateCellsPerMin[0], LotBalance::CarRateCellsPerMin[1], PerMinuteCells());
+		case ELotItem::CarT2: return Change(LotBalance::CarRateCellsPerMin[0], LotBalance::CarRateCellsPerMin[1], PerMinuteCells());
+		case ELotItem::CarT3: return Change(LotBalance::CarRateCellsPerMin[1], LotBalance::CarRateCellsPerMin[2], PerMinuteCells());
+		case ELotItem::CarT4: return Change(LotBalance::CarRateCellsPerMin[2], LotBalance::CarRateCellsPerMin[3], PerMinuteCells());
 		default: return FText::GetEmpty();
 		}
+	}
+
+	/** A robot card's value: the rate and the tank at the given upgrade levels ("150 cells/min · 3,000 l tank"; the number, the "l" and "tank" are tied with no-break spaces so that a wrap leaves the whole tank size on the second line). A level below 0 reads as level 0. */
+	FText RobotValue(int32 SpeedLevel, int32 CapacityLevel)
+	{
+		const int32 Speed = FMath::Clamp(SpeedLevel, 0, MaxPaverUpgradeLevel);
+		const int32 Capacity = FMath::Clamp(CapacityLevel, 0, MaxPaverUpgradeLevel);
+		return FText::Format(NSLOCTEXT("DIAShop", "RobotStats", "{0} {1} · {2}\u00A0l\u00A0tank"), Whole(LotBalance::AutoPaverRateCellsPerMin[Speed]), PerMinuteCells(), Whole(LotBalance::AutoPaverTankLByLevel[Capacity]));
+	}
+
+	/** An upgrade row's value: "120 → 150 cells/min" for the next level, only the value that is reached once the last level is bought. */
+	FText UpgradeValue(ELotPaverUpgrade Kind, int32 Level)
+	{
+		const int32 From = FMath::Clamp(Level, 0, MaxPaverUpgradeLevel);
+		const bool bSpeed = Kind == ELotPaverUpgrade::Speed;
+		const double* Table = bSpeed ? LotBalance::AutoPaverRateCellsPerMin : LotBalance::AutoPaverTankLByLevel;
+		const FText Unit = bSpeed ? PerMinuteCells() : NSLOCTEXT("DIAShop", "LitresTank", "l tank");
+		if (From >= MaxPaverUpgradeLevel)
+		{
+			return FText::Format(NSLOCTEXT("DIAShop", "UpgradeReached", "{0} {1}"), Whole(Table[From]), Unit);
+		}
+		return Change(Table[From], Table[From + 1], Unit);
 	}
 
 	/** Why an item is not on offer, as a cheap number: 0 nothing, 1 its step is closed, 2 an item it upgrades is missing. */
@@ -156,6 +177,12 @@ namespace
 			return FText::Format(NSLOCTEXT("DIAShop", "LockedItem", "needs {0}"), DIAFormat::ItemName(Required));
 		}
 		return FText::GetEmpty();
+	}
+
+	/** A robot's name: just "Paver" while one robot is owned, "Paver 2" and so on once there are more. */
+	FText PaverName(const FLotGame& Game, int32 Paver)
+	{
+		return Game.GetNumAutoPavers() > 1 ? FText::Format(LOCTEXT("PaverNameN", "Paver {0}"), DIAFormat::Count(Paver + 1)) : LOCTEXT("PaverName", "Paver");
 	}
 
 	/** The plant's rate at a level, from the balance tables. */
@@ -213,14 +240,16 @@ FText DIAFormat::ItemName(ELotItem Item)
 	case ELotItem::Bucket: return LOCTEXT("ItemBucket", "Bucket");
 	case ELotItem::Canister: return LOCTEXT("ItemCanister", "Canister");
 	case ELotItem::Tub: return LOCTEXT("ItemTub", "Tub");
-	case ELotItem::Suitcase: return LOCTEXT("ItemSuitcase", "Suitcase");
+	case ELotItem::Trolley: return LOCTEXT("ItemTrolley", "Trolley");
 	case ELotItem::Cart: return LOCTEXT("ItemCart", "Cart");
 	case ELotItem::Station: return LOCTEXT("ItemStation", "Portable Station");
-	case ELotItem::AutoPaver: return LOCTEXT("ItemAutoPaver", "Auto Paver");
-	case ELotItem::AutoPaverFast: return LOCTEXT("ItemAutoPaverFast", "Fast Auto Paver");
-	case ELotItem::AutoPaverFaster: return LOCTEXT("ItemAutoPaverFaster", "Faster Auto Paver");
+	case ELotItem::AutoPaver: return LOCTEXT("ItemAutoPaver", "Auto Paver 1");
 	case ELotItem::Car: return LOCTEXT("ItemCar", "Paver Car");
-	case ELotItem::CarWideBar: return LOCTEXT("ItemCarWideBar", "Wide Bar");
+	case ELotItem::CarT2: return LOCTEXT("ItemCarT2", "Paver Car II");
+	case ELotItem::CarT3: return LOCTEXT("ItemCarT3", "Paver Car III");
+	case ELotItem::CarT4: return LOCTEXT("ItemCarT4", "Paver Car IV");
+	case ELotItem::AutoPaver2: return LOCTEXT("ItemAutoPaver2", "Auto Paver 2");
+	case ELotItem::AutoPaver3: return LOCTEXT("ItemAutoPaver3", "Auto Paver 3");
 	default: return FText::GetEmpty();
 	}
 }
@@ -273,7 +302,7 @@ FText DIAFormat::HandLabel(const FLotGame& Game)
 	}
 	switch (Game.GetHeld())
 	{
-	case ELotMovable::Suitcase: return ItemName(ELotItem::Suitcase);
+	case ELotMovable::Trolley: return ItemName(ELotItem::Trolley);
 	case ELotMovable::Cart: return ItemName(ELotItem::Cart);
 	case ELotMovable::Station: return ItemName(ELotItem::Station);
 	default: return HandName(Game.GetHand());
@@ -289,7 +318,7 @@ FText DIAFormat::HandGauge(const FLotGame& Game)
 
 bool DIAFormat::IsInRefillZone(const FLotGame& Game)
 {
-	// Only the player's own position counts. A suitcase or cart fills where it stands (DIAMovable), never while it is held,
+	// Only the player's own position counts. A trolley or cart fills where it stands (DIAMovable), never while it is held,
 	// and the core knows its position only from the last time it was put down.
 	return DIARefill::IsInZone(Game, Game.World().PlayerPos);
 }
@@ -337,6 +366,39 @@ double DIAFormat::ArrowDegrees(FVector2D From, FVector2D To, double ViewYawDeg)
 	return FMath::FindDeltaAngleDegrees(ViewYawDeg, Bearing);
 }
 
+FText DIAFormat::ShopName(ELotShop Shop)
+{
+	switch (Shop)
+	{
+	case ELotShop::Tools: return LOCTEXT("ShopTools", "Tools");
+	case ELotShop::Robots: return LOCTEXT("ShopRobots", "Robots");
+	case ELotShop::Garage: return LOCTEXT("ShopGarage", "Garage");
+	default: return FText::GetEmpty();
+	}
+}
+
+FText DIAFormat::ShopPrompt(ELotShop Shop)
+{
+	switch (Shop)
+	{
+	case ELotShop::Tools: return LOCTEXT("PromptShopTools", "E – Tools");
+	case ELotShop::Robots: return LOCTEXT("PromptShopRobots", "E – Robots");
+	case ELotShop::Garage: return LOCTEXT("PromptShopGarage", "E – Garage");
+	default: return FText::GetEmpty();
+	}
+}
+
+FText DIAFormat::ShopSubtitle(ELotShop Shop)
+{
+	switch (Shop)
+	{
+	case ELotShop::Tools: return LOCTEXT("ShopToolsSubtitle", "Hand tools and the plant");
+	case ELotShop::Robots: return LOCTEXT("ShopRobotsSubtitle", "Robots and the portable station");
+	case ELotShop::Garage: return LOCTEXT("ShopGarageSubtitle", "Trucks");
+	default: return FText::GetEmpty();
+	}
+}
+
 FText DIAFormat::EntryBoard(const FLotGame& Game, int32 Entry)
 {
 	if (Entry < 0 || Entry >= AsphaltLot::NumEntries)
@@ -373,7 +435,21 @@ FText DIAFormat::UnlockToast(ELotUnlock Unlock)
 
 FText DIAFormat::ItemBoughtToast(ELotItem Item)
 {
+	if (Item == ELotItem::AutoPaver)
+	{
+		return LOCTEXT("ToastPaverBought", "Auto Paver bought – it paves on its own (M = map)");
+	}
 	return FText::Format(LOCTEXT("ToastItemBought", "{0} bought"), ItemName(Item));
+}
+
+FText DIAFormat::PaverUpgradeToast(const FLotGame& Game, int32 Paver, ELotPaverUpgrade Upgrade)
+{
+	const FText Name = PaverName(Game, Paver);
+	if (Upgrade == ELotPaverUpgrade::Speed)
+	{
+		return FText::Format(LOCTEXT("ToastPaverSpeed", "{0}: speed {1} {2}"), Name, Whole(Game.GetAutoPaverRateCellsPerMin(Paver)), PerMinuteCells());
+	}
+	return FText::Format(LOCTEXT("ToastPaverTank", "{0}: tank {1} l"), Name, Whole(Game.GetAutoPaverTankCapacity(Paver)));
 }
 
 FText DIAFormat::PlantToast(int32 Level)
@@ -406,9 +482,13 @@ FText DIAFormat::SectorNumber(int32 Sector)
 	return Count(Sector + 1);
 }
 
-FText DIAFormat::PaverSentToast(int32 Sector)
+FText DIAFormat::PaverSentToast(int32 Paver, int32 NumPavers, int32 Sector)
 {
-	return FText::Format(LOCTEXT("ToastPaverSent", "Paver → sector {0}"), SectorNumber(Sector));
+	if (NumPavers <= 1)
+	{
+		return FText::Format(LOCTEXT("ToastPaverSent", "Paver → sector {0}"), SectorNumber(Sector));
+	}
+	return FText::Format(LOCTEXT("ToastPaverSentN", "Paver {0} → sector {1}"), Count(Paver + 1), SectorNumber(Sector));
 }
 
 FText DIAFormat::PaverNoneToast()
@@ -421,31 +501,47 @@ FText DIAFormat::PaverOffLotToast()
 	return LOCTEXT("ToastPaverOffLot", "Not on the lot");
 }
 
-FText DIAFormat::PaverAlreadyHereToast()
+FText DIAFormat::PaverAlreadyHereToast(int32 Paver, int32 NumPavers)
 {
-	return LOCTEXT("ToastPaverHere", "Paver is already here");
+	if (NumPavers <= 1)
+	{
+		return LOCTEXT("ToastPaverHere", "Paver is already here");
+	}
+	return FText::Format(LOCTEXT("ToastPaverHereN", "Paver {0} is already here"), Count(Paver + 1));
 }
 
-FText DIAFormat::PaverLine(const FLotGame& Game)
+FText DIAFormat::PaverAutoToast(bool bAuto)
 {
-	if (!Game.Owns(ELotItem::AutoPaver))
+	return bAuto ? LOCTEXT("ToastPaverAutoOn", "Paver: AUTO on") : LOCTEXT("ToastPaverAutoOff", "Paver: AUTO off");
+}
+
+FText DIAFormat::PaverLine(const FLotGame& Game, int32 Paver)
+{
+	if (Paver < 0 || Paver >= Game.GetNumAutoPavers())
 	{
 		return FText::GetEmpty();
 	}
-	const int32 Sector = Game.GetAutoPaverSector();
+	const FText Name = PaverName(Game, Paver);
+	const int32 Sector = Game.GetAutoPaverSector(Paver);
 	if (Sector == INDEX_NONE)
 	{
-		return LOCTEXT("PaverWaiting", "Paver: waiting – press G for the map");
+		return Game.IsAutoPaverAuto() ? FText::Format(LOCTEXT("PaverLooking", "{0}: AUTO – no unpaved sector to go to"), Name)
+			: FText::Format(LOCTEXT("PaverWaiting", "{0}: waiting – press M for the map"), Name);
 	}
-	const FText Tank = Litres(Game.GetAutoPaverTank(), Game.GetAutoPaverTankCapacity());
-	switch (Game.GetAutoPaverPhase())
+	const FText Tank = Litres(Game.GetAutoPaverTank(Paver), Game.GetAutoPaverTankCapacity(Paver));
+	switch (Game.GetAutoPaverPhase(Paver))
 	{
-	case ELotPaverPhase::ToStation: return FText::Format(LOCTEXT("PaverToStation", "Paver → station (tank empty) · sector {0}"), SectorNumber(Sector));
-	case ELotPaverPhase::Loading: return FText::Format(LOCTEXT("PaverLoading", "Paver: loading at the station · {0}"), Tank);
-	case ELotPaverPhase::ToSector: return FText::Format(LOCTEXT("PaverToSector", "Paver → sector {0} · {1}"), SectorNumber(Sector), Tank);
+	case ELotPaverPhase::ToStation: return FText::Format(LOCTEXT("PaverToStation", "{0} → station (tank empty) · sector {1}"), Name, SectorNumber(Sector));
+	case ELotPaverPhase::Loading:
+		if (Game.IsAutoPaverStarved(Paver))
+		{
+			return FText::Format(LOCTEXT("PaverStarved", "{0}: waiting at the station – the plant has no asphalt"), Name);
+		}
+		return FText::Format(LOCTEXT("PaverLoading", "{0}: loading at the station · {1}"), Name, Tank);
+	case ELotPaverPhase::ToSector: return FText::Format(LOCTEXT("PaverToSector", "{0} → sector {1} · {2}"), Name, SectorNumber(Sector), Tank);
 	default: break;
 	}
-	return FText::Format(LOCTEXT("PaverWorking", "Paver: sector {0} · {1} / {2} · tank {3}"), SectorNumber(Sector), Count(Game.GetAutoPaverStep()), Count(AsphaltLot::CellsPerSector), Tank);
+	return FText::Format(LOCTEXT("PaverWorking", "{0}: sector {1} · {2} / {3} · tank {4}"), Name, SectorNumber(Sector), Count(Game.GetAutoPaverStep(Paver)), Count(AsphaltLot::CellsPerSector), Tank);
 }
 
 FText DIAFormat::MovablePrompt(ELotMovable Movable, bool bHeld)
@@ -456,7 +552,7 @@ FText DIAFormat::MovablePrompt(ELotMovable Movable, bool bHeld)
 	}
 	switch (Movable)
 	{
-	case ELotMovable::Suitcase: return LOCTEXT("PromptPullFlap", "E – Pull\nF – Open flap");
+	case ELotMovable::Trolley: return LOCTEXT("PromptPushTrolley", "E – Push");
 	case ELotMovable::Station: return LOCTEXT("PromptCarry", "E – Carry");
 	case ELotMovable::Cart: return LOCTEXT("PromptPush", "E – Push");
 	default: return FText::GetEmpty();
@@ -498,13 +594,15 @@ bool FDIAHudModel::Update(const FLotGame& Game)
 	const ELotUnlock Step = NextStep(Game);
 	NewKey.NextStep = static_cast<int32>(Step);
 	NewKey.NextEntryCells = Step == ELotUnlock::Count ? 0 : Game.GetEntryProgress(static_cast<int32>(Step));
-	// The paver's line shows the sector and the step; while it waits (or is not owned) the step is not shown.
-	if (Game.Owns(ELotItem::AutoPaver))
+	// A robot's line shows the sector and the step; while it waits (or is not owned) the step is not shown.
+	NewKey.NumPavers = Game.GetNumAutoPavers();
+	for (int32 Paver = 0; Paver < NewKey.NumPavers; ++Paver)
 	{
-		NewKey.PaverSector = Game.GetAutoPaverSector();
-		NewKey.PaverStep = NewKey.PaverSector == INDEX_NONE ? 0 : Game.GetAutoPaverStep();
-		NewKey.PaverPhase = static_cast<int32>(Game.GetAutoPaverPhase());
-		NewKey.PaverTankTenths = Tenths(Game.GetAutoPaverTank());
+		NewKey.PaverSector[Paver] = Game.GetAutoPaverSector(Paver);
+		NewKey.PaverStep[Paver] = NewKey.PaverSector[Paver] == INDEX_NONE ? 0 : Game.GetAutoPaverStep(Paver);
+		NewKey.PaverPhase[Paver] = static_cast<int32>(Game.GetAutoPaverPhase(Paver));
+		NewKey.PaverFlags[Paver] = (Game.IsAutoPaverAuto() ? 1 : 0) | (Game.IsAutoPaverStarved(Paver) ? 2 : 0);
+		NewKey.PaverTankTenths[Paver] = Tenths(Game.GetAutoPaverTank(Paver));
 	}
 
 	if (RebuildCount > 0 && NewKey == Key)
@@ -522,7 +620,10 @@ bool FDIAHudModel::Update(const FLotGame& Game)
 	View.Refill = DIAFormat::RefillLine(Game);
 	View.RefillCaption = bCarLine ? LOCTEXT("RefillCaptionCar", "Car") : LOCTEXT("RefillCaptionPlant", "Plant stock");
 	View.Next = DIAFormat::NextUnlock(Game);
-	View.Paver = DIAFormat::PaverLine(Game);
+	for (int32 Paver = 0; Paver < MaxAutoPavers; ++Paver)
+	{
+		View.Pavers[Paver] = DIAFormat::PaverLine(Game, Paver);
+	}
 	return true;
 }
 
@@ -558,6 +659,7 @@ void FDIACheckModel::Update(const FLotGame& Game, bool bHeld, float DeltaSeconds
 bool FDIAShopModel::Update(const FLotGame& Game)
 {
 	constexpr int32 NumItems = static_cast<int32>(ELotItem::Count);
+	constexpr int32 NumUpgrades = static_cast<int32>(ELotPaverUpgrade::Count);
 	constexpr int32 MaxPlantLevel = static_cast<int32>(std::size(LotBalance::PlantPrice));
 
 	// The key first, from cheap queries: this runs on every tick, so nothing is formatted unless it changed.
@@ -583,6 +685,26 @@ bool FDIAShopModel::Update(const FLotGame& Game)
 		}
 		NewKey.States[1 + I] = static_cast<int32>(State);
 	}
+	// A robot's upgrades: not on offer (Locked) until the robot is owned, Owned at the last level, else bought by the credits.
+	for (int32 Paver = 0; Paver < MaxAutoPavers; ++Paver)
+	{
+		for (int32 K = 0; K < NumUpgrades; ++K)
+		{
+			const ELotPaverUpgrade Kind = static_cast<ELotPaverUpgrade>(K);
+			const int32 Level = Game.GetPaverUpgradeLevel(Paver, Kind);
+			NewKey.Levels[Paver][K] = Level;
+			EDIAShopState State = EDIAShopState::Locked;
+			if (Level >= MaxPaverUpgradeLevel)
+			{
+				State = EDIAShopState::Owned;
+			}
+			else if (Level >= 0)
+			{
+				State = Game.CanBuyPaverUpgrade(Paver, Kind) ? EDIAShopState::Buy : EDIAShopState::NoCredits;
+			}
+			NewKey.States[FirstUpgradeRow + Paver * NumUpgrades + K] = static_cast<int32>(State);
+		}
+	}
 
 	if (RebuildCount > 0 && NewKey == Key)
 	{
@@ -591,11 +713,12 @@ bool FDIAShopModel::Update(const FLotGame& Game)
 	Key = NewKey;
 	++RebuildCount;
 
-	// The rows in their natural order: the plant, then the items.
+	// The rows in their natural order: the plant, the items, then the upgrade rows.
 	{
 		FDIAShopRow& Row = Natural[0];
 		Row = FDIAShopRow();
 		Row.bPlant = true;
+		Row.Shop = LotBalance::PlantShop;
 		Row.Name = LOCTEXT("ShopPlant", "Plant");
 		Row.Value = bPlantMax ? FText::Format(LOCTEXT("ShopRate", "{0} {1}"), Whole(PlantRate(NewKey.PlantLevel)), PerMinuteLitres())
 							  : Change(PlantRate(NewKey.PlantLevel), PlantRate(NewKey.PlantLevel + 1), PerMinuteLitres());
@@ -608,8 +731,17 @@ bool FDIAShopModel::Update(const FLotGame& Game)
 		FDIAShopRow& Row = Natural[1 + I];
 		Row = FDIAShopRow();
 		Row.Item = Item;
+		Row.Shop = LotBalance::ItemShop[I];
 		Row.Name = DIAFormat::ItemName(Item);
 		Row.Value = ItemValue(Item);
+		// A robot's card shows what the robot has now (level 0 while it is not owned).
+		for (int32 Paver = 0; Paver < MaxAutoPavers; ++Paver)
+		{
+			if (Item == AutoPaverItem[Paver])
+			{
+				Row.Value = RobotValue(NewKey.Levels[Paver][static_cast<int32>(ELotPaverUpgrade::Speed)], NewKey.Levels[Paver][static_cast<int32>(ELotPaverUpgrade::Capacity)]);
+			}
+		}
 		Row.State = static_cast<EDIAShopState>(NewKey.States[1 + I]);
 		if (Row.State != EDIAShopState::Owned)
 		{
@@ -621,12 +753,53 @@ bool FDIAShopModel::Update(const FLotGame& Game)
 		}
 	}
 
+	// Then the upgrades, robot by robot.
+	for (int32 Paver = 0; Paver < MaxAutoPavers; ++Paver)
+	{
+		for (int32 K = 0; K < NumUpgrades; ++K)
+		{
+			const ELotPaverUpgrade Kind = static_cast<ELotPaverUpgrade>(K);
+			const int32 Level = NewKey.Levels[Paver][K];
+			FDIAShopRow& Row = Natural[FirstUpgradeRow + Paver * NumUpgrades + K];
+			Row = FDIAShopRow();
+			Row.bPaverUpgrade = true;
+			Row.Paver = Paver;
+			Row.Upgrade = Kind;
+			Row.Shop = ELotShop::Robots;
+			Row.Name = Kind == ELotPaverUpgrade::Speed ? LOCTEXT("ShopUpgradeSpeed", "Speed") : LOCTEXT("ShopUpgradeCapacity", "Capacity");
+			Row.Value = UpgradeValue(Kind, Level);
+			Row.State = static_cast<EDIAShopState>(NewKey.States[FirstUpgradeRow + Paver * NumUpgrades + K]);
+			if (Row.State != EDIAShopState::Owned)
+			{
+				// A robot that is not owned shows the price of its first level.
+				Row.Price = DIAFormat::Credits(Level >= 0 ? Game.GetPaverUpgradePrice(Paver, Kind) : LotBalance::PaverUpgradePrice[K][0]);
+			}
+			if (Row.State == EDIAShopState::Locked)
+			{
+				Row.Reason = FText::Format(NSLOCTEXT("DIAShop", "LockedItem", "needs {0}"), DIAFormat::ItemName(AutoPaverItem[Paver]));
+			}
+		}
+	}
+
 	// The rows never move: what is bought stays where it was and only turns to Owned.
 	for (int32 I = 0; I < NumRows; ++I)
 	{
 		Rows[I] = Natural[I];
 	}
 	return true;
+}
+
+TArray<int32> FDIAShopModel::RowsOf(ELotShop Shop) const
+{
+	TArray<int32> Result;
+	for (int32 I = 0; I < NumRows; ++I)
+	{
+		if (Rows[I].Shop == Shop)
+		{
+			Result.Add(I);
+		}
+	}
+	return Result;
 }
 
 FDIAShopTarget FDIAShopModel::TargetOf(int32 Index, const FLotGame& Game) const
@@ -640,6 +813,13 @@ FDIAShopTarget FDIAShopModel::TargetOf(int32 Index, const FLotGame& Game) const
 	Target.bPlant = Rows[Index].bPlant;
 	Target.Item = Rows[Index].Item;
 	Target.PlantLevel = Game.GetPlantLevel();
+	if (Rows[Index].bPaverUpgrade)
+	{
+		Target.bPaverUpgrade = true;
+		Target.Paver = Rows[Index].Paver;
+		Target.Upgrade = Rows[Index].Upgrade;
+		Target.UpgradeLevel = Game.GetPaverUpgradeLevel(Target.Paver, Target.Upgrade);
+	}
 	return Target;
 }
 
@@ -651,17 +831,32 @@ bool FDIAShopModel::Buy(const FDIAShopTarget& Target, UDIAWorldSubsystem& Subsys
 	}
 	// The game decides, not the rows: they may be older than the click.
 	const FLotGame& Game = Subsystem.GetGame();
+	if (Target.bPaverUpgrade)
+	{
+		// The level the click expected must still be the level the robot has: a second click on a spot that moved on buys nothing.
+		return Game.GetPaverUpgradeLevel(Target.Paver, Target.Upgrade) == Target.UpgradeLevel && Subsystem.BuyPaverUpgrade(Target.Paver, Target.Upgrade);
+	}
 	return Target.bPlant ? (Game.GetPlantLevel() == Target.PlantLevel && Subsystem.BuyPlant()) : Subsystem.BuyItem(Target.Item);
 }
 
 int32 FDIAWinModel::ItemsBought(const FLotGame& Game)
 {
-	return Game.GetNumItemsOwned() + Game.GetPlantLevel();
+	int32 Bought = Game.GetNumItemsOwned() + Game.GetPlantLevel();
+	// The upgrade levels of the robots that are owned (a robot that is not owned has none).
+	for (int32 Paver = 0; Paver < MaxAutoPavers; ++Paver)
+	{
+		for (int32 Kind = 0; Kind < static_cast<int32>(ELotPaverUpgrade::Count); ++Kind)
+		{
+			Bought += FMath::Max(0, Game.GetPaverUpgradeLevel(Paver, static_cast<ELotPaverUpgrade>(Kind)));
+		}
+	}
+	return Bought;
 }
 
 int32 FDIAWinModel::ItemsTotal()
 {
-	return static_cast<int32>(ELotItem::Count) + static_cast<int32>(std::size(LotBalance::PlantPrice));
+	return static_cast<int32>(ELotItem::Count) + static_cast<int32>(std::size(LotBalance::PlantPrice))
+		+ MaxAutoPavers * static_cast<int32>(ELotPaverUpgrade::Count) * MaxPaverUpgradeLevel;
 }
 
 bool FDIAWinModel::Update(const FLotGame& Game)

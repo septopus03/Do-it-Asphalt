@@ -29,8 +29,8 @@ namespace DIAMovable
 /**
  * How each kind is held: presentation, not game numbers. Ahead is the origin's distance in front of the player along the player's
  * facing (negative = behind), Yaw the turn against the player's yaw, Tilt the pitch about Y. A forward-held kind has its back edge
- * HandleClearanceCm in front of the player (the capsule is 34 cm wide); the suitcase is pulled behind the player, turned the other
- * way round and tilted about its wheel axis.
+ * HandleClearanceCm in front of the player (the capsule is 34 cm wide); the trolley and the cart are pushed in front of the player, the
+ * station is pulled behind.
  *
  * Every pose keeps the footprint clear of the player's capsule (34 cm), so that letting go needs no move. The station is pulled behind
  * the player with its handle (the model's -X end) towards the player.
@@ -45,9 +45,8 @@ namespace DIAMovableHold
 	};
 
 	inline constexpr double HandleClearanceCm = 45.0;
-	/** The suitcase's origin (below its wheel axis) is this far behind the player; its handle then lies right behind the player's back. */
-	inline constexpr double SuitcaseBehindCm = 62.0;
-	inline constexpr double SuitcaseTiltDeg = 25.0;
+	/** The trolley's handle (50 cm behind its origin) is HandleClearanceCm in front of the player. */
+	inline constexpr double TrolleyAheadCm = HandleClearanceCm + 50.0;
 	/** The station's origin behind the player: its near end (60 cm from the origin) 45 cm behind the player's centre. */
 	inline constexpr double StationBehindCm = 105.0;
 
@@ -56,7 +55,7 @@ namespace DIAMovableHold
 	{
 		switch (Kind)
 		{
-		case ELotMovable::Suitcase: return {-SuitcaseBehindCm, 180.0, SuitcaseTiltDeg};
+		case ELotMovable::Trolley: return {TrolleyAheadCm, 0.0, 0.0};
 		case ELotMovable::Station: return {-StationBehindCm, 180.0, 0.0};
 		case ELotMovable::Cart:
 		default: return {HandleClearanceCm + 65.0, 0.0, 0.0};
@@ -65,16 +64,14 @@ namespace DIAMovableHold
 }
 
 /**
- * The suitcase, the cart and the portable station as objects of the world (one actor per owned kind; the game mode
+ * The trolley, the cart and the portable station as objects of the world (one actor per owned kind; the game mode
  * keeps the set). The core owns the position and who holds it (FLotWorldState::Movables), this actor only mirrors it: Interact grabs
  * or lets go through FLotGame, and the actor follows the core on every state change and after a loaded or restarted game. While
- * held it follows the player every tick (presentation only, collision off): the suitcase behind the player tilted about its wheel
- * axis with the handle towards the player, the others in front with their handle towards the player. Letting go writes the pose the
- * actor has into the core, if there is room there.
+ * held it follows the player every tick (presentation only, collision off): the trolley and the cart in front of the player with their
+ * handle towards the player, the station behind. Letting go writes the pose the actor has into the core, if there is room there.
  *
- * Behaviour that belongs to the object lives here, so that it runs in one place: a standing suitcase or cart in the refill zone fills
- * itself, a standing suitcase doses asphalt while the player holds Flap beside it, and the held cart lays a strip while Use is held and
- * it moves. The level shows as a disc in the cart's tub and as a column in the suitcase's sight strip.
+ * Behaviour that belongs to the object lives here, so that it runs in one place: a standing trolley or cart in the refill zone fills
+ * itself, and the held trolley or cart lays a strip while Use is held and it moves. The level shows as a disc in the tub.
  */
 UCLASS(NotBlueprintable)
 class DOITASPHALT_API ADIAMovable : public AActor, public IDIAInteractable
@@ -104,19 +101,19 @@ public:
 	bool IsHeld() const;
 	virtual bool IsHeldByPlayer() const override { return IsHeld(); }
 
-	/** Where the flap or the outlet opens, on the ground plane, in the world. The origin for kinds without a mouth. */
+	/** Where the outlet opens, on the ground plane, in the world. The origin for kinds without a mouth. */
 	FVector2D GetMouthPoint() const;
 
 	/** Distance in the ground plane from the point to the footprint (0 inside it); the footprint of a standing movable. */
 	double GetDistanceToFootprint(FVector2D Point) const;
 	bool ContainsPoint(FVector2D Point) const { return GetDistanceToFootprint(Point) <= 0.0; }
 
-	/** The source the bucket can be filled from at the point: a standing, owned suitcase or cart whose footprint contains it. False elsewhere. */
+	/** The source the bucket can be filled from at the point: a standing, owned trolley or cart whose footprint contains it. False elsewhere. */
 	static bool FindTapAt(const UWorld* World, FVector2D Point, ELotSource& OutSource);
 
 	UBoxComponent* GetCollision() const { return Collision; }
 	UStaticMeshComponent* GetBodyMesh() const { return BodyMesh; }
-	/** The disc in the cart's tub or the column in the suitcase's sight strip. */
+	/** The disc in the tub of the cart or the trolley. */
 	UStaticMeshComponent* GetLevelMesh() const { return LevelMesh; }
 
 	virtual void Tick(float DeltaSeconds) override;
@@ -149,7 +146,7 @@ private:
 	void WorkTheStrip(UDIAWorldSubsystem& Subsystem, const ADIACharacter* Player, float DeltaSeconds);
 	/** The held actor ticks after this character and its movement (null: after nobody), so that its pose is this frame's. */
 	void TickAfter(ADIACharacter* Character);
-	/** Shows the content of the cart or the suitcase; the work is skipped while it did not change. */
+	/** Shows the content of the cart or the trolley; the work is skipped while it did not change. */
 	void UpdateLevel();
 
 	UPROPERTY()

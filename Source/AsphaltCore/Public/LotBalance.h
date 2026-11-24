@@ -5,7 +5,20 @@
 #include "CoreMinimal.h"
 
 /** Things the player can buy. Order is binding: the tables in LotBalance are indexed by it. */
-enum class ELotItem : uint8 { Bucket, Canister, Tub, Suitcase, Cart, Station, AutoPaver, AutoPaverFast, AutoPaverFaster, Car, CarWideBar, Count };
+enum class ELotItem : uint8 { Bucket, Canister, Tub, Trolley, Cart, Station, AutoPaver, Car, CarT2, CarT3, CarT4, AutoPaver2, AutoPaver3, Count };
+
+/** Most auto paver robots the player can own. */
+inline constexpr int32 MaxAutoPavers = 3;
+/** The item that buys robot n (robots are bought in this order). */
+inline constexpr ELotItem AutoPaverItem[MaxAutoPavers] = {ELotItem::AutoPaver, ELotItem::AutoPaver2, ELotItem::AutoPaver3};
+
+/** What a robot can be upgraded in; every robot has its own level of each. */
+enum class ELotPaverUpgrade : uint8 { Speed, Capacity, Count };
+/** Highest upgrade level of a robot (levels 0..2: two purchases of each kind per robot). */
+inline constexpr int32 MaxPaverUpgradeLevel = 2;
+
+/** The three shop buildings in the south strip. */
+enum class ELotShop : uint8 { Tools, Robots, Garage, Count };
 
 /** Unlock steps; step i belongs to entry segment i of the progression and opens after LotBalance::UnlockCells[i] cells. */
 enum class ELotUnlock : uint8 { QuickSwap, Sprint, StripWork, AutoPaver, Car, Exit, Count };
@@ -14,10 +27,10 @@ enum class ELotUnlock : uint8 { QuickSwap, Sprint, StripWork, AutoPaver, Car, Ex
 enum class ELotHand : uint8 { Bowl, Bucket, Canister, Tub, Count };
 
 /** Equipment the player can carry or push around the lot. */
-enum class ELotMovable : uint8 { Suitcase, Cart, Station, Count };
+enum class ELotMovable : uint8 { Trolley, Cart, Station, Count };
 
 /** Where asphalt is drawn from. */
-enum class ELotSource : uint8 { Plant, Suitcase, Cart };
+enum class ELotSource : uint8 { Plant, Trolley, Cart };
 
 /** All balance numbers of the game. Units: centimetres, litres, seconds. */
 namespace LotBalance
@@ -38,27 +51,41 @@ namespace LotBalance
 	/** Litres the hand holds, indexed by ELotHand. */
 	inline constexpr double HandCapacityL[4] = {2.5, 10.0, 20.0, 36.0};
 
-	/** Price in credits, indexed by ELotItem. */
-	inline constexpr int32 ItemPrice[11] = {35, 70, 160, 110, 340, 900, 3000, 9000, 22000, 12000, 24000};
+	/** Price in credits, indexed by ELotItem. The robots 2 and 3 (40 000 / 80 000) and the upgrade prices below are tuned with the balance simulation: the scripted player of LotBalanceSimTest (three upgraded robots) must open the exit inside the window that test asserts: re-run it after any price change. */
+	inline constexpr int32 ItemPrice[13] = {35, 70, 160, 110, 340, 900, 3000, 12000, 24000, 48000, 96000, 40000, 80000};
 	/** Unlock step an item needs, indexed by ELotItem; ELotUnlock::Count means no condition. */
-	inline constexpr ELotUnlock ItemUnlock[11] =
+	inline constexpr ELotUnlock ItemUnlock[13] =
 	{
 		ELotUnlock::Count, ELotUnlock::Count, ELotUnlock::Sprint, ELotUnlock::Count, ELotUnlock::Count,
 		ELotUnlock::StripWork,
-		ELotUnlock::AutoPaver, ELotUnlock::AutoPaver, ELotUnlock::AutoPaver,
-		ELotUnlock::Car, ELotUnlock::Car
+		ELotUnlock::AutoPaver,
+		ELotUnlock::Car, ELotUnlock::Car, ELotUnlock::Car, ELotUnlock::Car,
+		ELotUnlock::AutoPaver, ELotUnlock::AutoPaver
 	};
 	/** Item that must be owned first, indexed by ELotItem; ELotItem::Count means nothing. */
-	inline constexpr ELotItem ItemRequires[11] =
+	inline constexpr ELotItem ItemRequires[13] =
 	{
 		ELotItem::Count, ELotItem::Count, ELotItem::Count, ELotItem::Count, ELotItem::Count,
 		ELotItem::Count,
-		ELotItem::Count, ELotItem::AutoPaver, ELotItem::AutoPaverFast,
-		ELotItem::Count, ELotItem::Car
+		ELotItem::Count,
+		ELotItem::Count, ELotItem::Car, ELotItem::CarT2, ELotItem::CarT3,
+		ELotItem::AutoPaver, ELotItem::AutoPaver2
 	};
+	/** The building that sells the item, indexed by ELotItem. */
+	inline constexpr ELotShop ItemShop[13] =
+	{
+		ELotShop::Tools, ELotShop::Tools, ELotShop::Tools, ELotShop::Tools, ELotShop::Tools,
+		ELotShop::Robots,
+		ELotShop::Robots,
+		ELotShop::Garage, ELotShop::Garage, ELotShop::Garage, ELotShop::Garage,
+		ELotShop::Robots, ELotShop::Robots
+	};
+	/** The building that sells the plants. */
+	inline constexpr ELotShop PlantShop = ELotShop::Tools;
 	static_assert(UE_ARRAY_COUNT(ItemPrice) == (int32)ELotItem::Count, "ItemPrice must have one entry per ELotItem");
 	static_assert(UE_ARRAY_COUNT(ItemUnlock) == (int32)ELotItem::Count, "ItemUnlock must have one entry per ELotItem");
 	static_assert(UE_ARRAY_COUNT(ItemRequires) == (int32)ELotItem::Count, "ItemRequires must have one entry per ELotItem");
+	static_assert(UE_ARRAY_COUNT(ItemShop) == (int32)ELotItem::Count, "ItemShop must have one entry per ELotItem");
 	static_assert(UE_ARRAY_COUNT(HandCapacityL) == (int32)ELotHand::Count, "HandCapacityL must have one entry per ELotHand");
 
 	/** Completed cells needed for each unlock step, indexed by ELotUnlock. */
@@ -76,30 +103,45 @@ namespace LotBalance
 	/** Plant level that adds the second add-on. */
 	inline constexpr int32 PlantAddonBLevel = 4;
 
-	/** Litres the suitcase holds. */
-	inline constexpr double SuitcaseCapacityL = 60.0;
+	/** Litres the trolley holds. */
+	inline constexpr double TrolleyCapacityL = 80.0;
 	/** Litres the cart holds. */
 	inline constexpr double CartCapacityL = 200.0;
 
-	/** Cells per minute for the three auto paver levels. */
-	inline constexpr double AutoPaverRateCellsPerMin[3] = {120, 170, 220};
-
-	/** Litres the tank of the auto paver holds; it is filled at a vehicle station. */
-	inline constexpr double AutoPaverTankL = 2000.0; // tunable
-	/** Litres the tank of the car holds: plain bar, wide bar; filled at a vehicle station. */
-	inline constexpr double CarTankL[2] = {6000.0, 8000.0}; // tunable
+	/** Cells per minute of an auto paver, indexed by its speed level (levels 1 and 2 are tuned with the three-robot balance simulation). */
+	inline constexpr double AutoPaverRateCellsPerMin[3] = {120, 150, 180}; // tunable
+	/** Litres the tank of an auto paver holds, indexed by its capacity level; it is filled at a vehicle station. */
+	inline constexpr double AutoPaverTankLByLevel[3] = {2000.0, 3000.0, 4500.0}; // tunable
+	/** Price in credits of the next upgrade level: row = ELotPaverUpgrade, column = the level it is bought from (0 = from level 0 to 1). */
+	inline constexpr int32 PaverUpgradePrice[2][2] = {{20000, 60000}, {5000, 15000}}; // tunable
+	static_assert(UE_ARRAY_COUNT(AutoPaverRateCellsPerMin) == MaxPaverUpgradeLevel + 1, "one rate per speed level");
+	static_assert(UE_ARRAY_COUNT(AutoPaverTankLByLevel) == MaxPaverUpgradeLevel + 1, "one tank size per capacity level");
+	static_assert(UE_ARRAY_COUNT(PaverUpgradePrice) == static_cast<int32>(ELotPaverUpgrade::Count), "one price row per upgrade kind");
+	static_assert(UE_ARRAY_COUNT(PaverUpgradePrice[0]) == MaxPaverUpgradeLevel, "one price per level bought");
+	/** Litres the tank of the car holds: tiers 1..4; filled at a vehicle station. */
+	inline constexpr double CarTankL[4] = {6000.0, 8000.0, 12000.0, 18000.0}; // tunable
 	/** Litres per second a vehicle takes in at a station (what the plant stock allows). */
 	inline constexpr double VehicleLoadRateLPerS = 500.0; // tunable
 	/** A vehicle within this distance of a station is loaded. */
 	inline constexpr double VehicleStationRadiusCm = 500.0; // tunable
+	/** An auto paver that finds the plant stock empty leaves a station once its tank holds this much. */
+	inline constexpr double AutoPaverMinLoadL = 150.0; // tunable
 	/** Below this the tank of the auto paver counts as empty and the paver drives to a station. */
 	inline constexpr double AutoPaverTankEmptyL = 0.5;
 
-	/** Cells per minute of the car: plain bar, wide bar. */
-	inline constexpr double CarRateCellsPerMin[2] = {260, 300};
-	/** Width of the car's bar: plain bar, wide bar. */
-	inline constexpr double CarWidthCm[2] = {300, 350};
-	static_assert(UE_ARRAY_COUNT(CarTankL) == 2, "one car tank per bar");
+	/** Number of car tiers (Car, CarT2, CarT3, CarT4); the car tables below are indexed by the car level 0..3. */
+	inline constexpr int32 NumCarLevels = 4;
+	/** Cells per minute of the car, per tier. */
+	inline constexpr double CarRateCellsPerMin[4] = {260, 300, 380, 480};
+	/** Width of the car's bar, per tier. */
+	inline constexpr double CarWidthCm[4] = {300, 360, 420, 500};
+	/** Distance of the car's bar behind the car's centre, per tier. */
+	inline constexpr double CarBarBehindCm[4] = {230.0, 280.0, 340.0, 410.0};
+	static_assert(UE_ARRAY_COUNT(CarTankL) == NumCarLevels, "one car tank per tier");
+	static_assert(UE_ARRAY_COUNT(CarRateCellsPerMin) == NumCarLevels, "one car rate per tier");
+	static_assert(UE_ARRAY_COUNT(CarWidthCm) == NumCarLevels, "one car bar width per tier");
+	static_assert(UE_ARRAY_COUNT(CarBarBehindCm) == NumCarLevels, "one car bar distance per tier");
+	static_assert(static_cast<int32>(ELotItem::CarT4) - static_cast<int32>(ELotItem::Car) + 1 == NumCarLevels, "the car tiers are consecutive items");
 
 	// ---- Not fixed by the specification ----
 
@@ -114,19 +156,21 @@ namespace LotBalance
 	inline constexpr double SwapSeconds = 1.5; // tunable
 	/** Farthest distance from the player at which the aim point works. */
 	inline constexpr double ReachCm = 250.0; // tunable
-	/** Litres per second through the suitcase flap. */
-	inline constexpr double SuitcaseDoseRateLPerS = 2.0; // tunable
-	/** Litres per second when filling the bucket from the suitcase or the cart. */
+	/** Litres per second when filling the bucket from the trolley or the cart. */
 	inline constexpr double TapRateLPerS = 5.0; // tunable
 	/** Width of the strip the cart lays. */
 	inline constexpr double CartStripWidthCm = 100.0; // tunable
+	/** Width of the strip the trolley lays (its outlet is 40 cm wide). */
+	inline constexpr double TrolleyStripWidthCm = 45.0; // tunable
 
 	/** Walking speed. */
 	inline constexpr double WalkSpeedCmS = 450.0; // tunable
 	/** Speed multiplier while sprinting. */
 	inline constexpr double SprintMultiplier = 1.6; // tunable
-	/** Speed while pulling the suitcase. */
-	inline constexpr double SuitcasePullSpeedCmS = 350.0; // tunable
+	/** Speed while pushing the trolley. */
+	inline constexpr double TrolleyPushSpeedCmS = 430.0; // tunable
+	/** Speed while pushing the trolley and laying asphalt. */
+	inline constexpr double TrolleyLaySpeedCmS = 260.0; // tunable
 	/** Speed while pushing the cart. */
 	inline constexpr double CartPushSpeedCmS = 400.0; // tunable
 	/** Speed while pushing the cart and laying asphalt. */
@@ -147,7 +191,7 @@ namespace LotBalance
 	/** Largest simulation step in seconds; longer spans are split into steps of this size. */
 	inline constexpr double MaxStepSeconds = 0.25;
 	/** Ties the tunable budget cap to the sub-step so that tuning cannot clip the top auto paver rate. */
-	static_assert(AutoPaverRateCellsPerMin[2] * LitresPerCell * CompletionThreshold / 60.0 * MaxStepSeconds <= AutoPaverBudgetCapL,
+	static_assert(AutoPaverRateCellsPerMin[MaxPaverUpgradeLevel] * LitresPerCell * CompletionThreshold / 60.0 * MaxStepSeconds <= AutoPaverBudgetCapL,
 		"AutoPaverBudgetCapL must hold the litres the top auto paver rate earns in one sub-step");
 	/** Both ends of a pouring stamp are extended by this much. */
 	inline constexpr double StampPadCm = 5.0;
@@ -155,8 +199,6 @@ namespace LotBalance
 	inline constexpr double InteractionRangeCm = 150.0;
 	/** Seconds between autosaves. */
 	inline constexpr double AutosaveIntervalSeconds = 30.0;
-	/** Distance of the car's bar behind the car's centre. */
-	inline constexpr double CarBarBehindCm = 230.0;
 	/** Car turn rate in degrees per second. */
 	inline constexpr double CarTurnRateDegPerSec = 90.0;
 	/** Reversing speed as a fraction of the forward speed. */
@@ -192,7 +234,7 @@ namespace LotBalance
 
 	// ---- Derived ----
 
-	/** Speed at which the car must move to lay its rate with its bar width; Level 0 = plain, 1 = wide bar. */
+	/** Speed at which the car must move to lay its rate with its bar width; Level 0..3 = tier 1..4. */
 	constexpr double CarPaveSpeedCmS(int32 Level)
 	{
 		return CarRateCellsPerMin[Level] * 10000.0 / (60.0 * CarWidthCm[Level]);

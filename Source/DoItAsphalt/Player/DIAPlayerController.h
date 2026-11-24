@@ -15,8 +15,10 @@ struct FInputActionValue;
  * Pause (Esc) opens and closes the pause menu (the pause action also fires while the game is paused, so that Esc can
  * close the menu). Every frame it looks for the nearest interactable within reach and shows its prompt; Interact (E)
  * uses it. While the player drives the paver car the same handlers steer it instead: WASD throttle and steering, the mouse
- * turns the head, Use pours the bar and E gets out; the hand keys, G, F, the work view and V do nothing. Tab opens and closes the shop and V holds the check view. While a menu, the shop or the win screen is up there
- * is no prompt and E does nothing; the shop leaves the game running.
+ * turns the head, Use pours the bar and E gets out; the hand keys, Shift, R, H, the work view and V do nothing; M still opens the paver map. V holds the check view on foot.
+ * E at the buy point of a shop building opens its panel. While the panel is up, E closes it (before any other interactable is looked for), and
+ * it also closes when the player walks more than DIAShopPoint::CloseRangeCm away or gets into the car; the shop leaves the game running.
+ * While a menu or the win screen is up there is no prompt and E does nothing.
  */
 UCLASS(NotBlueprintable)
 class DOITASPHALT_API ADIAPlayerController : public APlayerController
@@ -51,18 +53,18 @@ public:
 	class IDIAInteractable* FindInteractable() const;
 
 	virtual void PlayerTick(float DeltaTime) override;
+	/** Every tick: closes the shop panel when the player sits in the car or has walked further than DIAShopPoint::CloseRangeCm from the building it shows (public for tests, which have no player input to tick). */
+	void CloseShopWhenAway();
 
 	/** The input handlers, bound to the actions; public so that tests can drive them without a keyboard. */
 	void OnMove(const FInputActionValue& Value);
 	/** The movement keys went up: a driven car stops accelerating and steering (the character stops by itself). */
 	void OnMoveStopped();
-	/** E: uses what is within reach; at the wheel of the car it gets out. */
+	/** E: closes the shop panel if one is open; else uses what is within reach (at the wheel of the car it gets out). */
 	void OnInteract();
 	/** Esc: closes the shop if it is open, else opens or closes the pause menu (nothing on the win screen). */
 	void OnPause();
-	/** Tab: opens or closes the shop. */
-	void OnShop();
-	/** G: opens or closes the paver map (click a sector to send the auto paver there); "No paver" without it. */
+	/** M: opens or closes the paver map (click a sector to send the auto paver there); "No paver" without it. */
 	void OnPaverMap();
 	/** V, held: the check view; it does nothing while a menu, the shop or the win screen is up. */
 	void OnCheckViewStarted();
@@ -70,9 +72,6 @@ public:
 	/** Use and WorkView: held buttons; they do nothing while a menu or the win screen is up. */
 	void OnUseStarted();
 	void OnUseCompleted();
-	/** Flap (F, held): the standing suitcase beside the player opens its flap; it does nothing while a menu, the shop or the win screen is up. */
-	void OnFlapStarted();
-	void OnFlapCompleted();
 	/** Fill (R, held): scoops from the trough (bowl, scoop) or fills the bucket at a tap or the outlet. Pouring is the left button. */
 	void OnFillStarted();
 	void OnFillCompleted();
@@ -99,7 +98,7 @@ private:
 	class ADIACharacter* GetDIACharacter() const;
 	/** The car the player drives; null on foot. */
 	class ADIAPaverCar* GetDIACar() const;
-	/** Lets go of everything a UI that takes over the screen must not leave running: sprinting, using the item, the flap, the work view and the check view. */
+	/** Lets go of everything a UI that takes over the screen must not leave running: sprinting, using the item, the work view and the check view. */
 	void ReleaseControls();
 	/** The menu, the shop or the win screen covers the screen and owns the mouse: nothing behind it can be used. */
 	bool IsUiInput() const { return bMenuInput || bShopInput || bWinInput; }

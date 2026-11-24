@@ -6,6 +6,7 @@
 #include "Game/DIAWorldSubsystem.h"
 #include "EngineUtils.h"
 #include "GameFramework/PlayerStart.h"
+#include "LotBalance.h"
 #include "LotLayout.h"
 #include "LotMap.h"
 #include "Player/DIACharacter.h"
@@ -20,6 +21,8 @@
 #include "World/DIAMovable.h"
 #include "World/DIAPaverCar.h"
 #include "World/DIAPlantActor.h"
+#include "World/DIAShopBuilding.h"
+#include "World/DIAShopPoint.h"
 #include "World/DIAVehicleStation.h"
 
 namespace
@@ -48,6 +51,24 @@ void ADIAGameMode::StartPlay()
 		World->SpawnActor<ADIAPlantActor>(FVector(LotLayout::PlantPos.X, LotLayout::PlantPos.Y, 0.0), FRotator(0.0, LotLayout::PlantYawDeg, 0.0), Params);
 		// The fixed vehicle station: the car and the auto paver load asphalt here.
 		World->SpawnActor<ADIAVehicleStation>(FVector(LotLayout::VehicleStationPos.X, LotLayout::VehicleStationPos.Y, 0.0), FRotator::ZeroRotator, Params);
+		// The three shop buildings along the south strip; the kind is set before BeginPlay, which builds the sign according to it.
+		for (int32 I = 0; I < static_cast<int32>(ELotShop::Count); ++I)
+		{
+			const ELotShop Shop = static_cast<ELotShop>(I);
+			const FTransform Where = DIAShopBuilding::MakeTransform(Shop);
+			if (ADIAShopBuilding* Building = World->SpawnActorDeferred<ADIAShopBuilding>(ADIAShopBuilding::StaticClass(), Where, nullptr, nullptr, ESpawnActorCollisionHandlingMethod::AlwaysSpawn))
+			{
+				Building->Kind = Shop;
+				Building->FinishSpawning(Where);
+			}
+			// The buy point of the building, where E opens its panel.
+			const FTransform PointAt = ADIAShopPoint::MakeTransform(Shop);
+			if (ADIAShopPoint* Point = World->SpawnActorDeferred<ADIAShopPoint>(ADIAShopPoint::StaticClass(), PointAt, nullptr, nullptr, ESpawnActorCollisionHandlingMethod::AlwaysSpawn))
+			{
+				Point->Kind = Shop;
+				Point->FinishSpawning(PointAt);
+			}
+		}
 		EnsureSite();
 	}
 	if (UDIAWorldSubsystem* Subsystem = UDIAWorldSubsystem::Get(this))
@@ -91,7 +112,7 @@ void ADIAGameMode::EnsureAllMovables()
 	{
 		EnsureMovable(static_cast<ELotMovable>(I));
 	}
-	EnsureAutoPaver();
+	EnsureAutoPavers();
 	EnsureCar();
 }
 
@@ -133,10 +154,10 @@ void ADIAGameMode::EnsureCar()
 	FActorSpawnParameters Params;
 	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 	const FLotWorldState& State = Subsystem->GetGame().World();
-	World->SpawnActor<ADIAPaverCar>(FVector(State.CarPos.X, State.CarPos.Y, DIAPaverCar::OriginHeightCm()), FRotator(0.0, State.CarYawDeg, 0.0), Params);
+	World->SpawnActor<ADIAPaverCar>(FVector(State.CarPos.X, State.CarPos.Y, DIAPaverCar::OriginHeightCm(Subsystem->GetGame().GetCarLevel())), FRotator(0.0, State.CarYawDeg, 0.0), Params);
 }
 
-void ADIAGameMode::EnsureAutoPaver()
+void ADIAGameMode::EnsureAutoPavers()
 {
 	UWorld* World = GetWorld();
 	const UDIAWorldSubsystem* Subsystem = UDIAWorldSubsystem::Get(this);
@@ -144,8 +165,10 @@ void ADIAGameMode::EnsureAutoPaver()
 	{
 		return;
 	}
-	const bool bOwned = Subsystem->GetGame().Owns(ELotItem::AutoPaver);
-	ADIAAutoPaver* Kept = nullptr;
+	const int32 Owned = Subsystem->GetGame().GetNumAutoPavers();
+
+	// What stands now: one actor per owned robot is kept, every other one goes.
+	ADIAAutoPaver* Kept[MaxAutoPavers] = {};
 	TArray<ADIAAutoPaver*> Surplus;
 	for (TActorIterator<ADIAAutoPaver> It(World); It; ++It)
 	{
@@ -153,9 +176,10 @@ void ADIAGameMode::EnsureAutoPaver()
 		{
 			continue;
 		}
-		if (bOwned && !Kept)
+		const int32 Index = It->Index;
+		if (Index >= 0 && Index < Owned && !Kept[Index])
 		{
-			Kept = *It;
+			Kept[Index] = *It;
 		}
 		else
 		{
@@ -166,15 +190,21 @@ void ADIAGameMode::EnsureAutoPaver()
 	{
 		Actor->Destroy();
 	}
-	if (!bOwned || Kept)
+	// A new robot appears where the core has it (its dock), facing out of the depot.
+	for (int32 Index = 0; Index < Owned; ++Index)
 	{
-		return;
+		if (Kept[Index])
+		{
+			continue;
+		}
+		const FVector2D Pos = Subsystem->GetGame().GetAutoPaverPos(Index);
+		const FTransform Where(FRotator(0.0, LotLayout::PaverDockYawDeg, 0.0), FVector(Pos.X, Pos.Y, 0.0));
+		if (ADIAAutoPaver* Robot = World->SpawnActorDeferred<ADIAAutoPaver>(ADIAAutoPaver::StaticClass(), Where, nullptr, nullptr, ESpawnActorCollisionHandlingMethod::AlwaysSpawn))
+		{
+			Robot->Index = Index;
+			Robot->FinishSpawning(Where);
+		}
 	}
-	// It appears where the core has it (the actor puts itself there in BeginPlay).
-	FActorSpawnParameters Params;
-	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-	const FVector2D Pos = Subsystem->GetGame().GetAutoPaverPos();
-	World->SpawnActor<ADIAAutoPaver>(FVector(Pos.X, Pos.Y, 0.0), FRotator::ZeroRotator, Params);
 }
 
 void ADIAGameMode::EnsureMovable(ELotMovable Kind)

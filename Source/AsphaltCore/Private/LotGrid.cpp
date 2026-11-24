@@ -236,29 +236,52 @@ FLotPour FLotGrid::ApplyCandidates(int32 Budget)
 	return Result;
 }
 
-void FLotGrid::CollectStampCandidates(FVector2D A, FVector2D B, double WidthCm)
+namespace
+{
+	/** True if P lies in the triangle (either winding); a triangle without area holds nothing. */
+	bool InTriangle(const FVector2D& P, const FVector2D& T0, const FVector2D& T1, const FVector2D& T2)
+	{
+		const double Area = FVector2D::CrossProduct(T1 - T0, T2 - T0);
+		if (FMath::Abs(Area) <= UE_DOUBLE_SMALL_NUMBER)
+		{
+			return false;
+		}
+		const double D0 = FVector2D::CrossProduct(T1 - T0, P - T0);
+		const double D1 = FVector2D::CrossProduct(T2 - T1, P - T1);
+		const double D2 = FVector2D::CrossProduct(T0 - T2, P - T2);
+		const bool bNegative = D0 < 0.0 || D1 < 0.0 || D2 < 0.0;
+		const bool bPositive = D0 > 0.0 || D1 > 0.0 || D2 > 0.0;
+		return !(bNegative && bPositive);
+	}
+
+	/** The unit direction of Value; Fallback if it has no length. */
+	FVector2D UnitOr(const FVector2D& Value, const FVector2D& Fallback)
+	{
+		const double Length = Value.Size();
+		return Length > UE_DOUBLE_SMALL_NUMBER ? Value / Length : Fallback;
+	}
+}
+
+void FLotGrid::CollectStampCandidates(FVector2D A, FVector2D B, FVector2D ForwardA, FVector2D ForwardB, double WidthCm)
 {
 	Candidates.Reset();
 
-	FVector2D Axis = B - A;
-	const double Length = Axis.Size();
-	if (Length > UE_DOUBLE_SMALL_NUMBER)
-	{
-		Axis /= Length;
-	}
-	else
-	{
-		Axis = FVector2D(1.0, 0.0);
-	}
-	const FVector2D Normal(-Axis.Y, Axis.X);
+	const FVector2D Axis = UnitOr(B - A, FVector2D(1.0, 0.0));
+	const FVector2D NormalA(-ForwardA.Y, ForwardA.X);
+	const FVector2D NormalB(-ForwardB.Y, ForwardB.X);
 	const double Pad = LotBalance::StampPadCm;
 	const double HalfWidth = WidthCm * 0.5;
 
-	// Bounding box of the rectangle in texel space; work stays proportional to it.
+	// The swept area: the bar at the start (set back by the pad) to the bar at the end (set forward by the pad).
 	const FVector2D Start = A - Axis * Pad;
 	const FVector2D End = B + Axis * Pad;
-	const FVector2D Side = Normal * HalfWidth;
-	const FVector2D Corners[4] = {Start + Side, Start - Side, End + Side, End - Side};
+	const FVector2D L0 = Start + NormalA * HalfWidth;
+	const FVector2D R0 = Start - NormalA * HalfWidth;
+	const FVector2D L1 = End + NormalB * HalfWidth;
+	const FVector2D R1 = End - NormalB * HalfWidth;
+
+	// Bounding box of the quad in texel space; work stays proportional to it.
+	const FVector2D Corners[4] = {L0, R0, L1, R1};
 	FVector2D Min = Corners[0];
 	FVector2D Max = Corners[0];
 	for (const FVector2D& Corner : Corners)
@@ -295,25 +318,32 @@ void FLotGrid::CollectStampCandidates(FVector2D A, FVector2D B, double WidthCm)
 			{
 				continue; // taken already, or outside the car park: never changes
 			}
-			const FVector2D Offset(TexelCentre(X) - A.X, Wy - A.Y);
-			const double Along = FVector2D::DotProduct(Offset, Axis);
-			const double Across = FVector2D::DotProduct(Offset, Normal);
-			if (Along < -Pad || Along > Length + Pad || FMath::Abs(Across) > HalfWidth)
+			const FVector2D Point(TexelCentre(X), Wy);
+			if (!InTriangle(Point, L0, R0, R1) && !InTriangle(Point, L0, R1, L1))
 			{
 				continue;
 			}
-			Candidates.Add({Along, Index});
+			Candidates.Add({FVector2D::DotProduct(Point - A, Axis), Index});
 		}
 	}
 }
 
 FLotPour FLotGrid::Stamp(FVector2D A, FVector2D B, double WidthCm, double MaxLitres)
 {
-	if (!FMath::IsFinite(MaxLitres) || !(MaxLitres > 0.0) || !FMath::IsFinite(WidthCm) || !(WidthCm >= 0.0) || !IsFinite(A) || !IsFinite(B))
+	const FVector2D Axis = IsFinite(A) && IsFinite(B) ? UnitOr(B - A, FVector2D(1.0, 0.0)) : FVector2D(1.0, 0.0);
+	return StampSweep(A, B, Axis, Axis, WidthCm, MaxLitres);
+}
+
+FLotPour FLotGrid::StampSweep(FVector2D A, FVector2D B, FVector2D ForwardA, FVector2D ForwardB, double WidthCm, double MaxLitres)
+{
+	if (!FMath::IsFinite(MaxLitres) || !(MaxLitres > 0.0) || !FMath::IsFinite(WidthCm) || !(WidthCm >= 0.0) || !IsFinite(A) || !IsFinite(B) ||
+		!IsFinite(ForwardA) || !IsFinite(ForwardB))
 	{
 		return FLotPour();
 	}
-	CollectStampCandidates(A, B, WidthCm);
+	// The bar's directions are only directions; a zero one falls back to the way the bar travels.
+	const FVector2D Axis = UnitOr(B - A, FVector2D(1.0, 0.0));
+	CollectStampCandidates(A, B, UnitOr(ForwardA, Axis), UnitOr(ForwardB, Axis), WidthCm);
 	SortCandidates();
 	return ApplyCandidates(BudgetTexels(MaxLitres));
 }

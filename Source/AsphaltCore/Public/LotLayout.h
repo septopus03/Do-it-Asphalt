@@ -48,6 +48,24 @@ namespace LotLayout
 	/** Shop board beside an entry (sections 0, 3, 4, 5): EntryCentre + Outward * 150 + Right * 450, Right = (-Out.Y, Out.X). */
 	ASPHALTCORE_API FVector2D BoardPos(int32 Entry);
 
+	/** Number of docks in the robot shop. */
+	inline constexpr int32 NumPaverDocks = 3;
+	/** Robots leave their docks facing +Y (model +X towards the car park). */
+	inline constexpr double PaverDockYawDeg = 90.0;
+	/** A bought car appears facing +X. */
+	inline constexpr double CarSpawnYawDeg = 0.0;
+
+	/** Origin of a shop building in the south strip. */
+	ASPHALTCORE_API FVector2D ShopPos(ELotShop Shop);
+	/** Yaw of a shop building in degrees. */
+	ASPHALTCORE_API double ShopYawDeg(ELotShop Shop);
+	/** A point in the building's model space (cm) in the world: Pos + (Lx cos - Ly sin, Lx sin + Ly cos). */
+	ASPHALTCORE_API FVector2D ShopLocalToWorld(ELotShop Shop, FVector2D LocalCm);
+	/** Where the player stands to buy at the shop. */
+	ASPHALTCORE_API FVector2D ShopPoint(ELotShop Shop);
+	/** Dock Index (0..2) of the robot shop; a zero vector outside that range. */
+	ASPHALTCORE_API FVector2D PaverDock(int32 Index);
+
 	/** Where a bought item appears; items without a place of their own appear at PlayerStart. */
 	ASPHALTCORE_API FVector2D ItemSpawn(ELotItem Item);
 }

@@ -13,15 +13,10 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/PlayerController.h"
 #include "LotBalance.h"
+#include "LotLayout.h"
 #include "Player/DIACharacter.h"
 #include "UI/DIAFormat.h"
 #include "UI/DIAHUD.h"
-
-namespace
-{
-	/** The wide bar's placeholder (no model of the name): a flat strip behind the body, this high above the ground. */
-	constexpr double PlaceholderBarHeightCm = 60.0;
-}
 
 ADIAPaverCar::ADIAPaverCar()
 {
@@ -35,7 +30,7 @@ ADIAPaverCar::ADIAPaverCar()
 	// The box is the root, so that moving the actor sweeps it. The actor's origin is the box centre (see OriginHeightCm).
 	Collision = CreateDefaultSubobject<UBoxComponent>(TEXT("Collision"));
 	SetRootComponent(Collision);
-	Collision->SetBoxExtent(DIAModelSizes::PaverCarBodyCm * 0.5);
+	Collision->SetBoxExtent(DIAModelSizes::PaverCarBodyCm[0] * 0.5);
 	Collision->SetCollisionProfileName(UCollisionProfile::BlockAll_ProfileName);
 	Collision->SetCollisionObjectType(ECC_Pawn);
 	Collision->SetCollisionResponseToChannel(ECC_Camera, ECR_Ignore);
@@ -45,12 +40,6 @@ ADIAPaverCar::ADIAPaverCar()
 	BodyMesh->SetupAttachment(Collision);
 	BodyMesh->SetRelativeLocation(FVector(0.0, 0.0, -DIAPaverCar::OriginHeightCm()));
 	BodyMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-
-	// The wide bar is a model of its own that shares the body's origin, so it sits on the body with no offset; shown once owned.
-	WideBarMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("WideBarMesh"));
-	WideBarMesh->SetupAttachment(BodyMesh);
-	WideBarMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	WideBarMesh->SetVisibility(false);
 
 	// Third person: a boom from a pivot over the car's centre; the mouse turns the boom against the car, the camera does not follow the control rotation.
 	Boom = CreateDefaultSubobject<USpringArmComponent>(TEXT("Boom"));
@@ -76,13 +65,9 @@ void ADIAPaverCar::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// The real model (bar included) stands on the ground at the origin; the placeholder body is a box centred on the collision box.
-	DIAAssets::SetModelOrFallback(BodyMesh, TEXT("SM_PaverCar"), DIAAssets::EFallback::Cube, DIAModelSizes::PaverCarBodyCm,
-		FVector(0.0, 0.0, DIAPaverCar::OriginHeightCm()), TEXT("DIA_Yellow"));
-	DIAAssets::SetModelOrFallback(WideBarMesh, TEXT("SM_PaverCar_WideBar"), DIAAssets::EFallback::Cube, DIAModelSizes::WideBarCm,
-		FVector(-LotBalance::CarBarBehindCm, 0.0, PlaceholderBarHeightCm), TEXT("DIA_Steel"));
-	WideBarMesh->SetVisibility(false);
-	bShowsWideBar = false;
+	// The model of the core's tier (bar included) stands on the ground at the origin; the placeholder body is a box centred on the collision box.
+	ShownLevel = -1;
+	UpdateTier(/*bCheckRoom*/ false);
 	if (UDIAWorldSubsystem* Subsystem = UDIAWorldSubsystem::Get(this))
 	{
 		Subsystem->RegisterInteractable(this, this);
@@ -157,6 +142,7 @@ void ADIAPaverCar::SetPouring(bool bPour)
 	bPouring = bPour;
 	// A new stroke starts where the bar is now, and nothing is laid between where the last one ended and here.
 	ToolPath.Reset();
+	bHasPreviousHeading = false;
 }
 
 void ADIAPaverCar::DoLook(float Yaw, float Pitch)
@@ -173,17 +159,73 @@ FVector2D ADIAPaverCar::GetBarPoint() const
 {
 	const FVector Location = GetActorLocation();
 	const FVector Forward = GetActorForwardVector();
-	return FVector2D(Location.X, Location.Y) - FVector2D(Forward.X, Forward.Y).GetSafeNormal() * LotBalance::CarBarBehindCm;
+	return FVector2D(Location.X, Location.Y) - FVector2D(Forward.X, Forward.Y).GetSafeNormal() * LotBalance::CarBarBehindCm[CoreLevel()];
 }
 
-void ADIAPaverCar::UpdateBar()
+int32 ADIAPaverCar::CoreLevel() const
 {
 	const UDIAWorldSubsystem* Subsystem = UDIAWorldSubsystem::Get(this);
-	const bool bWide = Subsystem && Subsystem->GetGame().GetCarLevel() == 1;
-	if (bWide != bShowsWideBar)
+	return Subsystem ? DIAPaverCar::ClampLevel(Subsystem->GetGame().GetCarLevel()) : 0;
+}
+
+bool ADIAPaverCar::HasRoomAt(const FVector& Location, double YawDeg) const
+{
+	const UWorld* World = GetWorld();
+	if (!World)
 	{
-		bShowsWideBar = bWide;
-		WideBarMesh->SetVisibility(bWide);
+		return true;
+	}
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(PaverCarRoom), /*bTraceComplex*/ false);
+	Params.AddIgnoredActor(this);
+	if (Driver)
+	{
+		Params.AddIgnoredActor(Driver);
+	}
+	const FCollisionShape Box = FCollisionShape::MakeBox(Collision->GetUnscaledBoxExtent());
+	return !World->OverlapBlockingTestByChannel(Location, FRotator(0.0, YawDeg, 0.0).Quaternion(), ECC_Pawn, Box, Params);
+}
+
+void ADIAPaverCar::UpdateTier(bool bCheckRoom)
+{
+	const int32 Level = CoreLevel();
+	if (Level == ShownLevel)
+	{
+		return;
+	}
+	const bool bUpgrade = ShownLevel >= 0;
+	ShownLevel = Level;
+
+	// The box of the tier; the origin is its centre, so the actor's height follows its height (the wheels stay on the ground).
+	const double Height = DIAPaverCar::OriginHeightCm(Level);
+	const FVector& Body = DIAModelSizes::PaverCarBodyCm[Level];
+	Collision->SetBoxExtent(Body * 0.5);
+	FVector Location = GetActorLocation();
+	Location.Z = Height;
+	SetActorLocation(Location, false, nullptr, ETeleportType::TeleportPhysics);
+
+	// The mesh sits on the ground below the box centre. A placeholder adds its own scale, offset and material, so those are put back first.
+	BodyMesh->SetRelativeScale3D(FVector::OneVector);
+	BodyMesh->SetRelativeLocation(FVector(0.0, 0.0, -Height));
+	BodyMesh->EmptyOverrideMaterials();
+	DIAAssets::SetModelOrFallback(BodyMesh, DIAPaverCar::MeshName(Level), DIAAssets::EFallback::Cube, Body, FVector(0.0, 0.0, Height), TEXT("DIA_Yellow"));
+
+	// A bigger truck is framed like the first one: a longer boom from a higher pivot.
+	Boom->SetRelativeLocation(FVector(0.0, 0.0, DIAPaverCar::PivotHeightFor(Level) - Height));
+	Boom->TargetArmLength = static_cast<float>(DIAPaverCar::ArmLengthFor(Level));
+
+	// A bigger box may overlap a wall or a machine where the car stands: it then goes to its spawn, and the core's pose follows.
+	UDIAWorldSubsystem* Subsystem = UDIAWorldSubsystem::Get(this);
+	if (bCheckRoom && bUpgrade && Subsystem && !HasRoomAt(Location, GetActorRotation().Yaw))
+	{
+		const FVector2D Spawn = LotLayout::ItemSpawn(ELotItem::Car);
+		const FVector SpawnLocation(Spawn.X, Spawn.Y, Height);
+		if (HasRoomAt(SpawnLocation, LotLayout::CarSpawnYawDeg))
+		{
+			SetActorLocationAndRotation(SpawnLocation, FRotator(0.0, LotLayout::CarSpawnYawDeg, 0.0), false, nullptr, ETeleportType::TeleportPhysics);
+			Speed = 0.0;
+			ToolPath.Reset();
+			WritePose(Subsystem->GetGame().World());
+		}
 	}
 }
 
@@ -234,7 +276,6 @@ void ADIAPaverCar::SyncFromCore()
 	{
 		return;
 	}
-	UpdateBar();
 	const FLotWorldState& State = Subsystem->GetGame().World();
 
 	// Normally the car wrote the core's pose itself, so nothing differs; a pose somebody else wrote (a loaded game) does.
@@ -250,6 +291,8 @@ void ADIAPaverCar::SyncFromCore()
 		Speed = 0.0;
 		ToolPath.Reset();
 	}
+	// A tier bought while the car stands there gets a room check; a pose that was just taken from the core (a loaded game) is the core's truth.
+	UpdateTier(/*bCheckRoom*/ !bChanged);
 
 	// A save can say "in the car" before the character exists; the next state change tries again.
 	if (State.bPlayerInCar && !HasDriver())
@@ -317,7 +360,6 @@ void ADIAPaverCar::EnterBy(ADIACharacter* Character)
 	// The character stays in the world but out of sight and of everyone's way, carried along by the car (at its centre).
 	Character->SetUsing(false);
 	Character->SetSprinting(false);
-	Character->SetFlap(false);
 	Character->SetWorkView(false);
 	UCharacterMovementComponent* Movement = Character->GetCharacterMovement();
 	DriverMovementMode = Movement->MovementMode;
@@ -350,6 +392,7 @@ bool ADIAPaverCar::FindExitSpot(const ADIACharacter* Character, FVector& OutSpot
 {
 	const FVector Location = GetActorLocation();
 	const FVector Left = -GetActorRightVector();
+	const double SideCm = DIAPaverCar::ExitSideCm(ShownLevel);
 	const double Height = DIACharacter::CapsuleHalfHeightCm + DIAPaverCar::ExitClearanceLiftCm;
 	const UWorld* World = GetWorld();
 	if (!World)
@@ -365,7 +408,7 @@ bool ADIAPaverCar::FindExitSpot(const ADIACharacter* Character, FVector& OutSpot
 	const FVector Candidates[2] = {Left, -Left};
 	for (const FVector& Side : Candidates)
 	{
-		const FVector Spot = FVector(Location.X, Location.Y, Height) + Side * DIAPaverCar::ExitSideCm;
+		const FVector Spot = FVector(Location.X, Location.Y, Height) + Side * SideCm;
 		if (!World->OverlapBlockingTestByChannel(Spot, FQuat::Identity, ECC_Pawn, Capsule, Params))
 		{
 			OutSpot = Spot;
@@ -474,14 +517,20 @@ void ADIAPaverCar::Pour(UDIAWorldSubsystem& Subsystem, float DeltaSeconds)
 {
 	// The bar moves with the car and swings with its turning: the fastest it can go while pouring is that of the pouring speed at full lock.
 	const double Top = TopSpeed();
-	const double BarSpeed = Top * (1.0 + LotBalance::CarBarBehindCm * FMath::DegreesToRadians(LotBalance::CarTurnRateDegPerSec) / LotBalance::CarSpeedCmS);
+	const double BarSpeed = Top * (1.0 + LotBalance::CarBarBehindCm[CoreLevel()] * FMath::DegreesToRadians(LotBalance::CarTurnRateDegPerSec) / LotBalance::CarSpeedCmS);
 	FVector2D From;
 	FVector2D To;
+	const FVector Forward = GetActorForwardVector();
+	const FVector2D Heading = FVector2D(Forward.X, Forward.Y).GetSafeNormal();
+	// The bar stands across the heading it had at the start of the segment and the one it has now: a turn leaves an unbroken line.
+	const FVector2D PreviousHeading = bHasPreviousHeading ? PreviousBarHeading : Heading;
 	if (ToolPath.Advance(GetBarPoint(), DeltaSeconds, BarSpeed, From, To))
 	{
 		FLotGame& Game = Subsystem.GetGame();
-		Subsystem.Dispatch(Game.PourFromCar(From, To));
+		Subsystem.Dispatch(Game.PourFromCar(From, To, PreviousHeading, Heading));
 	}
+	PreviousBarHeading = Heading;
+	bHasPreviousHeading = ToolPath.IsActive();
 }
 
 void ADIAPaverCar::Tick(float DeltaSeconds)

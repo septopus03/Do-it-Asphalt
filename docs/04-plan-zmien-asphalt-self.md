@@ -82,7 +82,7 @@ Ako sa leje:
 | Presuvná výdajňa | 900, od 350 | ako dnes, plní vedro, kufor aj vozík |
 | Pásový finišer | 1 400, od 350 | vedený hráčom, lišta 1 m: surový → hotový, do 85 políčok/min (chôdza 1,42 m/s) |
 | Automat | 3 000, od 800 | pracuje v pridelenom sektore 20 × 20 m, čerpá zo zásobníka, 120 políčok/min; vylepšenia 9 000 (170) a 22 000 (220) |
-| Auto | 12 000, od 6 000 | čerpá zo zásobníka, lišta 3,0 m, 260 políčok/min; širšia lišta 3,5 m za 24 000 (300) |
+| Auto | 12 000, od 6 000 | čerpá zo zásobníka, lišta 3,0 m, 260 políčok/min; stupne II až IV za 24 000 / 48 000 / 96 000 (lišta 3,6 / 4,2 / 5,0 m, 300 / 380 / 480 políčok/min, nádrž 8 000 / 12 000 / 18 000 l); výrobňa ostáva na 5 200 l/min, takže stupeň IV spolu s najlepším robotom (7 000 l/min) ju môže predbehnúť |
 | Výrobňa | 100 / 400 / 1 400 / 8 000 / 24 000 | 6 úrovní; zásobník pojme 4 minúty výroby |
 
 Šprint (100 políčok) a rýchla výmena nástrojov (10 políčok) sú zadarmo – dokumentácia im cenu nedáva.
@@ -113,7 +113,7 @@ Všetky prešli `check.py` (rozmery, trojuholníky, paleta, orientácia plôch).
 | `SM_Trowel` | 0,28 × 0,12 × 0,092 | stred rukoväte | pracovná plocha Z = −0,075 |
 | `SM_Scoop` | 0,34 × 0,12 × 0,07 | stred rukoväte | spodná hrana ústia (0,27; 0; −0,035) |
 | `SM_Bucket` | 0,29 × 0,31 × 0,385 | stred dna | uši (0; ±0,147; 0,215), rúčka (0; 0; 0,37); vnútri dno r 0,096, okraj r 0,132 |
-| `SM_Suitcase` | 0,42 × 0,51 × 1,055 | na zemi pod stredom osi koliesok | os (0; ±0,20; 0,05); rukoväť (0,022; 0; 1,04) na strane −X; ústie klapky (0,345; 0; 0,045) |
+| `SM_Trolley` | 0,96 × 0,52 × 0,90 | stred pôdorysu, zem | rukoväť (−0,48; 0; 0,88); ústie (0,435; 0; 0); vaňa hore 0,68 × 0,48 (Z = 0,60) (nahradil kufor `SM_Suitcase`) |
 | `SM_Cart` | 1,26 × 0,67 × 0,99 | stred pôdorysu, zem | madlo (−0,63; 0; 0,97); ústie výpustu (0,585; 0; 0,06), šírka 0,5 m; vaňa hore 0,95 × 0,66 (Z = 0,76), dole 0,66 × 0,44 (Z = 0,30) |
 | `SM_Finisher` | 1,32 × 1,07 × 1,0 | na zemi pod stredom prednej lišty | lišta 1,0 m na osi Y v X = 0; valec v X = −0,58; madlá (−1,15; ±0,25; 0,98) |
 | `SM_Trough` | 1,28 × 0,60 × 0,50 | stred pôdorysu, zem | hladina asfaltu Z = 0,44 |

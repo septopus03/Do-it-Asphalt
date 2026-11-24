@@ -57,7 +57,7 @@ void ADIAAutoPaver::SnapToCore()
 {
 	if (const UDIAWorldSubsystem* Subsystem = UDIAWorldSubsystem::Get(this))
 	{
-		const FVector2D Wanted = Subsystem->GetGame().GetAutoPaverPos();
+		const FVector2D Wanted = Subsystem->GetGame().GetAutoPaverPos(Index);
 		SetActorLocation(FVector(Wanted.X, Wanted.Y, 0.0));
 	}
 }
@@ -70,7 +70,7 @@ void ADIAAutoPaver::Tick(float DeltaSeconds)
 	{
 		return;
 	}
-	const FVector2D Wanted = Subsystem->GetGame().GetAutoPaverPos();
+	const FVector2D Wanted = Subsystem->GetGame().GetAutoPaverPos(Index);
 	const FVector Location = GetActorLocation();
 	const FVector2D Gap = Wanted - FVector2D(Location.X, Location.Y);
 	if (Gap.IsNearlyZero(DIAAutoPaver::SnapCm))

@@ -74,6 +74,26 @@ void ADIAGroundActor::BeginPlay()
 		SurroundMesh->SetMaterial(0, Dirt);
 	}
 
+	// The outlines of the second and third robot's sectors: thin orange boxes, hidden until the robot has a sector.
+	UStaticMesh* Cube = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube"), nullptr, LOAD_Quiet | LOAD_NoWarn);
+	UMaterialInterface* Orange = DIAAssets::Palette(TEXT("DIA_Orange"));
+	OutlineStrips.Reset();
+	for (int32 I = 0; I < (MaxAutoPavers - 1) * 4; ++I)
+	{
+		UStaticMeshComponent* Strip = NewObject<UStaticMeshComponent>(this, NAME_None, RF_Transient);
+		Strip->SetupAttachment(GetRootComponent());
+		Strip->SetStaticMesh(Cube);
+		if (Orange)
+		{
+			Strip->SetMaterial(0, Orange);
+		}
+		Strip->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		Strip->SetCastShadow(false);
+		Strip->SetVisibility(false);
+		Strip->RegisterComponent();
+		OutlineStrips.Add(Strip);
+	}
+
 	// Coverage texture: R8G8, built from the whole grid.
 	UDIAWorldSubsystem* Subsystem = GetWorld() ? GetWorld()->GetSubsystem<UDIAWorldSubsystem>() : nullptr;
 	if (!Subsystem)
@@ -166,21 +186,68 @@ void ADIAGroundActor::SyncSectorRect()
 	{
 		return;
 	}
-	// Only a change of the sector touches the material (the state changes on every tick).
-	const int32 Sector = Subsystem->GetGame().GetAutoPaverSector();
-	if (Sector == ShownSector)
+	for (int32 Paver = 0; Paver < MaxAutoPavers; ++Paver)
 	{
-		return;
+		// Only a change of the sector touches the material (the state changes on every tick).
+		const int32 Sector = Subsystem->GetGame().GetAutoPaverSector(Paver);
+		if (Sector == ShownSector[Paver])
+		{
+			continue;
+		}
+		ShownSector[Paver] = Sector;
+		FLinearColor Rect(0.f, 0.f, 0.f, 0.f);
+		if (Sector != INDEX_NONE)
+		{
+			const FVector2D Centre = AsphaltLot::SectorCentre(Sector);
+			const double Half = DIAGround::SectorSizeCm * 0.5;
+			Rect = FLinearColor(static_cast<float>(Centre.X - Half), static_cast<float>(Centre.Y - Half), static_cast<float>(Centre.X + Half), static_cast<float>(Centre.Y + Half));
+		}
+		ShownRect[Paver] = FVector4(Rect.R, Rect.G, Rect.B, Rect.A);
+		if (Paver == 0)
+		{
+			GroundMaterial->SetVectorParameterValue(TEXT("SectorRect"), Rect);
+			continue;
+		}
+
+		// Four strips along the inside of the rectangle, on the ground (a 10 cm band like the material's outline).
+		const int32 First = (Paver - 1) * 4;
+		if (!OutlineStrips.IsValidIndex(First + 3))
+		{
+			continue;
+		}
+		const bool bShown = Sector != INDEX_NONE;
+		const double MinX = Rect.R, MinY = Rect.G, MaxX = Rect.B, MaxY = Rect.A;
+		const double W = DIAGround::OutlineWidthCm;
+		const double Height = 1.0;
+		// South, north, west, east: centre and size in X and Y.
+		const FVector4 Boxes[4] = {
+			FVector4((MinX + MaxX) * 0.5, MinY + W * 0.5, MaxX - MinX, W),
+			FVector4((MinX + MaxX) * 0.5, MaxY - W * 0.5, MaxX - MinX, W),
+			FVector4(MinX + W * 0.5, (MinY + MaxY) * 0.5, W, MaxY - MinY - 2.0 * W),
+			FVector4(MaxX - W * 0.5, (MinY + MaxY) * 0.5, W, MaxY - MinY - 2.0 * W),
+		};
+		for (int32 Side = 0; Side < 4; ++Side)
+		{
+			UStaticMeshComponent* Strip = OutlineStrips[First + Side];
+			Strip->SetVisibility(bShown);
+			if (bShown)
+			{
+				Strip->SetWorldLocation(FVector(Boxes[Side].X, Boxes[Side].Y, 0.7));
+				Strip->SetWorldScale3D(FVector(Boxes[Side].Z / 100.0, Boxes[Side].W / 100.0, Height / 100.0));
+			}
+		}
 	}
-	ShownSector = Sector;
-	FLinearColor Rect(0.f, 0.f, 0.f, 0.f);
-	if (Sector != INDEX_NONE)
-	{
-		const FVector2D Centre = AsphaltLot::SectorCentre(Sector);
-		const double Half = DIAGround::SectorSizeCm * 0.5;
-		Rect = FLinearColor(static_cast<float>(Centre.X - Half), static_cast<float>(Centre.Y - Half), static_cast<float>(Centre.X + Half), static_cast<float>(Centre.Y + Half));
-	}
-	GroundMaterial->SetVectorParameterValue(TEXT("SectorRect"), Rect);
+}
+
+FVector4 ADIAGroundActor::GetPaverOutline(int32 Paver) const
+{
+	return Paver >= 0 && Paver < MaxAutoPavers ? ShownRect[Paver] : FVector4(0, 0, 0, 0);
+}
+
+const UStaticMeshComponent* ADIAGroundActor::GetOutlineStrip(int32 Paver, int32 Side) const
+{
+	const int32 I = (Paver - 1) * 4 + Side;
+	return Paver >= 1 && Side >= 0 && Side < 4 && OutlineStrips.IsValidIndex(I) ? OutlineStrips[I].Get() : nullptr;
 }
 
 bool ADIAGroundActor::GetCoverageTexel(int32 X, int32 Y, uint8& OutR, uint8& OutG) const

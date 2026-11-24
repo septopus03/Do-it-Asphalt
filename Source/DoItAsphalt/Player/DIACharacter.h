@@ -68,9 +68,6 @@ public:
 	/** Use (left button, held): scoops, fills, pours, dumps or trowels with the item in hand. */
 	void SetUsing(bool bUse);
 	bool IsUsing() const { return bUsing; }
-	/** Flap (F, held): the standing suitcase beside the player doses raw asphalt through its flap. */
-	void SetFlap(bool bOpen) { bFlap = bOpen; }
-	bool IsFlapHeld() const { return bFlap; }
 
 	/** Fill (R, held): scoops from the trough with the bowl or scoop, fills the bucket at a tap or the outlet. The left button only pours or dumps. */
 	void SetFilling(bool bFill) { bFilling = bFill; }
@@ -173,7 +170,6 @@ private:
 
 	bool bSprinting = false;
 	bool bUsing = false;
-	bool bFlap = false;
 	bool bFilling = false;
 	bool bWorkView = false;
 	bool bExternalView = false;

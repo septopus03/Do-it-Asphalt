@@ -29,6 +29,8 @@ namespace DIABoard
 	/** Share of a line's height that the glyph cell takes, and the width of a character relative to its height. */
 	inline constexpr double LineSpacing = 1.15;
 	inline constexpr double CharAspect = 0.6;
+	/** The size of the text component at which the text (lines split at newlines) fills the area (width x height, cm) as far as it can; the shop signs use it too. */
+	DOITASPHALT_API double FitTextSize(const FString& Text, FVector2D AreaCm);
 	/** Colours: amber on the screen of a kiosk, dark on the white sign of the mall, green once the step is unlocked. */
 	inline const FColor KioskTextColor(210, 80, 0);
 	inline const FColor SignTextColor(58, 63, 71);

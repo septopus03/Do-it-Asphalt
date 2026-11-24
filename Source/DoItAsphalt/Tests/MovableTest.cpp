@@ -93,7 +93,7 @@ namespace MovableTestSupport
 		Game.World().Movables[static_cast<int32>(Kind)].Pos = Pos;
 	}
 
-	/** Fills the suitcase or the cart from the plant stock until it holds the litres (the stock is large enough for a test). */
+	/** Fills the trolley or the cart from the plant stock until it holds the litres (the stock is large enough for a test). */
 	void FillTo(FLotGame& Game, ELotMovable Kind, double Litres)
 	{
 		Game.DebugSetPlantStock(Game.GetPlantStorage());
@@ -294,7 +294,7 @@ bool FMovableSpawnsWhenBoughtTest::RunTest(const FString& Parameters)
 	Subsystem->OnItemBought.Broadcast(ELotItem::Cart);
 	TestEqual(TEXT("still one"), FindMovables(World).Num(), 1);
 
-	TestTrue(TEXT("buy the suitcase"), Buy(ELotItem::Suitcase));
+	TestTrue(TEXT("buy the trolley"), Buy(ELotItem::Trolley));
 	TestEqual(TEXT("one actor per owned kind"), FindMovables(World).Num(), 2);
 
 	// A loaded game that owns the station gets it, whatever happened before.
@@ -363,10 +363,10 @@ bool FMovableNoRoomKeepsHeldTest::RunTest(const FString& Parameters)
 {
 	DIA_MOVABLE_FIXTURE()
 	TestTrue(TEXT("buy the cart"), Buy(ELotItem::Cart));
-	TestTrue(TEXT("buy the suitcase"), Buy(ELotItem::Suitcase));
+	TestTrue(TEXT("buy the trolley"), Buy(ELotItem::Trolley));
 	ADIAMovable* Cart = FindMovable(World, ELotMovable::Cart);
-	ADIAMovable* Suitcase = FindMovable(World, ELotMovable::Suitcase);
-	if (!TestNotNull(TEXT("the cart"), Cart) || !TestNotNull(TEXT("the suitcase"), Suitcase))
+	ADIAMovable* Trolley = FindMovable(World, ELotMovable::Trolley);
+	if (!TestNotNull(TEXT("the cart"), Cart) || !TestNotNull(TEXT("the trolley"), Trolley))
 	{
 		return false;
 	}
@@ -375,10 +375,10 @@ bool FMovableNoRoomKeepsHeldTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("holding the cart"), Game.GetHeld() == ELotMovable::Cart);
 	Wrapper.TickTestWorld(TickSeconds);
 
-	// The suitcase stands exactly where the cart is now.
-	SetCorePos(Game, ELotMovable::Suitcase, Where(Cart));
+	// The trolley stands exactly where the cart is now.
+	SetCorePos(Game, ELotMovable::Trolley, Where(Cart));
 	Wrapper.TickTestWorld(TickSeconds);
-	TestTrue(TEXT("the suitcase is there"), Where(Suitcase).Equals(Where(Cart), 0.5));
+	TestTrue(TEXT("the trolley is there"), Where(Trolley).Equals(Where(Cart), 0.5));
 
 	const FVector2D Old = Game.World().Movables[static_cast<int32>(ELotMovable::Cart)].Pos;
 	Cart->Interact(Character);
@@ -443,52 +443,50 @@ bool FMovableCartLaysStripTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-DIA_TEST(FMovableSuitcaseFlapTest, "DoItAsphalt.Game.Movable.SuitcaseFlap")
+DIA_TEST(FMovableTrolleyLaysStripTest, "DoItAsphalt.Game.Movable.TrolleyLaysStrip")
 
-bool FMovableSuitcaseFlapTest::RunTest(const FString& Parameters)
+bool FMovableTrolleyLaysStripTest::RunTest(const FString& Parameters)
 {
 	DIA_MOVABLE_FIXTURE()
-	TestTrue(TEXT("buy the suitcase"), Buy(ELotItem::Suitcase));
-	ADIAMovable* Suitcase = FindMovable(World, ELotMovable::Suitcase);
-	if (!TestNotNull(TEXT("the suitcase"), Suitcase))
+	TestTrue(TEXT("buy the trolley"), Buy(ELotItem::Trolley));
+	ADIAMovable* Trolley = FindMovable(World, ELotMovable::Trolley);
+	if (!TestNotNull(TEXT("the trolley"), Trolley))
 	{
 		return false;
 	}
-	FillTo(Game, ELotMovable::Suitcase, LotBalance::SuitcaseCapacityL);
-	const FVector2D Stand = MiddleOfLot();
-	SetCorePos(Game, ELotMovable::Suitcase, Stand);
-	Place(Character, Stand - FVector2D(80.0, 0.0), 0.0, 0.0);
+	FillTo(Game, ELotMovable::Trolley, LotBalance::TrolleyCapacityL);
 	Wrapper.TickTestWorld(TickSeconds);
+	Trolley->Interact(Character);
+	TestTrue(TEXT("holding the trolley"), Game.GetHeld() == ELotMovable::Trolley);
 
-	const FVector2D Mouth = Suitcase->GetMouthPoint();
-	TestTrue(TEXT("the mouth is at the front of the suitcase"), Mouth.Equals(Stand + FVector2D(DIAModelSizes::SuitcaseMouthCm.X, 0.0), 0.5));
-	const int32 Cell = AsphaltLot::CellAt(Mouth);
-	const double Before = Game.GetMovableLitres(ELotMovable::Suitcase);
+	// Without Use the trolley lays nothing.
+	for (int32 I = 0; I < 5; ++I)
+	{
+		Move(Character, FVector2D(10.0, 0.0));
+		Wrapper.TickTestWorld(TickSeconds);
+	}
+	TestEqual(TEXT("moving without Use lays nothing"), CountDoneTexels(Game), 0);
 
-	// Without Flap nothing happens.
+	// Three metres with Use down: a narrow strip.
+	const double Before = Game.GetMovableLitres(ELotMovable::Trolley);
+	Character->SetUsing(true);
+	Wrapper.TickTestWorld(TickSeconds);
+	for (int32 I = 0; I < 30; ++I)
+	{
+		Move(Character, FVector2D(10.0, 0.0));
+		Wrapper.TickTestWorld(TickSeconds);
+	}
+	Character->SetUsing(false);
+	const double TexelsPerSquareMetre = 1.0e4 / FMath::Square(FLotGrid::TexelCm);
+	const double Expected = 3.0 * (LotBalance::TrolleyStripWidthCm / 100.0) * TexelsPerSquareMetre;
+	TestTrue(TEXT("about 3 m of a narrow strip of done texels"), FMath::Abs(CountDoneTexels(Game) - Expected) <= Expected * 0.15);
+	TestTrue(TEXT("the trolley's content was used"), Game.GetMovableLitres(ELotMovable::Trolley) < Before);
+
+	// A stopped trolley lays nothing more, though Use stays down.
+	Character->SetUsing(true);
+	const int32 Laid = CountDoneTexels(Game);
 	TickFor(Wrapper, 1.0);
-	TestEqual(TEXT("no dosing without the flap"), Game.GetGrid().GetCellDone(Cell), 0);
-
-	// Too far from it: the flap does nothing.
-	Move(Character, FVector2D(-400.0, 0.0));
-	Character->SetFlap(true);
-	TickFor(Wrapper, 1.0);
-	TestEqual(TEXT("out of reach"), Game.GetGrid().GetCellDone(Cell), 0);
-	Move(Character, FVector2D(400.0, 0.0));
-
-	TickFor(Wrapper, 5.0);
-	Character->SetFlap(false);
-	TestEqual(TEXT("the cell under the mouth is done"), Game.GetGrid().GetCellDone(Cell), FLotGrid::TexelsPerCell);
-	TestNearlyEqual(TEXT("the suitcase gave 9.5 l, what a cell takes"), Before - Game.GetMovableLitres(ELotMovable::Suitcase), 9.5, 0.2);
-	TestEqual(TEXT("and that cell is finished"), Game.GetCompletedCells(), 1);
-
-	// Held, it doses nothing.
-	Suitcase->Interact(Character);
-	TestTrue(TEXT("holding the suitcase"), Game.GetHeld() == ELotMovable::Suitcase);
-	const double Held = Game.GetMovableLitres(ELotMovable::Suitcase);
-	Character->SetFlap(true);
-	TickFor(Wrapper, 1.0);
-	TestEqual(TEXT("a held suitcase does not dose"), Game.GetMovableLitres(ELotMovable::Suitcase), Held);
+	TestEqual(TEXT("a trolley that does not move lays nothing"), CountDoneTexels(Game), Laid);
 	return true;
 }
 
@@ -605,18 +603,18 @@ bool FMovablePromptsTest::RunTest(const FString& Parameters)
 {
 	DIA_MOVABLE_FIXTURE()
 	TestTrue(TEXT("buy the cart"), Buy(ELotItem::Cart));
-	TestTrue(TEXT("buy the suitcase"), Buy(ELotItem::Suitcase));
+	TestTrue(TEXT("buy the trolley"), Buy(ELotItem::Trolley));
 	ADIAMovable* Cart = FindMovable(World, ELotMovable::Cart);
-	ADIAMovable* Suitcase = FindMovable(World, ELotMovable::Suitcase);
-	if (!TestNotNull(TEXT("the cart"), Cart) || !TestNotNull(TEXT("the suitcase"), Suitcase))
+	ADIAMovable* Trolley = FindMovable(World, ELotMovable::Trolley);
+	if (!TestNotNull(TEXT("the cart"), Cart) || !TestNotNull(TEXT("the trolley"), Trolley))
 	{
 		return false;
 	}
 	TestEqual(TEXT("a standing cart"), Cart->GetPrompt(Character).ToString(), FString(TEXT("E – Push")));
-	TestEqual(TEXT("a standing suitcase also has the flap"), Suitcase->GetPrompt(Character).ToString(), FString(TEXT("E – Pull\nF – Open flap")));
+	TestEqual(TEXT("a standing trolley"), Trolley->GetPrompt(Character).ToString(), FString(TEXT("E – Push")));
 
-	Suitcase->Interact(Character);
-	TestEqual(TEXT("a held one can be let go"), Suitcase->GetPrompt(Character).ToString(), FString(TEXT("E – Let go")));
+	Trolley->Interact(Character);
+	TestEqual(TEXT("a held one can be let go"), Trolley->GetPrompt(Character).ToString(), FString(TEXT("E – Let go")));
 	TestTrue(TEXT("nothing else can be taken meanwhile"), Cart->GetPrompt(Character).IsEmpty());
 	return true;
 }
@@ -627,10 +625,10 @@ bool FMovableSpeedWhileHeldTest::RunTest(const FString& Parameters)
 {
 	DIA_MOVABLE_FIXTURE()
 	TestTrue(TEXT("buy the cart"), Buy(ELotItem::Cart));
-	TestTrue(TEXT("buy the suitcase"), Buy(ELotItem::Suitcase));
+	TestTrue(TEXT("buy the trolley"), Buy(ELotItem::Trolley));
 	ADIAMovable* Cart = FindMovable(World, ELotMovable::Cart);
-	ADIAMovable* Suitcase = FindMovable(World, ELotMovable::Suitcase);
-	if (!TestNotNull(TEXT("the cart"), Cart) || !TestNotNull(TEXT("the suitcase"), Suitcase))
+	ADIAMovable* Trolley = FindMovable(World, ELotMovable::Trolley);
+	if (!TestNotNull(TEXT("the cart"), Cart) || !TestNotNull(TEXT("the trolley"), Trolley))
 	{
 		return false;
 	}
@@ -647,10 +645,10 @@ bool FMovableSpeedWhileHeldTest::RunTest(const FString& Parameters)
 	Wrapper.TickTestWorld(TickSeconds);
 	TestNearlyEqual(TEXT("sprinting on foot"), static_cast<double>(Movement->MaxWalkSpeed), LotBalance::WalkSpeedCmS * LotBalance::SprintMultiplier, 0.01);
 
-	Suitcase->Interact(Character);
+	Trolley->Interact(Character);
 	Wrapper.TickTestWorld(TickSeconds);
-	TestNearlyEqual(TEXT("pulling the suitcase, sprint does not help"), static_cast<double>(Movement->MaxWalkSpeed), LotBalance::SuitcasePullSpeedCmS, 0.01);
-	Suitcase->Interact(Character);
+	TestNearlyEqual(TEXT("pushing the trolley, sprint does not help"), static_cast<double>(Movement->MaxWalkSpeed), LotBalance::TrolleyPushSpeedCmS, 0.01);
+	Trolley->Interact(Character);
 	Wrapper.TickTestWorld(TickSeconds);
 	TestNearlyEqual(TEXT("let go: sprinting again"), static_cast<double>(Movement->MaxWalkSpeed), LotBalance::WalkSpeedCmS * LotBalance::SprintMultiplier, 0.01);
 
@@ -870,19 +868,19 @@ bool FMovableBuyWhileHoldingTest::RunTest(const FString& Parameters)
 	}
 	Cart->Interact(Character);
 	TickFor(Wrapper, 0.3);
-	TestTrue(TEXT("buy the suitcase while holding the cart"), Buy(ELotItem::Suitcase));
+	TestTrue(TEXT("buy the trolley while holding the cart"), Buy(ELotItem::Trolley));
 	TickFor(Wrapper, 0.3);
 	TestEqual(TEXT("one actor each"), FindMovables(World).Num(), 2);
 	TestTrue(TEXT("the same cart actor is still there"), FindMovable(World, ELotMovable::Cart) == Cart);
 	TestTrue(TEXT("the cart is still held"), Game.GetHeld() == ELotMovable::Cart && Cart->IsHeld());
-	ADIAMovable* Suitcase = FindMovable(World, ELotMovable::Suitcase);
-	if (!TestNotNull(TEXT("the suitcase"), Suitcase))
+	ADIAMovable* Trolley = FindMovable(World, ELotMovable::Trolley);
+	if (!TestNotNull(TEXT("the trolley"), Trolley))
 	{
 		return false;
 	}
-	TestFalse(TEXT("the suitcase is not held"), Suitcase->IsHeld());
-	TestTrue(TEXT("it stands at its spawn point"), Where(Suitcase).Equals(LotLayout::ItemSpawn(ELotItem::Suitcase), 0.5));
-	TestEqual(TEXT("with its collision"), Suitcase->GetCollision()->GetCollisionEnabled(), ECollisionEnabled::QueryAndPhysics);
+	TestFalse(TEXT("the trolley is not held"), Trolley->IsHeld());
+	TestTrue(TEXT("it stands at its spawn point"), Where(Trolley).Equals(LotLayout::ItemSpawn(ELotItem::Trolley), 0.5));
+	TestEqual(TEXT("with its collision"), Trolley->GetCollision()->GetCollisionEnabled(), ECollisionEnabled::QueryAndPhysics);
 	return true;
 }
 

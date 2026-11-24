@@ -43,7 +43,7 @@ bool FShopRowsTest::RunTest(const FString& Parameters)
 	FLotGame Game;
 	FDIAShopModel Model;
 	TestTrue(TEXT("the first update builds the rows"), Model.Update(Game));
-	if (!TestEqual(TEXT("the plant and eleven items"), FDIAShopModel::NumRows, 12))
+	if (!TestEqual(TEXT("the plant, thirteen items and six robot upgrades"), FDIAShopModel::NumRows, 20))
 	{
 		return false;
 	}
@@ -68,18 +68,31 @@ bool FShopRowsTest::RunTest(const FString& Parameters)
 	Is(TEXT("bucket price"), Model.GetRow(1).Price, TEXT("35"));
 	Is(TEXT("canister price"), Model.GetRow(2).Price, TEXT("70"));
 	Is(TEXT("tub price"), Model.GetRow(3).Price, TEXT("160"));
-	Is(TEXT("suitcase value"), Model.GetRow(4).Value, TEXT("60 l"));
+	Is(TEXT("trolley value"), Model.GetRow(4).Value, TEXT("80 l"));
 	Is(TEXT("cart value"), Model.GetRow(5).Value, TEXT("200 l"));
-	Is(TEXT("auto paver upgrade"), Model.GetRow(8).Value, TEXT("120 → 170 cells/min"));
-	Is(TEXT("auto paver upgrade price"), Model.GetRow(8).Price, TEXT("9,000"));
-	Is(TEXT("wide bar value"), Model.GetRow(11).Value, TEXT("260 → 300 cells/min"));
+	Is(TEXT("robot 1 name"), Model.GetRow(7).Name, TEXT("Auto Paver 1"));
+	Is(TEXT("robot 1 value"), Model.GetRow(7).Value, TEXT("120 cells/min · 2,000\u00A0l\u00A0tank"));
+	Is(TEXT("robot 1 price"), Model.GetRow(7).Price, TEXT("3,000"));
+	Is(TEXT("car value"), Model.GetRow(8).Value, TEXT("260 cells/min"));
+	Is(TEXT("car II value"), Model.GetRow(9).Value, TEXT("260 → 300 cells/min"));
+	Is(TEXT("car III value"), Model.GetRow(10).Value, TEXT("300 → 380 cells/min"));
+	Is(TEXT("car IV value"), Model.GetRow(11).Value, TEXT("380 → 480 cells/min"));
+	Is(TEXT("car II price"), Model.GetRow(9).Price, TEXT("24,000"));
+	Is(TEXT("car III price"), Model.GetRow(10).Price, TEXT("48,000"));
+	Is(TEXT("car IV price"), Model.GetRow(11).Price, TEXT("96,000"));
+	Is(TEXT("robot 2 name"), Model.GetRow(12).Name, TEXT("Auto Paver 2"));
+	Is(TEXT("robot 3 name"), Model.GetRow(13).Name, TEXT("Auto Paver 3"));
+	Is(TEXT("robot 2 value: the same level-0 stats as robot 1"), Model.GetRow(12).Value, TEXT("120 cells/min · 2,000\u00A0l\u00A0tank"));
+	Is(TEXT("robot 3 value"), Model.GetRow(13).Value, TEXT("120 cells/min · 2,000\u00A0l\u00A0tank"));
+	Is(TEXT("robot 3 price"), Model.GetRow(13).Price, TEXT("80,000"));
+	Is(TEXT("the robots come right after the car"), Model.GetRow(11).Name, TEXT("Paver Car IV"));
 	TestTrue(TEXT("the bucket is too expensive for nothing"), Model.GetRow(1).State == EDIAShopState::NoCredits);
 
 	// The machines and the big vessels are visible and locked, with the reason.
 	TestTrue(TEXT("the station is locked"), Model.GetRow(6).State == EDIAShopState::Locked);
 	Is(TEXT("the station's reason"), Model.GetRow(6).Reason, TEXT("350 cells + entry 3"));
 	Is(TEXT("the auto paver's reason"), Model.GetRow(7).Reason, TEXT("800 cells + entry 4"));
-	Is(TEXT("the car's reason"), Model.GetRow(10).Reason, TEXT("6,000 cells + entry 5"));
+	Is(TEXT("the car's reason"), Model.GetRow(8).Reason, TEXT("6,000 cells + entry 5"));
 	TestTrue(TEXT("the unlocked rows have no reason"), Model.GetRow(1).Reason.IsEmpty());
 	TestTrue(TEXT("the tub needs the sprint step"), Model.GetRow(3).State == EDIAShopState::Locked);
 
@@ -96,7 +109,7 @@ DIA_TEST(FShopRequirementsTest, "DoItAsphalt.Game.Shop.Requirements")
 
 bool FShopRequirementsTest::RunTest(const FString& Parameters)
 {
-	// Everything up to the car is open, but the upgrades wait for what they upgrade.
+	// Everything up to the car is open, but the extra robots wait for the one before them.
 	FLotGame Game;
 	Game.DebugCompleteCells(LotBalance::UnlockCells[static_cast<int32>(ELotUnlock::Car)]);
 	for (int32 Entry = 0; Entry < static_cast<int32>(ELotUnlock::Exit); ++Entry)
@@ -110,17 +123,20 @@ bool FShopRequirementsTest::RunTest(const FString& Parameters)
 	FDIAShopModel Model;
 	Model.Update(Game);
 
-	const FDIAShopRow& Fast = Model.GetRow(RowOfItem(Model, ELotItem::AutoPaverFast));
-	TestTrue(TEXT("the faster auto paver is locked"), Fast.State == EDIAShopState::Locked);
-	TestEqual(TEXT("it names the auto paver"), Fast.Reason.ToString(), FString(TEXT("needs Auto Paver")));
-	TestTrue(TEXT("the auto paver itself can be bought"), Model.GetRow(RowOfItem(Model, ELotItem::AutoPaver)).State == EDIAShopState::Buy);
-	TestEqual(TEXT("the wide bar needs the car"), Model.GetRow(RowOfItem(Model, ELotItem::CarWideBar)).Reason.ToString(), FString(TEXT("needs Paver Car")));
+	const FDIAShopRow& Second = Model.GetRow(RowOfItem(Model, ELotItem::AutoPaver2));
+	TestTrue(TEXT("robot 2 is locked"), Second.State == EDIAShopState::Locked);
+	TestEqual(TEXT("it names the first robot"), Second.Reason.ToString(), FString(TEXT("needs Auto Paver 1")));
+	TestEqual(TEXT("robot 3 needs robot 2"), Model.GetRow(RowOfItem(Model, ELotItem::AutoPaver3)).Reason.ToString(), FString(TEXT("needs Auto Paver 2")));
+	TestTrue(TEXT("the first robot itself can be bought"), Model.GetRow(RowOfItem(Model, ELotItem::AutoPaver)).State == EDIAShopState::Buy);
+	TestEqual(TEXT("car II needs the car"), Model.GetRow(RowOfItem(Model, ELotItem::CarT2)).Reason.ToString(), FString(TEXT("needs Paver Car")));
+	TestEqual(TEXT("car III needs car II"), Model.GetRow(RowOfItem(Model, ELotItem::CarT3)).Reason.ToString(), FString(TEXT("needs Paver Car II")));
+	TestEqual(TEXT("car IV needs car III"), Model.GetRow(RowOfItem(Model, ELotItem::CarT4)).Reason.ToString(), FString(TEXT("needs Paver Car III")));
 
 	Game.DebugGrantItem(ELotItem::AutoPaver);
 	TestTrue(TEXT("buying it changes the rows"), Model.Update(Game));
-	TestTrue(TEXT("the upgrade can be bought now"), Model.GetRow(RowOfItem(Model, ELotItem::AutoPaverFast)).State == EDIAShopState::Buy);
-	TestTrue(TEXT("the second upgrade still needs the first"), Model.GetRow(RowOfItem(Model, ELotItem::AutoPaverFaster)).State == EDIAShopState::Locked);
-	TestEqual(TEXT("it names the first upgrade"), Model.GetRow(RowOfItem(Model, ELotItem::AutoPaverFaster)).Reason.ToString(), FString(TEXT("needs Fast Auto Paver")));
+	TestTrue(TEXT("robot 2 can be bought now"), Model.GetRow(RowOfItem(Model, ELotItem::AutoPaver2)).State == EDIAShopState::Buy);
+	TestTrue(TEXT("robot 3 still needs robot 2"), Model.GetRow(RowOfItem(Model, ELotItem::AutoPaver3)).State == EDIAShopState::Locked);
+	TestEqual(TEXT("it names robot 2"), Model.GetRow(RowOfItem(Model, ELotItem::AutoPaver3)).Reason.ToString(), FString(TEXT("needs Auto Paver 2")));
 	return true;
 }
 
@@ -132,7 +148,7 @@ bool FShopReasonTest::RunTest(const FString& Parameters)
 	FLotGame Game;
 	FDIAShopModel Model;
 	Model.Update(Game);
-	const int32 Faster = RowOfItem(Model, ELotItem::AutoPaverFaster);
+	const int32 Faster = RowOfItem(Model, ELotItem::AutoPaver2);
 	TestEqual(TEXT("closed step"), Model.GetRow(Faster).Reason.ToString(), FString(TEXT("800 cells + entry 4")));
 	const int32 Rebuilds = Model.GetRebuildCount();
 	Game.DebugCompleteCells(LotBalance::UnlockCells[static_cast<int32>(ELotUnlock::AutoPaver)]);
@@ -145,7 +161,7 @@ bool FShopReasonTest::RunTest(const FString& Parameters)
 	}
 	TestTrue(TEXT("opening the step rebuilds"), Model.Update(Game));
 	TestEqual(TEXT("one pass"), Model.GetRebuildCount(), Rebuilds + 1);
-	TestEqual(TEXT("the reason names the item now"), Model.GetRow(RowOfItem(Model, ELotItem::AutoPaverFaster)).Reason.ToString(), FString(TEXT("needs Fast Auto Paver")));
+	TestEqual(TEXT("the reason names the item now"), Model.GetRow(RowOfItem(Model, ELotItem::AutoPaver2)).Reason.ToString(), FString(TEXT("needs Auto Paver 1")));
 	return true;
 }
 
@@ -209,10 +225,10 @@ bool FShopBuyThroughModelTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("the canister did not move up"), Model.GetRow(Scoop + 1).Item, ELotItem::Canister);
 
 	// Owned rows stay where they are, however many there are.
-	Game.DebugGrantItem(ELotItem::Suitcase);
+	Game.DebugGrantItem(ELotItem::Trolley);
 	Model.Update(Game);
 	TestEqual(TEXT("the bucket stays"), RowOfItem(Model, ELotItem::Bucket), Scoop);
-	TestEqual(TEXT("the suitcase also stays"), RowOfItem(Model, ELotItem::Suitcase), Scoop + 3);
+	TestEqual(TEXT("the trolley also stays"), RowOfItem(Model, ELotItem::Trolley), Scoop + 3);
 	TestTrue(TEXT("both are owned"), Model.GetRow(Scoop).State == EDIAShopState::Owned && Model.GetRow(Scoop + 3).State == EDIAShopState::Owned);
 
 	// The plant goes through the subsystem as well.
@@ -263,14 +279,14 @@ bool FShopRowsStayPutTest::RunTest(const FString& Parameters)
 	// Pressing the same spot again meets the owned bucket: nothing to buy, and the rows next to it are not touched.
 	TestFalse(TEXT("the same index offers nothing"), Model.TargetOf(Row, Game).bValid);
 	TestFalse(TEXT("so nothing is bought"), Model.Buy(Model.TargetOf(Row, Game), *Subsystem));
-	TestFalse(TEXT("the suitcase is not owned"), Game.Owns(ELotItem::Suitcase));
+	TestFalse(TEXT("the trolley is not owned"), Game.Owns(ELotItem::Trolley));
 	TestEqual(TEXT("only the bucket was paid"), Game.GetCredits(), 465.0);
 
 	// A different row right after the first purchase is a legitimate click.
-	const FDIAShopTarget Suitcase = Model.TargetOf(RowOfItem(Model, ELotItem::Suitcase), Game);
-	TestTrue(TEXT("the suitcase row offers the suitcase"), Suitcase.bValid && Suitcase.Item == ELotItem::Suitcase);
-	TestTrue(TEXT("a quick second purchase of another row works"), Model.Buy(Suitcase, *Subsystem));
-	TestTrue(TEXT("the suitcase is owned"), Game.Owns(ELotItem::Suitcase));
+	const FDIAShopTarget Trolley = Model.TargetOf(RowOfItem(Model, ELotItem::Trolley), Game);
+	TestTrue(TEXT("the trolley row offers the trolley"), Trolley.bValid && Trolley.Item == ELotItem::Trolley);
+	TestTrue(TEXT("a quick second purchase of another row works"), Model.Buy(Trolley, *Subsystem));
+	TestTrue(TEXT("the trolley is owned"), Game.Owns(ELotItem::Trolley));
 
 	// A request that is not valid any more buys nothing (not affordable, not offered, no target).
 	Game.DebugGive(-Game.GetCredits());
@@ -296,7 +312,7 @@ bool FShopRowsStayPutTest::RunTest(const FString& Parameters)
 
 	// Whatever was bought, nothing has moved.
 	Model.Update(Game);
-	TestEqual(TEXT("the suitcase is still where it was"), RowOfItem(Model, ELotItem::Suitcase), 4);
+	TestEqual(TEXT("the trolley is still where it was"), RowOfItem(Model, ELotItem::Trolley), 4);
 	return true;
 }
 
@@ -449,8 +465,9 @@ bool FShopToggleTest::RunTest(const FString& Parameters)
 	}
 
 	TestFalse(TEXT("the shop starts closed"), Hud->IsShopOpen());
-	Hud->ToggleShop();
-	TestTrue(TEXT("Tab opens the shop"), Hud->IsShopOpen());
+	Hud->SetShopOpen(!Hud->IsShopOpen());
+	TestTrue(TEXT("the HUD opens the shop"), Hud->IsShopOpen());
+	TestTrue(TEXT("with no building named it is the tools"), Hud->GetOpenShop() == ELotShop::Tools);
 
 	// The game runs on while the shop is open: the plant keeps producing.
 	const double Stock = Subsystem->GetGame().GetPlantStock();
@@ -461,8 +478,9 @@ bool FShopToggleTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("the plant produces while the shop is open"), Subsystem->GetGame().GetPlantStock() > Stock);
 	TestTrue(TEXT("still open"), Hud->IsShopOpen());
 
-	Hud->ToggleShop();
-	TestFalse(TEXT("Tab closes the shop"), Hud->IsShopOpen());
+	Hud->SetShopOpen(!Hud->IsShopOpen());
+	TestFalse(TEXT("the HUD closes the shop"), Hud->IsShopOpen());
+	TestTrue(TEXT("a closed shop names no building"), Hud->GetOpenShop() == ELotShop::Count);
 	Hud->SetShopOpen(true);
 	Hud->SetShopOpen(true);
 	TestTrue(TEXT("SetShopOpen(true) is idempotent"), Hud->IsShopOpen());
@@ -477,6 +495,182 @@ bool FShopToggleTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("it opens again once the menu is closed"), Hud->IsShopOpen());
 	Hud->SetShopOpen(false);
 	TestFalse(TEXT("SetShopOpen(false) closes"), Hud->IsShopOpen());
+	return true;
+}
+
+namespace
+{
+	/** A panel on a started game world, for the tests that look at what one building shows. */
+	struct FShopPanelFixture
+	{
+		FTestWorldWrapper Wrapper;
+		UDIAWorldSubsystem* Subsystem = nullptr;
+		ADIAHUD* Hud = nullptr;
+		TSharedPtr<SDIAShopPanel> Panel;
+
+		bool Start(FAutomationTestBase& Test)
+		{
+			if (!DIATest::StartGameWorld(Wrapper, Test))
+			{
+				return false;
+			}
+			UWorld* World = Wrapper.GetTestWorld();
+			Subsystem = World->GetSubsystem<UDIAWorldSubsystem>();
+			FActorSpawnParameters Params;
+			Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+			Hud = World->SpawnActor<ADIAHUD>(Params);
+			if (!Test.TestNotNull(TEXT("HUD"), Hud) || !Test.TestNotNull(TEXT("world subsystem"), Subsystem))
+			{
+				return false;
+			}
+			Panel = SNew(SDIAShopPanel).Hud(Hud).Subsystem(Subsystem);
+			return true;
+		}
+	};
+}
+
+DIA_TEST(FShopRowsByBuildingTest, "DoItAsphalt.Game.Shop.RowsByBuilding")
+
+bool FShopRowsByBuildingTest::RunTest(const FString& Parameters)
+{
+	FShopPanelFixture F;
+	if (!F.Start(*this))
+	{
+		return false;
+	}
+	const FDIAShopModel& Model = F.Panel->GetModel();
+
+	F.Panel->SetShop(ELotShop::Tools);
+	const TArray<int32> Tools = F.Panel->GetShownRows();
+	F.Panel->SetShop(ELotShop::Robots);
+	const TArray<int32> Robots = F.Panel->GetShownRows();
+	F.Panel->SetShop(ELotShop::Garage);
+	const TArray<int32> Garage = F.Panel->GetShownRows();
+
+	TestEqual(TEXT("Tools: the plant and five items"), Tools.Num(), 6);
+	TestEqual(TEXT("Robots: the station, three robots and their six upgrades"), Robots.Num(), 10);
+	TestEqual(TEXT("Garage: four"), Garage.Num(), 4);
+	if (Tools.Num() == 6)
+	{
+		TestTrue(TEXT("the plant row comes first in Tools"), Model.GetRow(Tools[0]).bPlant);
+	}
+	for (const int32 Row : Robots)
+	{
+		TestTrue(TEXT("a robot row is Robots"), Model.GetRow(Row).Shop == ELotShop::Robots);
+	}
+	for (const int32 Row : Garage)
+	{
+		TestTrue(TEXT("a garage row is Garage"), Model.GetRow(Row).Shop == ELotShop::Garage);
+	}
+	// Model order inside a building.
+	for (int32 I = 1; I < Robots.Num(); ++I)
+	{
+		TestTrue(TEXT("rows keep the model order"), Robots[I - 1] < Robots[I]);
+	}
+
+	// Together they are every row, and none is in two buildings.
+	TSet<int32> All;
+	for (const TArray<int32>* Shop : {&Tools, &Robots, &Garage})
+	{
+		for (const int32 Row : *Shop)
+		{
+			TestFalse(TEXT("a row is in one building only"), All.Contains(Row));
+			All.Add(Row);
+		}
+	}
+	TestEqual(TEXT("the union is every row of the model"), All.Num(), FDIAShopModel::NumRows);
+	// The upgrades are the robots' rows (nothing else sells them).
+	for (int32 I = FDIAShopModel::FirstUpgradeRow; I < FDIAShopModel::NumRows; ++I)
+	{
+		TestTrue(TEXT("an upgrade row is in Robots"), Robots.Contains(I));
+	}
+	return true;
+}
+
+DIA_TEST(FShopTitlePerBuildingTest, "DoItAsphalt.Game.Shop.TitlePerBuilding")
+
+bool FShopTitlePerBuildingTest::RunTest(const FString& Parameters)
+{
+	struct FExpected { ELotShop Shop; const TCHAR* Title; const TCHAR* Subtitle; };
+	const FExpected Expected[] = {
+		{ELotShop::Tools, TEXT("Tools"), TEXT("Hand tools and the plant")},
+		{ELotShop::Robots, TEXT("Robots"), TEXT("Robots and the portable station")},
+		{ELotShop::Garage, TEXT("Garage"), TEXT("Trucks")}};
+	for (const FExpected& E : Expected)
+	{
+		TestEqual(TEXT("title"), DIAFormat::ShopName(E.Shop).ToString(), FString(E.Title));
+		TestEqual(TEXT("subtitle"), DIAFormat::ShopSubtitle(E.Shop).ToString(), FString(E.Subtitle));
+	}
+
+	// The panel shows the title of the building it was given.
+	FShopPanelFixture F;
+	if (!F.Start(*this))
+	{
+		return false;
+	}
+	for (const FExpected& E : Expected)
+	{
+		F.Panel->SetShop(E.Shop);
+		TestTrue(TEXT("the panel keeps its building"), F.Panel->GetShop() == E.Shop);
+	}
+	F.Hud->OpenShop(ELotShop::Garage);
+	TestTrue(TEXT("the HUD names the open building"), F.Hud->GetOpenShop() == ELotShop::Garage);
+	F.Hud->OpenShop(ELotShop::Robots);
+	TestTrue(TEXT("opening another building switches"), F.Hud->GetOpenShop() == ELotShop::Robots);
+	F.Hud->SetShopOpen(false);
+	TestTrue(TEXT("closed names none"), F.Hud->GetOpenShop() == ELotShop::Count);
+	F.Hud->SetShopOpen(true);
+	TestTrue(TEXT("SetShopOpen(true) opens the last one"), F.Hud->GetOpenShop() == ELotShop::Robots);
+	return true;
+}
+
+DIA_TEST(FShopHandStripOnlyInToolsTest, "DoItAsphalt.Game.Shop.HandStripOnlyInTools")
+
+bool FShopHandStripOnlyInToolsTest::RunTest(const FString& Parameters)
+{
+	FShopPanelFixture F;
+	if (!F.Start(*this))
+	{
+		return false;
+	}
+	F.Panel->SetShop(ELotShop::Tools);
+	TestTrue(TEXT("the strip is in Tools"), F.Panel->IsHandStripShown());
+	F.Panel->SetShop(ELotShop::Robots);
+	TestFalse(TEXT("not in Robots"), F.Panel->IsHandStripShown());
+	F.Panel->SetShop(ELotShop::Garage);
+	TestFalse(TEXT("not in Garage"), F.Panel->IsHandStripShown());
+	F.Panel->SetShop(ELotShop::Tools);
+	TestTrue(TEXT("and back in Tools"), F.Panel->IsHandStripShown());
+	return true;
+}
+
+DIA_TEST(FShopBuyInItsBuildingTest, "DoItAsphalt.Game.Shop.BuyInItsBuilding")
+
+bool FShopBuyInItsBuildingTest::RunTest(const FString& Parameters)
+{
+	FShopPanelFixture F;
+	if (!F.Start(*this))
+	{
+		return false;
+	}
+	F.Subsystem->DevStart();
+	FLotGame& Game = F.Subsystem->GetGame();
+
+	// Each thing is bought from the card of its own building, as it was from the one panel.
+	auto BuyShown = [&](ELotShop Shop, ELotItem Item)
+	{
+		F.Panel->SetShop(Shop);
+		F.Panel->Refresh();
+		const FDIAShopModel& Model = F.Panel->GetModel();
+		const int32 Row = RowOfItem(Model, Item);
+		TestTrue(TEXT("the item's card is in this building"), F.Panel->GetShownRows().Contains(Row));
+		TestFalse(TEXT("not owned before"), Game.Owns(Item));
+		TestTrue(TEXT("bought from its card"), FDIAShopModel::Buy(Model.TargetOf(Row, Game), *F.Subsystem));
+		TestTrue(TEXT("owned after"), Game.Owns(Item));
+	};
+	BuyShown(ELotShop::Tools, ELotItem::Bucket);
+	BuyShown(ELotShop::Robots, ELotItem::AutoPaver);
+	BuyShown(ELotShop::Garage, ELotItem::Car);
 	return true;
 }
 

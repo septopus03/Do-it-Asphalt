@@ -236,8 +236,8 @@ TArray<uint8> UDIAWorldSubsystem::MakeSaveBlob() const
 		}
 	}
 	// Without an actor, or where it could not be put down, the core's own record of the movable stays (a non-finite place keeps it): the pose
-	// of its last release, or the place it was bought at, both legal. A copy, not Release/Grab on the live game: Grab also zeroes the suitcase's
-	// dose budget (a standing suitcase can dose while the cart is held), so the live game would not be identical afterwards.
+	// of its last release, or the place it was bought at, both legal. A copy, not Release/Grab on the live game: Grab also zeroes the trolley's
+	// dose budget (a standing trolley can dose while the cart is held), so the live game would not be identical afterwards.
 	FLotGame Copy = Game;
 	Copy.SettleFluid();
 	Copy.Release(Where, YawDeg);
@@ -327,6 +327,18 @@ bool UDIAWorldSubsystem::BuyItem(ELotItem Item)
 		return false;
 	}
 	OnItemBought.Broadcast(Item);
+	OnStateChanged.Broadcast();
+	Autosave();
+	return true;
+}
+
+bool UDIAWorldSubsystem::BuyPaverUpgrade(int32 Paver, ELotPaverUpgrade Upgrade)
+{
+	if (!Game.BuyPaverUpgrade(Paver, Upgrade))
+	{
+		return false;
+	}
+	OnPaverUpgradeBought.Broadcast(Paver, Upgrade);
 	OnStateChanged.Broadcast();
 	Autosave();
 	return true;

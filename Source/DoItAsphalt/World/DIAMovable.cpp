@@ -29,7 +29,7 @@ namespace
 		FName Model;
 		FVector BoundsMin;
 		FVector BoundsMax;
-		/** The flap or the outlet in model axes; ignored unless bHasMouth. */
+		/** The outlet in model axes; ignored unless bHasMouth. */
 		FVector Mouth;
 		bool bHasMouth;
 
@@ -42,8 +42,8 @@ namespace
 	{
 		switch (Kind)
 		{
-		case ELotMovable::Suitcase:
-			return {TEXT("SM_Suitcase"), FVector(-5.0, -25.4, 0.0), FVector(37.0, 25.4, 105.5), DIAModelSizes::SuitcaseMouthCm, true};
+		case ELotMovable::Trolley:
+			return {TEXT("SM_Trolley"), FVector(-49.8, -26.0, 0.0), FVector(46.0, 26.0, 89.8), DIAModelSizes::TrolleyMouthCm, true};
 		case ELotMovable::Station:
 			return {TEXT("SM_PortableStation"), FVector(-60.0, -40.0, 0.0), FVector(60.0, 40.0, 130.0), FVector::ZeroVector, false};
 		case ELotMovable::Cart:
@@ -56,18 +56,20 @@ namespace
 	constexpr double CubeShapeCm = 100.0;
 	/** The level stays this far inside the walls and below the rim. */
 	constexpr double LevelInsetCm = 0.4;
-	/** The inside of the cart's tub (Tools/ModelGen/cart.py: 12 mm walls, outer 95 x 66 cm at the rim Z = 76, 66 x 44 cm at the floor Z = 30): centre X, floor and rim height, and the inner width (X) and depth (Y) at both. */
-	constexpr double TubCentreXCm = -3.0;
-	constexpr double TubFloorZCm = 31.2;
-	constexpr double TubRimZCm = 76.0;
-	const FVector2D TubFloorInnerCm(63.6, 41.6);
-	const FVector2D TubRimInnerCm(92.6, 63.6);
-	/** The suitcase's sight strip (Tools/ModelGen/suitcase.py: 3.6 cm wide, 30 cm high from Z = 19, in the front glass at X = 31, Y = -15): the column fills it from the bottom. */
-	constexpr double SightBottomZCm = 19.0;
-	constexpr double SightHeightCm = 30.0;
-	constexpr double SightWidthCm = 3.0;
-	constexpr double SightDepthCm = 0.3;
-	const FVector2D SightXYCm(31.2, -15.0);
+	/** The inside of a tub: centre X, floor and rim height, and the inner width (X) and depth (Y) at both. */
+	struct FTubSpec
+	{
+		double CentreXCm;
+		double FloorZCm;
+		double RimZCm;
+		FVector2D FloorInnerCm;
+		FVector2D RimInnerCm;
+	};
+
+	/** Tools/ModelGen/cart.py: 12 mm walls, outer 95 x 66 cm at the rim Z = 76, 66 x 44 cm at the floor Z = 30. */
+	const FTubSpec CartTub = {-3.0, 31.2, 76.0, FVector2D(63.6, 41.6), FVector2D(92.6, 63.6)};
+	/** Tools/ModelGen/trolley.py: 10 mm walls, outer 70 x 50 cm at the rim Z = 60, 46 x 32 cm at the floor Z = 26. */
+	const FTubSpec TrolleyTub = {-2.0, 27.0, 60.0, FVector2D(44.0, 30.0), FVector2D(68.0, 48.0)};
 }
 
 ADIAMovable::ADIAMovable()
@@ -88,7 +90,7 @@ ADIAMovable::ADIAMovable()
 	BodyMesh->SetupAttachment(Root);
 	BodyMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
-	// The content: a flat box of the palette's asphalt (a disc in the cart's tub, a column in the suitcase's sight strip).
+	// The content: a flat box of the palette's asphalt in the tub of the cart or the trolley.
 	LevelMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("LevelMesh"));
 	LevelMesh->SetupAttachment(Root);
 	LevelMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
@@ -280,10 +282,10 @@ bool ADIAMovable::FindTapAt(const UWorld* World, FVector2D Point, ELotSource& Ou
 	for (TActorIterator<ADIAMovable> It(World); It; ++It)
 	{
 		const ELotMovable Movable = It->GetKind();
-		const bool bTap = Movable == ELotMovable::Suitcase || Movable == ELotMovable::Cart;
+		const bool bTap = Movable == ELotMovable::Trolley || Movable == ELotMovable::Cart;
 		if (bTap && Subsystem->GetGame().OwnsMovable(Movable) && Subsystem->GetGame().GetHeld() != Movable && It->ContainsPoint(Point))
 		{
-			OutSource = Movable == ELotMovable::Suitcase ? ELotSource::Suitcase : ELotSource::Cart;
+			OutSource = Movable == ELotMovable::Trolley ? ELotSource::Trolley : ELotSource::Cart;
 			return true;
 		}
 	}
@@ -402,16 +404,16 @@ void ADIAMovable::WorkTheStrip(UDIAWorldSubsystem& Subsystem, const ADIACharacte
 {
 	FVector2D From;
 	FVector2D To;
-	if (NextToolPath(Player, DeltaSeconds, LotBalance::CartLaySpeedCmS, From, To))
+	if (NextToolPath(Player, DeltaSeconds, Kind == ELotMovable::Cart ? LotBalance::CartLaySpeedCmS : LotBalance::TrolleyLaySpeedCmS, From, To))
 	{
-		Subsystem.Dispatch(Subsystem.GetGame().LayCartStrip(From, To));
+		Subsystem.Dispatch(Subsystem.GetGame().LayStrip(From, To));
 	}
 }
 
 void ADIAMovable::UpdateLevel()
 {
 	const UDIAWorldSubsystem* Subsystem = GetSubsystem();
-	if (!Subsystem || (Kind != ELotMovable::Cart && Kind != ELotMovable::Suitcase))
+	if (!Subsystem || (Kind != ELotMovable::Cart && Kind != ELotMovable::Trolley))
 	{
 		return;
 	}
@@ -430,22 +432,13 @@ void ADIAMovable::UpdateLevel()
 		return;
 	}
 	const double Fill = FMath::Clamp(Litres / Capacity, 0.0, 1.0);
-	if (Kind == ELotMovable::Cart)
-	{
-		// The level rises linearly with the content; the box is as wide as the tub is at that height.
-		const double Z = FMath::Lerp(TubFloorZCm, TubRimZCm - LevelInsetCm, Fill);
-		const double Across = (Z - TubFloorZCm) / (TubRimZCm - TubFloorZCm);
-		const FVector2D Inner = FMath::Lerp(TubFloorInnerCm, TubRimInnerCm, Across) - FVector2D(2.0 * LevelInsetCm);
-		LevelMesh->SetRelativeScale3D(FVector(Inner.X / CubeShapeCm, Inner.Y / CubeShapeCm, DIACharacter::LiquidThicknessCm / CubeShapeCm));
-		LevelMesh->SetRelativeLocation(FVector(TubCentreXCm, 0.0, Z));
-	}
-	else
-	{
-		// The column in the sight strip grows from its bottom.
-		const double Height = SightHeightCm * Fill;
-		LevelMesh->SetRelativeScale3D(FVector(SightDepthCm / CubeShapeCm, SightWidthCm / CubeShapeCm, Height / CubeShapeCm));
-		LevelMesh->SetRelativeLocation(FVector(SightXYCm.X, SightXYCm.Y, SightBottomZCm + Height * 0.5));
-	}
+	// The level rises linearly with the content; the box is as wide as the tub is at that height.
+	const FTubSpec& Tub = Kind == ELotMovable::Cart ? CartTub : TrolleyTub;
+	const double Z = FMath::Lerp(Tub.FloorZCm, Tub.RimZCm - LevelInsetCm, Fill);
+	const double Across = (Z - Tub.FloorZCm) / (Tub.RimZCm - Tub.FloorZCm);
+	const FVector2D Inner = FMath::Lerp(Tub.FloorInnerCm, Tub.RimInnerCm, Across) - FVector2D(2.0 * LevelInsetCm);
+	LevelMesh->SetRelativeScale3D(FVector(Inner.X / CubeShapeCm, Inner.Y / CubeShapeCm, DIACharacter::LiquidThicknessCm / CubeShapeCm));
+	LevelMesh->SetRelativeLocation(FVector(Tub.CentreXCm, 0.0, Z));
 	LevelMesh->SetVisibility(true);
 }
 
@@ -464,7 +457,7 @@ void ADIAMovable::Tick(float DeltaSeconds)
 
 	if (IsHeld())
 	{
-		if (Kind == ELotMovable::Cart)
+		if (Kind == ELotMovable::Cart || Kind == ELotMovable::Trolley)
 		{
 			WorkTheStrip(*Subsystem, Player, DeltaSeconds);
 		}
@@ -472,20 +465,11 @@ void ADIAMovable::Tick(float DeltaSeconds)
 	else
 	{
 		ToolPath.Reset();
-		const bool bTank = Kind == ELotMovable::Suitcase || Kind == ELotMovable::Cart;
+		const bool bTank = Kind == ELotMovable::Trolley || Kind == ELotMovable::Cart;
 		if (bTank && DIARefill::IsInZone(Game, FVector2D(GetActorLocation().X, GetActorLocation().Y)))
 		{
-			// The one place that fills a standing suitcase or cart.
+			// The one place that fills a standing trolley or cart.
 			Game.FillMovable(Kind, DeltaSeconds);
-		}
-		if (Kind == ELotMovable::Suitcase && Player && Player->IsFlapHeld())
-		{
-			const FVector PlayerLocation = Player->GetActorLocation();
-			if (GetDistanceToFootprint(FVector2D(PlayerLocation.X, PlayerLocation.Y)) <= LotBalance::InteractionRangeCm)
-			{
-				const FVector Location = GetActorLocation();
-				Subsystem->Dispatch(Game.DoseSuitcase(GetMouthPoint(), FVector2D(Location.X, Location.Y), DeltaSeconds));
-			}
 		}
 	}
 	UpdateLevel();

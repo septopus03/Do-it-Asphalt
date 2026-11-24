@@ -133,13 +133,13 @@ namespace DIACheats
 	}
 
 	/** The names dia.Item accepts: the ELotItem values in order. */
-	const TCHAR* const ItemNames[] = {TEXT("Bucket"), TEXT("Canister"), TEXT("Tub"), TEXT("Suitcase"), TEXT("Cart"), TEXT("Station"),
-		TEXT("AutoPaver"), TEXT("AutoPaverFast"), TEXT("AutoPaverFaster"), TEXT("Car"), TEXT("CarWideBar")};
+	const TCHAR* const ItemNames[] = {TEXT("Bucket"), TEXT("Canister"), TEXT("Tub"), TEXT("Trolley"), TEXT("Cart"), TEXT("Station"),
+		TEXT("AutoPaver"), TEXT("Car"), TEXT("CarT2"), TEXT("CarT3"), TEXT("CarT4"), TEXT("AutoPaver2"), TEXT("AutoPaver3")};
 	static_assert(UE_ARRAY_COUNT(ItemNames) == static_cast<int32>(ELotItem::Count), "one name per item");
 
 	void Item(const TArray<FString>& Args, UWorld* World)
 	{
-		static const TCHAR* Usage_ = TEXT("dia.Item <Bucket|Canister|Tub|Suitcase|Cart|Station|AutoPaver|AutoPaverFast|AutoPaverFaster|Car|CarWideBar>");
+		static const TCHAR* Usage_ = TEXT("dia.Item <Bucket|Canister|Tub|Trolley|Cart|Station|AutoPaver|Car|CarT2|CarT3|CarT4|AutoPaver2|AutoPaver3>");
 		if (!Usage(Args.Num() == 1, Usage_))
 		{
 			return;
@@ -158,9 +158,53 @@ namespace DIACheats
 		}
 		if (UDIAWorldSubsystem* S = GetSubsystem(World))
 		{
-			const ELotItem Granted = static_cast<ELotItem>(Found);
-			S->GetGame().DebugGrantItem(Granted);
-			S->OnItemBought.Broadcast(Granted);
+			// What the item upgrades is given first (CarT3 gives Car and CarT2), so that the game stays one that a save can hold.
+			TArray<ELotItem, TInlineAllocator<4>> Chain;
+			for (ELotItem Next = static_cast<ELotItem>(Found); Next != ELotItem::Count; Next = LotBalance::ItemRequires[static_cast<int32>(Next)])
+			{
+				Chain.Insert(Next, 0);
+			}
+			for (const ELotItem Granted : Chain)
+			{
+				S->GetGame().DebugGrantItem(Granted);
+				S->OnItemBought.Broadcast(Granted);
+			}
+			S->Dispatch(FLotEvents());
+		}
+	}
+
+	/** Gives robot Paver (0-based) and the robots before it that are not owned yet, so that the game stays one that a save can hold. */
+	void ProvidePaver(UDIAWorldSubsystem& S, int32 Paver)
+	{
+		for (int32 P = 0; P <= Paver; ++P)
+		{
+			if (!S.GetGame().Owns(AutoPaverItem[P]))
+			{
+				S.GetGame().DebugGrantItem(AutoPaverItem[P]);
+				S.OnItemBought.Broadcast(AutoPaverItem[P]);
+			}
+		}
+	}
+
+	void PaverUpgrade(const TArray<FString>& Args, UWorld* World)
+	{
+		static const TCHAR* Usage_ = TEXT("dia.PaverUpgrade <robot 1..3> <Speed|Capacity> <level 0..2>");
+		if (!Usage(Args.Num() == 3 && Args[0].IsNumeric() && Args[2].IsNumeric(), Usage_))
+		{
+			return;
+		}
+		const int32 Robot = FCString::Atoi(*Args[0]);
+		const int32 Level = FCString::Atoi(*Args[2]);
+		const bool bSpeed = Args[1].Equals(TEXT("Speed"), ESearchCase::IgnoreCase);
+		const bool bCapacity = Args[1].Equals(TEXT("Capacity"), ESearchCase::IgnoreCase);
+		if (!Usage(Robot >= 1 && Robot <= MaxAutoPavers && (bSpeed || bCapacity) && Level >= 0 && Level <= MaxPaverUpgradeLevel, Usage_))
+		{
+			return;
+		}
+		if (UDIAWorldSubsystem* S = GetSubsystem(World))
+		{
+			ProvidePaver(*S, Robot - 1);
+			S->GetGame().DebugSetPaverUpgrade(Robot - 1, bSpeed ? ELotPaverUpgrade::Speed : ELotPaverUpgrade::Capacity, Level);
 			S->Dispatch(FLotEvents());
 		}
 	}
@@ -190,7 +234,7 @@ namespace DIACheats
 	}
 
 	/** The names dia.Grab accepts: the ELotMovable values in order. */
-	const TCHAR* const MovableNames[] = {TEXT("Suitcase"), TEXT("Cart"), TEXT("Station")};
+	const TCHAR* const MovableNames[] = {TEXT("Trolley"), TEXT("Cart"), TEXT("Station")};
 	static_assert(UE_ARRAY_COUNT(MovableNames) == static_cast<int32>(ELotMovable::Count), "one name per movable");
 
 	/** The movable a name stands for; Count if it is none. */
@@ -206,13 +250,13 @@ namespace DIACheats
 		return ELotMovable::Count;
 	}
 
-	/** Gives the player the movable (if not owned yet) and fills a suitcase or a cart to the top from the plant stock; the cheat is for looking at things. */
+	/** Gives the player the movable (if not owned yet) and fills a trolley or a cart to the top from the plant stock; the cheat is for looking at things. */
 	void ProvideMovable(UDIAWorldSubsystem& S, ELotMovable Movable)
 	{
 		FLotGame& Game = S.GetGame();
 		if (!Game.OwnsMovable(Movable))
 		{
-			const ELotItem Item = Movable == ELotMovable::Suitcase ? ELotItem::Suitcase : Movable == ELotMovable::Cart ? ELotItem::Cart
+			const ELotItem Item = Movable == ELotMovable::Trolley ? ELotItem::Trolley : Movable == ELotMovable::Cart ? ELotItem::Cart
 				: ELotItem::Station;
 			Game.DebugGrantItem(Item);
 			S.OnItemBought.Broadcast(Item);
@@ -229,7 +273,7 @@ namespace DIACheats
 
 	void Grab(const TArray<FString>& Args, UWorld* World)
 	{
-		static const TCHAR* Usage_ = TEXT("dia.Grab <Suitcase|Cart|Station>");
+		static const TCHAR* Usage_ = TEXT("dia.Grab <Trolley|Cart|Station>");
 		if (!Usage(Args.Num() == 1, Usage_))
 		{
 			return;
@@ -300,7 +344,7 @@ namespace DIACheats
 		const double LengthCm = (Args.Num() == 3 ? FCString::Atod(*Args[2]) : 4.0) * 100.0;
 		if (Game.Grab(ELotMovable::Cart))
 		{
-			S->Dispatch(Game.LayCartStrip(From, From + FVector2D(LengthCm, 0.0)));
+			S->Dispatch(Game.LayStrip(From, From + FVector2D(LengthCm, 0.0)));
 			Game.Release(Before.Pos, Before.YawDeg);
 			S->Dispatch(FLotEvents());
 		}
@@ -309,7 +353,7 @@ namespace DIACheats
 	/** Gives the player the movable (if needed) and sets it down at the point, turned by the yaw; the actor follows the core. */
 	void Place(const TArray<FString>& Args, UWorld* World)
 	{
-		static const TCHAR* Usage_ = TEXT("dia.Place <Suitcase|Cart|Station> <x> <y> [yaw]");
+		static const TCHAR* Usage_ = TEXT("dia.Place <Trolley|Cart|Station> <x> <y> [yaw]");
 		if (!Usage(Args.Num() >= 3 && Args.Num() <= 4, Usage_))
 		{
 			return;
@@ -434,7 +478,7 @@ namespace DIACheats
 
 	void SendPaver(const TArray<FString>& Args, UWorld* World)
 	{
-		// The same code path as the G key (it speaks through the toasts, and a menu or the shop swallows it just as it does the key).
+		// The same code path as the H key, for the selected robot (it speaks through the toasts, and a menu or the shop swallows it just as it does the key).
 		if (ADIAPlayerController* PC = Cast<ADIAPlayerController>(GetPlayerController(World)))
 		{
 			PC->OnSendPaver();
@@ -528,10 +572,30 @@ namespace DIACheats
 
 	void Shop(const TArray<FString>& Args, UWorld* World)
 	{
-		if (ADIAHUD* Hud = GetHud(World))
+		if (!Usage(Args.Num() <= 1, TEXT("dia.Shop [Tools|Robots|Garage]; without a name it closes the shop")))
 		{
-			Hud->ToggleShop();
+			return;
 		}
+		ADIAHUD* Hud = GetHud(World);
+		if (!Hud)
+		{
+			return;
+		}
+		if (Args.IsEmpty())
+		{
+			Hud->SetShopOpen(false);
+			return;
+		}
+		for (int32 I = 0; I < static_cast<int32>(ELotShop::Count); ++I)
+		{
+			const ELotShop Shop = static_cast<ELotShop>(I);
+			if (Args[0].Equals(DIAFormat::ShopName(Shop).ToString(), ESearchCase::IgnoreCase))
+			{
+				Hud->OpenShop(Shop);
+				return;
+			}
+		}
+		UE_LOG(LogDoItAsphalt, Warning, TEXT("dia.Shop [Tools|Robots|Garage]: unknown shop %s"), *Args[0]);
 	}
 
 	void Screen(const TArray<FString>& Args, UWorld* World)
@@ -722,24 +786,25 @@ namespace DIACheats
 	FAutoConsoleCommandWithWorldAndArgs GiveCommand(TEXT("dia.Give"), TEXT("dia.Give <credits>"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Give));
 	FAutoConsoleCommandWithWorldAndArgs CompleteCommand(TEXT("dia.Complete"), TEXT("dia.Complete <n>: completes the first n incomplete cells"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Complete));
 	FAutoConsoleCommandWithWorldAndArgs CompleteEntryCommand(TEXT("dia.CompleteEntry"), TEXT("dia.CompleteEntry <0..5>: completes the 12 cells of an entry segment"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&CompleteEntry));
-	FAutoConsoleCommandWithWorldAndArgs ItemCommand(TEXT("dia.Item"), TEXT("dia.Item <name>: gives the player an item (Bucket, Canister, Tub, Suitcase, Cart, Station, AutoPaver, AutoPaverFast, AutoPaverFaster, Car, CarWideBar)"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Item));
-	FAutoConsoleCommandWithWorldAndArgs GrabCommand(TEXT("dia.Grab"), TEXT("dia.Grab <Suitcase|Cart|Station>: gives the player the movable if needed, fills a suitcase or cart and takes it in the hands"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Grab));
+	FAutoConsoleCommandWithWorldAndArgs ItemCommand(TEXT("dia.Item"), TEXT("dia.Item <name>: gives the player an item (Bucket, Canister, Tub, Trolley, Cart, Station, AutoPaver, Car, CarT2, CarT3, CarT4, AutoPaver2, AutoPaver3; an upgrade also gives the items it needs)"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Item));
+	FAutoConsoleCommandWithWorldAndArgs GrabCommand(TEXT("dia.Grab"), TEXT("dia.Grab <Trolley|Cart|Station>: gives the player the movable if needed, fills a trolley or cart and takes it in the hands"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Grab));
 	FAutoConsoleCommandWithWorldAndArgs DropCommand(TEXT("dia.Drop"), TEXT("dia.Drop: lets go of the held movable where it is, if there is room"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Drop));
 	FAutoConsoleCommandWithWorldAndArgs CartStripCommand(TEXT("dia.CartStrip"), TEXT("dia.CartStrip <x> <y> [lengthM=4]: lays a strip of the cart's width from the point towards +X through the core (gives and fills the cart)"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&CartStrip));
-	FAutoConsoleCommandWithWorldAndArgs PlaceCommand(TEXT("dia.Place"), TEXT("dia.Place <Suitcase|Cart|Station> <x> <y> [yaw]: gives the movable if needed and sets it down at the point"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Place));
+	FAutoConsoleCommandWithWorldAndArgs PlaceCommand(TEXT("dia.Place"), TEXT("dia.Place <Trolley|Cart|Station> <x> <y> [yaw]: gives the movable if needed and sets it down at the point"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Place));
+	FAutoConsoleCommandWithWorldAndArgs PaverUpgradeCommand(TEXT("dia.PaverUpgrade"), TEXT("dia.PaverUpgrade <robot 1..3> <Speed|Capacity> <level 0..2>: sets an upgrade level of a robot (it and the robots before it are given if needed)"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&PaverUpgrade));
 	FAutoConsoleCommandWithWorldAndArgs PlantCommand(TEXT("dia.Plant"), TEXT("dia.Plant <0..5>: sets the plant level"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Plant));
 	FAutoConsoleCommandWithWorldAndArgs EnterCarCommand(TEXT("dia.EnterCar"), TEXT("dia.EnterCar: gets the player into the paver car (dia.Item Car first), like the E key beside it; while driving, gets out"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&EnterCar));
 	FAutoConsoleCommandWithWorldAndArgs TeleportCommand(TEXT("dia.Teleport"), TEXT("dia.Teleport <x> <y> [yaw] [pitch]"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Teleport));
 	FAutoConsoleCommandWithWorldAndArgs PromptCommand(TEXT("dia.Prompt"), TEXT("dia.Prompt <text>: sets the contextual prompt (no text hides it)"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Prompt));
 	FAutoConsoleCommandWithWorldAndArgs ToastCommand(TEXT("dia.Toast"), TEXT("dia.Toast <text>: shows a toast"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Toast));
-	FAutoConsoleCommandWithWorldAndArgs SendPaverCommand(TEXT("dia.SendPaver"), TEXT("dia.SendPaver: sends the auto paver to the sector the player stands in (the G key)"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&SendPaver));
+	FAutoConsoleCommandWithWorldAndArgs SendPaverCommand(TEXT("dia.SendPaver"), TEXT("dia.SendPaver: sends the selected robot to the sector the player stands in (the H key)"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&SendPaver));
 	FAutoConsoleCommandWithWorldAndArgs SaveCommand(TEXT("dia.Save"), TEXT("dia.Save: saves the game to the slot (the slot of a screenshot run is DIA_Shot)"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Save));
 	FAutoConsoleCommandWithWorldAndArgs LoadCommand(TEXT("dia.Load"), TEXT("dia.Load: loads the saved game, like Continue in the main menu"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Load));
 	FAutoConsoleCommandWithWorldAndArgs NewGameConsoleCommand(TEXT("dia.NewGame"), TEXT("dia.NewGame: starts over, like New Game in the menus (the slot is deleted)"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&NewGameCheat));
 	FAutoConsoleCommandWithWorldAndArgs SkipMenuCommand(TEXT("dia.SkipMenu"), TEXT("dia.SkipMenu: closes the main menu without choosing anything (the game starts as it is; screenshots use it)"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&SkipMenu));
 	FAutoConsoleCommandWithWorldAndArgs CameraConsoleCommand(TEXT("dia.Camera"), TEXT("dia.Camera [distanceCm] [yawOffsetDeg] [pitchDeg]: no arguments toggle between the view from the eyes and the external view; otherwise the external view that far behind the player at that angle (0 = from the eyes)"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&CameraCommand));
 	FAutoConsoleCommandWithWorldAndArgs WorkViewConsoleCommand(TEXT("dia.WorkView"), TEXT("dia.WorkView <1|0>: holds the work view (zoomed, tilted down) or lets it go; screenshots use it"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&WorkView));
-	FAutoConsoleCommandWithWorldAndArgs ShopConsoleCommand(TEXT("dia.Shop"), TEXT("dia.Shop: opens or closes the shop; screenshots use it"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Shop));
+	FAutoConsoleCommandWithWorldAndArgs ShopConsoleCommand(TEXT("dia.Shop"), TEXT("dia.Shop [Tools|Robots|Garage]: opens that building's shop, without a name closes it; screenshots use it"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Shop));
 	FAutoConsoleCommandWithWorldAndArgs ScreenConsoleCommand(TEXT("dia.Screen"), TEXT("dia.Screen <Pause|Settings|Question|Win|Map>: opens that screen of the menu, the win screen or the paver map; screenshots use it"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Screen));
 	FAutoConsoleCommandWithWorldAndArgs CheckViewConsoleCommand(TEXT("dia.CheckView"), TEXT("dia.CheckView <1|0>: holds the check view (unfinished ground in orange, the way to the nearest unfinished cell) or lets it go; screenshots use it"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&CheckView));
 	FAutoConsoleCommandWithWorldAndArgs HandConsoleCommand(TEXT("dia.Hand"), TEXT("dia.Hand <Bowl|Bucket|Canister|Tub>: takes the item into the hand (a vessel not owned yet is given)"), FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Hand));

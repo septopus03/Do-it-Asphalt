@@ -26,6 +26,30 @@ struct FDIALoop
 	bool b3D = false;
 };
 
+/**
+ * Watches one quantity (litres) and says whether it has fallen or risen within the last moments. Activity sounds follow this and not the
+ * player's intent: pouring is heard only while a vessel really loses asphalt, filling only while one really gains it, so an empty
+ * bucket or a full tank is silent at once. The short hold bridges the steps the game moves litres in.
+ */
+struct FDIATrend
+{
+	/** How long a sound stays on after the last change (s). */
+	static constexpr float HoldSeconds = 0.15f;
+
+	/** Feeds the current value; Reset starts over (the watched thing changed, so the difference means nothing). */
+	void Update(double Now, float DeltaTime, bool bReset = false);
+	bool IsFalling() const { return Down > 0.f; }
+	bool IsRising() const { return Up > 0.f; }
+	/** True in the one update in which the value rose. */
+	bool HasJustRisen() const { return bJustRose; }
+
+private:
+	double Last = -1.0;
+	float Down = 0.f;
+	float Up = 0.f;
+	bool bJustRose = false;
+};
+
 /** The sounds of the game: names of the sound waves in /Game/Audio (SW_<Name>, made by Tools/Audio/gen_sounds.py) and the levels they play at. */
 namespace DIAAudio
 {
@@ -101,8 +125,8 @@ private:
 	void HandleUnlocked(ELotUnlock Unlock);
 	void HandleWon();
 
-	/** The hand's pouring, filling and the spoon; bCarPours adds the car's stream to the pouring loop. */
-	void TickHand(const ADIACharacter* Character, float DeltaTime, bool bCarPours);
+	/** The hand's pouring, filling and the spoon; bCarPours adds the car's stream to the pouring loop. Every one of them follows the litres. */
+	void TickHand(float DeltaTime, bool bCarPours);
 	void TickFootsteps(const ADIACharacter* Character, float DeltaTime);
 	/** The car's engine, the stations and the paver's motor; returns whether the car pours now. */
 	bool TickVehicles(float DeltaTime);
@@ -119,9 +143,20 @@ private:
 	FDelegateHandle UnlockHandle;
 	FDelegateHandle WonHandle;
 
+	/** What moves where: the hand in use, the held movable, all movables together, the car's tank, every robot's tank. */
+	FDIATrend HandTrend;
+	FDIATrend HeldTrend;
+	FDIATrend MovablesTrend;
+	FDIATrend CarTrend;
+	FDIATrend PaverTrend[MaxAutoPavers];
+	/** Where the robot loop and the pump loop were last placed: a fading loop stays there while no robot runs or loads. */
+	FVector LastRunningAt = FVector::ZeroVector;
+	FVector LastLoadingAt = FVector::ZeroVector;
+	int32 LastHand = -1;
+	int32 LastHeldMovable = -1;
+	float ScoopCooldown = 0.f;
+
 	float StepTravelled = 0.f;
 	int32 NextStep = 0;
-	float ScoopTimer = 0.f;
 	bool bWasInCar = false;
-	int32 LastHeld = -1;
 };

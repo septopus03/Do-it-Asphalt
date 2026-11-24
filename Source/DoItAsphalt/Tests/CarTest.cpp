@@ -99,7 +99,18 @@ namespace CarTestSupport
 	/** Puts the car somewhere without a sweep, standing still and facing YawDeg. */
 	void PlaceCar(ADIAPaverCar* Car, FVector2D At, double YawDeg)
 	{
-		Car->SetActorLocationAndRotation(FVector(At.X, At.Y, DIAPaverCar::OriginHeightCm()), FRotator(0.0, YawDeg, 0.0));
+		Car->SetActorLocationAndRotation(FVector(At.X, At.Y, DIAPaverCar::OriginHeightCm(Car->GetShownLevel())), FRotator(0.0, YawDeg, 0.0));
+	}
+
+	/** What the cheat dia.Item does for a tier: it and the ones below it are granted, one after the other. */
+	bool GrantTier(UDIAWorldSubsystem* Subsystem, int32 Level)
+	{
+		bool bAll = true;
+		for (int32 Tier = 0; Tier <= Level; ++Tier)
+		{
+			bAll = Grant(Subsystem, static_cast<ELotItem>(static_cast<int32>(ELotItem::Car) + Tier)) && bAll;
+		}
+		return bAll;
 	}
 
 	void TickFor(FTestWorldWrapper& Wrapper, double Seconds)
@@ -158,8 +169,7 @@ namespace CarTestSupport
 		Test.TestFalse(Tag + TEXT(": the body is not hidden from the owner's view"), Body->bOwnerNoSee);
 		Test.TestFalse(Tag + TEXT(": the body is for everyone"), Body->bOnlyOwnerSee);
 		Test.TestTrue(Tag + TEXT(": the body is visible"), Body->IsVisible() && !Car->IsHidden());
-		Test.TestFalse(Tag + TEXT(": the wide bar is not hidden from the owner's view"), Car->GetWideBarMesh()->bOwnerNoSee);
-		Test.TestEqual(Tag + TEXT(": the collision is still a blocking box"), Car->GetCollision()->GetCollisionEnabled(), ECollisionEnabled::QueryAndPhysics);
+			Test.TestEqual(Tag + TEXT(": the collision is still a blocking box"), Car->GetCollision()->GetCollisionEnabled(), ECollisionEnabled::QueryAndPhysics);
 		Test.TestEqual(Tag + TEXT(": the body has no collision of its own"), Body->GetCollisionEnabled(), ECollisionEnabled::NoCollision);
 	}
 
@@ -207,7 +217,7 @@ bool FCarSpawnsWhenBoughtTest::RunTest(const FString& Parameters)
 	}
 	TestTrue(TEXT("it stands where the core has it"), Where(Car).Equals(Game.World().CarPos, 1.0));
 
-	TestTrue(TEXT("the wide bar comes on top"), Grant(Subsystem, ELotItem::CarWideBar));
+	TestTrue(TEXT("the second tier comes on top"), Grant(Subsystem, ELotItem::CarT2));
 	TestEqual(TEXT("still exactly one car"), FindCars(World).Num(), 1);
 
 	// A new game takes it away again, and a game that owns it has one after the reset.
@@ -341,8 +351,8 @@ bool FCarExitNeedsRoomTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("in the car"), Controller->GetPawn() == Car);
 
 	// Walls on both sides: there is no spot to get out at.
-	AActor* Left = SpawnBlocker(World, Spot + FVector2D(0.0, -DIAPaverCar::ExitSideCm), 60.0);
-	AActor* Right = SpawnBlocker(World, Spot + FVector2D(0.0, DIAPaverCar::ExitSideCm), 60.0);
+	AActor* Left = SpawnBlocker(World, Spot + FVector2D(0.0, -DIAPaverCar::ExitSideCm()), 60.0);
+	AActor* Right = SpawnBlocker(World, Spot + FVector2D(0.0, DIAPaverCar::ExitSideCm()), 60.0);
 	if (!TestNotNull(TEXT("left blocker"), Left) || !TestNotNull(TEXT("right blocker"), Right))
 	{
 		return false;
@@ -401,20 +411,19 @@ bool FCarPaveSpeedCapTest::RunTest(const FString& Parameters)
 	Game.DebugFillTanks(); // the car pours from its tank
 
 	// The numbers of the brief are the numbers of the balance, or this test has nothing to say.
-	if (!TestEqual(TEXT("plain bar pours at 144.5 cm/s at most"), LotBalance::CarPaveSpeedCmS(0), 144.5, 0.1)
-		|| !TestEqual(TEXT("wide bar pours at 142.9 cm/s at most"), LotBalance::CarPaveSpeedCmS(1), 142.9, 0.1))
+	if (!TestEqual(TEXT("tier 1 pours at 144.4 cm/s at most"), LotBalance::CarPaveSpeedCmS(0), 144.4, 0.1)
+		|| !TestEqual(TEXT("tier 2 pours at 138.9 cm/s at most"), LotBalance::CarPaveSpeedCmS(1), 138.9, 0.1)
+		|| !TestEqual(TEXT("tier 3 pours at 150.8 cm/s at most"), LotBalance::CarPaveSpeedCmS(2), 150.8, 0.1)
+		|| !TestEqual(TEXT("tier 4 pours at 160 cm/s at most"), LotBalance::CarPaveSpeedCmS(3), 160.0, 0.1))
 	{
 		return false;
 	}
 
-	for (const int32 Level : {0, 1})
+	for (const int32 Level : {0, 1, 2, 3})
 	{
-		if (Level == 1)
-		{
-			TestTrue(TEXT("grant the wide bar"), Grant(Subsystem, ELotItem::CarWideBar));
-		}
+		TestTrue(TEXT("grant the tier"), GrantTier(Subsystem, Level));
 		const double Cap = LotBalance::CarPaveSpeedCmS(Level);
-		const FString Name = Level == 0 ? TEXT("plain bar") : TEXT("wide bar");
+		const FString Name = FString::Printf(TEXT("tier %d"), Level + 1);
 		PlaceCar(Car, MiddleOfLot(), 0.0);
 		Car->SetThrottle(1.f);
 		Car->SetPouring(true);
@@ -457,7 +466,7 @@ bool FCarPavesThreeRowsTest::RunTest(const FString& Parameters)
 	// The bar starts on a cell edge along a row centre; the 3 m bar covers three rows.
 	const FVector2D RowCentre = MiddleOfLot();
 	const double StartX = RowCentre.X - AsphaltLot::CellCm * 0.5;
-	PlaceCar(Car, FVector2D(StartX + LotBalance::CarBarBehindCm, RowCentre.Y), 0.0);
+	PlaceCar(Car, FVector2D(StartX + LotBalance::CarBarBehindCm[0], RowCentre.Y), 0.0);
 	Car->SetThrottle(1.f);
 	Car->SetPouring(true);
 	for (int32 I = 0; I < 400 && Car->GetBarPoint().X < StartX + 1000.0; ++I)
@@ -487,7 +496,7 @@ bool FCarNoPaveAcrossAJumpTest::RunTest(const FString& Parameters)
 	Game.DebugSetPlantStock(Game.GetPlantStorage());
 	Game.DebugFillTanks(); // the car pours from its tank
 	const FVector2D RowCentre = MiddleOfLot();
-	PlaceCar(Car, RowCentre + FVector2D(LotBalance::CarBarBehindCm - AsphaltLot::CellCm * 0.5, 0.0), 0.0);
+	PlaceCar(Car, RowCentre + FVector2D(LotBalance::CarBarBehindCm[0] - AsphaltLot::CellCm * 0.5, 0.0), 0.0);
 	Car->SetPouring(true);
 	TickFor(Wrapper, 0.5);
 	TestEqual(TEXT("a car that stands still paves nothing"), CountRawOrDone(Game), 0);
@@ -505,29 +514,226 @@ bool FCarNoPaveAcrossAJumpTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-DIA_TEST(FCarWideBarMeshTest, "DoItAsphalt.Game.Car.WideBarMesh")
+DIA_TEST(FCarTierMeshTest, "DoItAsphalt.Game.Car.TierMesh")
 
-bool FCarWideBarMeshTest::RunTest(const FString& Parameters)
+bool FCarTierMeshTest::RunTest(const FString& Parameters)
 {
 	DIA_CAR_FIXTURE()
 	TestTrue(TEXT("grant the car"), Grant(Subsystem, ELotItem::Car));
 	ADIAPaverCar* Car = TheCar(World);
-	if (!TestNotNull(TEXT("the car"), Car) || !TestNotNull(TEXT("the wide bar component"), Car->GetWideBarMesh()))
+	if (!TestNotNull(TEXT("the car"), Car))
 	{
 		return false;
 	}
-	TestFalse(TEXT("the plain car shows no wide bar"), Car->GetWideBarMesh()->IsVisible());
+	const TCHAR* const MeshNames[4] = {TEXT("SM_PaverCar"), TEXT("SM_PaverCar_T2"), TEXT("SM_PaverCar_T3"), TEXT("SM_PaverCar_T4")};
+	const FVector2D Spot = MiddleOfLot();
+	for (int32 Level = 0; Level < 4; ++Level)
+	{
+		const FString Tag = FString::Printf(TEXT("tier %d"), Level + 1);
+		// What the cheat dia.Item CarT2..CarT4 does, with the car standing in the open.
+		TestTrue(*(Tag + TEXT(": grant")), GrantTier(Subsystem, Level));
+		PlaceCar(Car, Spot, 30.0);
+		Wrapper.TickTestWorld(TickSeconds);
+		TestEqual(*(Tag + TEXT(": the core's level")), Game.GetCarLevel(), Level);
+		TestEqual(*(Tag + TEXT(": the actor shows it")), Car->GetShownLevel(), Level);
+		TestEqual(*(Tag + TEXT(": still exactly one car")), FindCars(World).Num(), 1);
 
-	// What the cheat dia.Item CarWideBar does.
-	TestTrue(TEXT("grant the wide bar"), Grant(Subsystem, ELotItem::CarWideBar));
+		UStaticMeshComponent* Body = Car->GetBodyMesh();
+		TestNotNull(*(Tag + TEXT(": a model")), Body->GetStaticMesh().Get());
+		TestEqual(*(Tag + TEXT(": the model of the tier")), Body->GetStaticMesh() ? Body->GetStaticMesh()->GetName() : FString(), FString(MeshNames[Level]));
+		TestTrue(*(Tag + TEXT(": it is the real model, not the placeholder")), Body->GetStaticMesh() && !Body->GetStaticMesh()->GetPathName().StartsWith(TEXT("/Engine/")));
+		if (Body->GetStaticMesh())
+		{
+			const FVector Size = Body->GetStaticMesh()->GetBounds().BoxExtent * 2.0;
+			TestTrue(*(Tag + TEXT(": the model is the size of the table")), Size.Equals(DIAModelSizes::PaverCarCm[Level], 6.0));
+		}
+		TestTrue(*(Tag + TEXT(": the mesh has no scale of a placeholder")), Body->GetRelativeScale3D().Equals(FVector::OneVector, 0.001));
+
+		// The collision box is the body of the tier, and the box stands on the ground, so that the wheels do.
+		const FVector Extent = Car->GetCollision()->GetUnscaledBoxExtent();
+		TestTrue(*(Tag + TEXT(": the box is the body of the tier")), (Extent * 2.0).Equals(DIAModelSizes::PaverCarBodyCm[Level], 0.01));
+		TestEqual(*(Tag + TEXT(": the actor's height is half the box and the lift")), Car->GetActorLocation().Z, DIAPaverCar::OriginHeightCm(Level), 0.01);
+		TestEqual(*(Tag + TEXT(": the model stands on the ground")), Body->GetComponentLocation().Z, 0.0, 0.01);
+		TestEqual(*(Tag + TEXT(": the bottom of the box is just above the ground")), Car->GetActorLocation().Z - Extent.Z, DIAPaverCar::GroundLiftCm, 0.01);
+		TestTrue(*(Tag + TEXT(": it kept its place")), Where(Car).Equals(Spot, 0.5) && Game.World().CarPos.Equals(Spot, 0.5));
+
+		// The bar is behind the centre by the tier's distance, which is half the model's length: it is the rear face.
+		const FVector Forward = Car->GetActorForwardVector();
+		const FVector2D Bar = Car->GetBarPoint();
+		TestEqual(*(Tag + TEXT(": the bar is the tier's distance behind")), FVector2D::Distance(Bar, Spot), LotBalance::CarBarBehindCm[Level], 0.01);
+		TestTrue(*(Tag + TEXT(": behind, not in front")), FVector2D::DotProduct(Bar - Spot, FVector2D(Forward.X, Forward.Y)) < 0.0);
+		TestEqual(*(Tag + TEXT(": the bar sits at the rear face of the model")), LotBalance::CarBarBehindCm[Level], DIAModelSizes::PaverCarCm[Level].X * 0.5, 0.01);
+
+		// The camera boom keeps the framing: longer and higher with the truck.
+		TestEqual(*(Tag + TEXT(": the boom")), Car->GetBoom()->TargetArmLength, static_cast<float>(DIAPaverCar::ArmLengthFor(Level)), 0.5f);
+		TestEqual(*(Tag + TEXT(": the pivot is above the ground by the tier's height")), Car->GetBoom()->GetComponentLocation().Z, DIAPaverCar::PivotHeightFor(Level), 0.5);
+		TestEqual(*(Tag + TEXT(": exit side is the body's half width and the margin")), DIAPaverCar::ExitSideCm(Level), DIAModelSizes::PaverCarBodyCm[Level].Y * 0.5 + DIAPaverCar::ExitMarginCm, 0.01);
+	}
+	TestEqual(TEXT("the first tier keeps its boom"), DIAPaverCar::ArmLengthFor(0), DIAPaverCar::ArmLengthCm, 0.001);
+	TestEqual(TEXT("and its exit side"), DIAPaverCar::ExitSideCm(0), 200.0, 0.001);
+	return true;
+}
+
+DIA_TEST(FCarTierBarPointTest, "DoItAsphalt.Game.Car.TierBarPoint")
+
+bool FCarTierBarPointTest::RunTest(const FString& Parameters)
+{
+	DIA_CAR_FIXTURE()
+	const FVector2D Spot = MiddleOfLot();
+	TestTrue(TEXT("grant the car"), Grant(Subsystem, ELotItem::Car));
+	ADIAPaverCar* Car = TheCar(World);
+	if (!TestNotNull(TEXT("the car"), Car))
+	{
+		return false;
+	}
+	for (int32 Level = 0; Level < 4; ++Level)
+	{
+		TestTrue(TEXT("grant the tier"), GrantTier(Subsystem, Level));
+		for (const double Yaw : {0.0, 90.0, -135.0})
+		{
+			PlaceCar(Car, Spot, Yaw);
+			const FVector2D Back = -FVector2D(FMath::Cos(FMath::DegreesToRadians(Yaw)), FMath::Sin(FMath::DegreesToRadians(Yaw)));
+			TestTrue(*FString::Printf(TEXT("tier %d, yaw %.0f: the bar point"), Level + 1, Yaw), Car->GetBarPoint().Equals(Spot + Back * LotBalance::CarBarBehindCm[Level], 0.01));
+		}
+	}
+	return true;
+}
+
+DIA_TEST(FCarTierPavesItsWidthTest, "DoItAsphalt.Game.Car.TierPavesItsWidth")
+
+bool FCarTierPavesItsWidthTest::RunTest(const FString& Parameters)
+{
+	DIA_CAR_FIXTURE()
+	TestTrue(TEXT("grant the car"), Grant(Subsystem, ELotItem::Car));
+	ADIAPaverCar* Car = TheCar(World);
+	if (!TestNotNull(TEXT("the car"), Car))
+	{
+		return false;
+	}
+	Game.DebugSetPlantLevel(5);
+	Game.DebugSetPlantStock(Game.GetPlantStorage());
+	for (const int32 Level : {1, 3})
+	{
+		TestTrue(TEXT("grant the tier"), GrantTier(Subsystem, Level));
+		Game.DebugFillTanks();
+		const FVector2D RowCentre = FVector2D(MiddleOfLot().X, MiddleOfLot().Y + 3000.0 * (Level - 1));
+		// The bar starts on a cell edge along a row centre and goes 10 m: the bar of the tier is as wide as its table says.
+		const double StartX = RowCentre.X - AsphaltLot::CellCm * 0.5;
+		const int32 Before = Game.GetCompletedCells();
+		PlaceCar(Car, FVector2D(StartX + LotBalance::CarBarBehindCm[Level], RowCentre.Y), 0.0);
+		Car->SetThrottle(1.f);
+		Car->SetPouring(true);
+		for (int32 I = 0; I < 400 && Car->GetBarPoint().X < StartX + 1000.0; ++I)
+		{
+			Wrapper.TickTestWorld(TickSeconds);
+		}
+		Car->SetPouring(false);
+		Car->SetThrottle(0.f);
+		const int32 Rows = FMath::FloorToInt(LotBalance::CarWidthCm[Level] / AsphaltLot::CellCm);
+		const int32 Cells = Game.GetCompletedCells() - Before;
+		TestTrue(*FString::Printf(TEXT("tier %d: about %d cells (got %d)"), Level + 1, Rows * 10, Cells), FMath::Abs(Cells - Rows * 10) <= 3 * Rows);
+	}
+	return true;
+}
+
+DIA_TEST(FCarUpgradeMovesWhenBlockedTest, "DoItAsphalt.Game.Car.UpgradeMovesWhenBlocked")
+
+bool FCarUpgradeMovesWhenBlockedTest::RunTest(const FString& Parameters)
+{
+	DIA_CAR_FIXTURE()
+	TestTrue(TEXT("grant the car"), Grant(Subsystem, ELotItem::Car));
+	ADIAPaverCar* Car = TheCar(World);
+	if (!TestNotNull(TEXT("the car"), Car))
+	{
+		return false;
+	}
+	const FVector2D Spot = MiddleOfLot();
+	PlaceCar(Car, Spot, 0.0);
 	Wrapper.TickTestWorld(TickSeconds);
-	UStaticMeshComponent* Bar = Car->GetWideBarMesh();
-	TestTrue(TEXT("the wide bar shows"), Bar->IsVisible());
-	TestNotNull(TEXT("with a model"), Bar->GetStaticMesh().Get());
-	TestEqual(TEXT("the model is the wide bar"), Bar->GetStaticMesh() ? Bar->GetStaticMesh()->GetName() : FString(), FString(TEXT("SM_PaverCar_WideBar")));
-	TestTrue(TEXT("attached to the car"), Bar->GetAttachParent() != nullptr && Bar->GetOwner() == Car);
-	TestTrue(TEXT("with no offset of its own"), Bar->GetRelativeLocation().IsNearlyZero(0.01) && Bar->GetRelativeRotation().IsNearlyZero(0.01));
-	TestEqual(TEXT("it stands where the body stands"), Bar->GetComponentLocation().Z, Car->GetBodyMesh()->GetComponentLocation().Z, 0.01);
+	// A post just beyond the nose of the plain car (half length 230): the second tier (half length 280) would be inside it.
+	AActor* Post = SpawnBlocker(World, Spot + FVector2D(270.0, 0.0), 30.0);
+	if (!TestNotNull(TEXT("the post"), Post))
+	{
+		return false;
+	}
+	Wrapper.TickTestWorld(TickSeconds);
+	TestTrue(TEXT("the plain car stands free next to it"), Where(Car).Equals(Spot, 0.5));
+
+	TestTrue(TEXT("grant the second tier"), Grant(Subsystem, ELotItem::CarT2));
+	Wrapper.TickTestWorld(TickSeconds);
+	const FVector2D Spawn = LotLayout::ItemSpawn(ELotItem::Car);
+	TestTrue(TEXT("the car is not stuck in the post: it is at its spawn"), Where(Car).Equals(Spawn, 0.5));
+	TestTrue(TEXT("and the core's position is in step"), Game.World().CarPos.Equals(Spawn, 0.5));
+	TestEqual(TEXT("on the ground of its tier"), Car->GetActorLocation().Z, DIAPaverCar::OriginHeightCm(1), 0.01);
+	TestEqual(TEXT("level 2 shown"), Car->GetShownLevel(), 1);
+
+	// With room it stays: the same upgrade next in a free place does not teleport.
+	Post->Destroy();
+	PlaceCar(Car, Spot, 0.0);
+	Wrapper.TickTestWorld(TickSeconds);
+	TestTrue(TEXT("grant the third tier"), Grant(Subsystem, ELotItem::CarT3));
+	Wrapper.TickTestWorld(TickSeconds);
+	TestTrue(TEXT("a free car stays where it stands"), Where(Car).Equals(Spot, 0.5));
+	return true;
+}
+
+DIA_TEST(FCarSpawnHasRoomForBiggestTest, "DoItAsphalt.Game.Car.SpawnHasRoomForBiggest")
+
+bool FCarSpawnHasRoomForBiggestTest::RunTest(const FString& Parameters)
+{
+	DIA_CAR_FIXTURE()
+	// Everything the world holds is standing; the biggest truck fits at the car's spawn, and that spot is the one an upgrade falls back to.
+	const FVector2D Spawn = LotLayout::ItemSpawn(ELotItem::Car);
+	const FVector Body = DIAModelSizes::PaverCarBodyCm[3];
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(CarSpawnRoom), false);
+	const FCollisionShape Box = FCollisionShape::MakeBox(Body * 0.5);
+	TestFalse(TEXT("the 820 x 310 cm box overlaps nothing at the spawn"),
+		World->OverlapBlockingTestByChannel(FVector(Spawn.X, Spawn.Y, DIAPaverCar::OriginHeightCm(3)), FQuat::Identity, ECC_Pawn, Box, Params));
+	return true;
+}
+
+DIA_TEST(FCarTierSurvivesSaveTest, "DoItAsphalt.Game.Car.TierSurvivesSave")
+
+bool FCarTierSurvivesSaveTest::RunTest(const FString& Parameters)
+{
+	DIA_CAR_FIXTURE()
+	TestTrue(TEXT("grant tier 3"), GrantTier(Subsystem, 2));
+	ADIAPaverCar* Car = TheCar(World);
+	if (!TestNotNull(TEXT("the car"), Car))
+	{
+		return false;
+	}
+	TestEqual(TEXT("tier 3 shown"), Car->GetShownLevel(), 2);
+	const TArray<uint8> Saved = Game.SaveToBytes();
+
+	// A new game takes the car away (and the slot); buying the plain car again shows tier 1, and loading the saved game brings tier 3 back.
+	Subsystem->NewGame();
+	TestTrue(TEXT("write the slot"), UDIAWorldSubsystem::WriteSlot(FCarTestSlot::Name(), Saved));
+	TestEqual(TEXT("no car after a new game"), FindCars(World).Num(), 0);
+	TestTrue(TEXT("buy the plain car"), Grant(Subsystem, ELotItem::Car));
+	ADIAPaverCar* Fresh = TheCar(World);
+	if (!TestNotNull(TEXT("the new car"), Fresh))
+	{
+		return false;
+	}
+	TestEqual(TEXT("it is tier 1"), Fresh->GetShownLevel(), 0);
+	TestEqual(TEXT("its box is the plain body"), (Fresh->GetCollision()->GetUnscaledBoxExtent() * 2.0).X, DIAModelSizes::PaverCarBodyCm[0].X, 0.01);
+
+	if (!TestTrue(TEXT("load"), Subsystem->LoadGame()))
+	{
+		return false;
+	}
+	Wrapper.TickTestWorld(TickSeconds);
+	ADIAPaverCar* Loaded = TheCar(World);
+	if (!TestNotNull(TEXT("the loaded car"), Loaded))
+	{
+		return false;
+	}
+	TestEqual(TEXT("loaded level"), Game.GetCarLevel(), 2);
+	TestEqual(TEXT("tier 3 shown after the load"), Loaded->GetShownLevel(), 2);
+	TestEqual(TEXT("its mesh"), Loaded->GetBodyMesh()->GetStaticMesh() ? Loaded->GetBodyMesh()->GetStaticMesh()->GetName() : FString(), FString(TEXT("SM_PaverCar_T3")));
+	TestEqual(TEXT("its box"), (Loaded->GetCollision()->GetUnscaledBoxExtent() * 2.0).X, DIAModelSizes::PaverCarBodyCm[2].X, 0.01);
+	TestEqual(TEXT("it stands on the ground"), Loaded->GetActorLocation().Z, DIAPaverCar::OriginHeightCm(2), 0.01);
 	return true;
 }
 

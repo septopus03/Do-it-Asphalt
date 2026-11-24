@@ -12,6 +12,36 @@
 #include "UI/DIAFormat.h"
 #include "UI/DIAHudStyle.h"
 
+DIA_TEST(FFormatPaverLinePerRobotTest, "DoItAsphalt.Game.Format.PaverLinePerRobot")
+
+bool FFormatPaverLinePerRobotTest::RunTest(const FString& Parameters)
+{
+	FLotGame Game;
+	TestTrue(TEXT("no robot, no line"), DIAFormat::PaverLine(Game, 0).IsEmpty());
+	Game.DebugGrantItem(ELotItem::AutoPaver);
+	Game.SetAutoPaverAuto(false);
+	// One robot: today's text, without a number.
+	TestEqual(TEXT("one robot waits"), DIAFormat::PaverLine(Game, 0).ToString(), FString(TEXT("Paver: waiting – press M for the map")));
+	TestTrue(TEXT("robot 2 is not owned"), DIAFormat::PaverLine(Game, 1).IsEmpty());
+	Game.SetAutoPaverAuto(true);
+	TestEqual(TEXT("one robot on AUTO"), DIAFormat::PaverLine(Game, 0).ToString(), FString(TEXT("Paver: AUTO – no unpaved sector to go to")));
+	TestEqual(TEXT("toast of one robot"), DIAFormat::PaverSentToast(0, 1, 11).ToString(), FString(TEXT("Paver → sector 12")));
+
+	// Two robots: every line starts with its number.
+	Game.DebugGrantItem(ELotItem::AutoPaver2);
+	Game.SetAutoPaverAuto(false);
+	TestTrue(TEXT("robot 1 line"), DIAFormat::PaverLine(Game, 0).ToString().StartsWith(TEXT("Paver 1:")));
+	TestTrue(TEXT("robot 2 line"), DIAFormat::PaverLine(Game, 1).ToString().StartsWith(TEXT("Paver 2:")));
+	TestTrue(TEXT("robot 3 is not owned"), DIAFormat::PaverLine(Game, 2).IsEmpty());
+	TestTrue(TEXT("an index below 0 has no line"), DIAFormat::PaverLine(Game, -1).IsEmpty());
+	TestEqual(TEXT("toast of robot 2"), DIAFormat::PaverSentToast(1, 2, 11).ToString(), FString(TEXT("Paver 2 → sector 12")));
+	TestEqual(TEXT("already-here toast of robot 2"), DIAFormat::PaverAlreadyHereToast(1, 2).ToString(), FString(TEXT("Paver 2 is already here")));
+	TestEqual(TEXT("already-here toast of the only robot"), DIAFormat::PaverAlreadyHereToast(0, 1).ToString(), FString(TEXT("Paver is already here")));
+	TestTrue(TEXT("a travelling robot keeps its number"), Game.AssignAutoPaverSector(1, 11));
+	TestTrue(TEXT("with its sector"), DIAFormat::PaverLine(Game, 1).ToString().StartsWith(TEXT("Paver 2 → ")));
+	return true;
+}
+
 DIA_TEST(FFormatTest, "DoItAsphalt.Game.Format.Text")
 
 bool FFormatTest::RunTest(const FString& Parameters)
@@ -51,11 +81,13 @@ bool FFormatTest::RunTest(const FString& Parameters)
 	Is(TEXT("toast one credit"), DIAFormat::CreditsToast(1.0), TEXT("+1 credit"));
 	Is(TEXT("toast entry"), DIAFormat::EntryToast(2), TEXT("Entry 3 complete"));
 	Is(TEXT("toast exit"), DIAFormat::ExitToast(), TEXT("The exit is open!"));
-	Is(TEXT("item name"), DIAFormat::ItemName(ELotItem::AutoPaver), TEXT("Auto Paver"));
+	Is(TEXT("item name"), DIAFormat::ItemName(ELotItem::AutoPaver), TEXT("Auto Paver 1"));
 	Is(TEXT("item toast"), DIAFormat::ItemBoughtToast(ELotItem::Canister), TEXT("Canister bought"));
 	Is(TEXT("unlock name"), DIAFormat::UnlockName(ELotUnlock::Sprint), TEXT("Sprint"));
 	Is(TEXT("car item name"), DIAFormat::ItemName(ELotItem::Car), TEXT("Paver Car"));
-	Is(TEXT("car upgrade name"), DIAFormat::ItemName(ELotItem::CarWideBar), TEXT("Wide Bar"));
+	Is(TEXT("car upgrade names"), DIAFormat::ItemName(ELotItem::CarT2), TEXT("Paver Car II"));
+	Is(TEXT("car III name"), DIAFormat::ItemName(ELotItem::CarT3), TEXT("Paver Car III"));
+	Is(TEXT("car IV name"), DIAFormat::ItemName(ELotItem::CarT4), TEXT("Paver Car IV"));
 	Is(TEXT("car unlock name"), DIAFormat::UnlockName(ELotUnlock::Car), TEXT("Paver Car"));
 	Is(TEXT("hand name"), DIAFormat::HandName(ELotHand::Bucket), TEXT("Bucket"));
 	TestEqual(TEXT("unlock toast"), DIAFormat::UnlockToast(ELotUnlock::Sprint).ToString(), FString(TEXT("Unlocked: Sprint\n")) + DIAFormat::UnlockEffect(ELotUnlock::Sprint).ToString());
@@ -177,6 +209,30 @@ bool FWinModelTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("credits earned"), Model.GetView().Credits.ToString(), FString(TEXT("2,000")));
 	TestEqual(TEXT("cells paved"), Model.GetView().Cells.ToString(), FString(TEXT("200")));
 	TestEqual(TEXT("items text"), Model.GetView().Items.ToString(), FString::Printf(TEXT("3 / %d"), FDIAWinModel::ItemsTotal()));
+
+	// The upgrade levels of the robots count, every level of every robot; the total has room for all of them.
+	Game.DebugGrantItem(ELotItem::AutoPaver);
+	Game.DebugGrantItem(ELotItem::AutoPaver2);
+	Game.DebugSetPaverUpgrade(0, ELotPaverUpgrade::Speed, 2);
+	Game.DebugSetPaverUpgrade(1, ELotPaverUpgrade::Capacity, 1);
+	TestEqual(TEXT("two robots and three upgrade levels"), FDIAWinModel::ItemsBought(Game), 3 + 2 + 3);
+	TestTrue(TEXT("the levels rebuild the view"), Model.Update(Game));
+	TestEqual(TEXT("items text with the levels"), Model.GetView().Items.ToString(), FString::Printf(TEXT("8 / %d"), FDIAWinModel::ItemsTotal()));
+
+	// Everything bought is the total.
+	FLotGame Full;
+	for (int32 I = 0; I < static_cast<int32>(ELotItem::Count); ++I)
+	{
+		Full.DebugGrantItem(static_cast<ELotItem>(I));
+	}
+	Full.DebugSetPlantLevel(5);
+	for (int32 P = 0; P < MaxAutoPavers; ++P)
+	{
+		Full.DebugSetPaverUpgrade(P, ELotPaverUpgrade::Speed, MaxPaverUpgradeLevel);
+		Full.DebugSetPaverUpgrade(P, ELotPaverUpgrade::Capacity, MaxPaverUpgradeLevel);
+	}
+	TestEqual(TEXT("everything bought is the total"), FDIAWinModel::ItemsBought(Full), FDIAWinModel::ItemsTotal());
+	TestEqual(TEXT("13 items, 5 plant levels, 3 robots x 2 kinds x 2 levels"), FDIAWinModel::ItemsTotal(), 13 + 5 + 12);
 	return true;
 }
 

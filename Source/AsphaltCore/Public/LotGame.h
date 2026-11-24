@@ -30,6 +30,25 @@ struct ASPHALTCORE_API FLotEvents
 /** What the auto paver is doing: it works a sector from its tank, and drives to a vehicle station when the tank is empty. */
 enum class ELotPaverPhase : uint8 { Idle, ToSector, Working, ToStation, Loading, Count };
 
+/** One auto paver robot: where it works, where it stands and what it carries. The core keeps it so that it can be saved. */
+struct ASPHALTCORE_API FLotPaver
+{
+	/** Sector the robot is assigned to; INDEX_NONE while it waits. */
+	int32 Sector = INDEX_NONE;
+	/** Cell of the sector being worked on (0..399). */
+	int32 Step = 0;
+	FVector2D Pos = FVector2D::ZeroVector;
+	ELotPaverPhase Phase = ELotPaverPhase::Idle;
+	/** Litres the robot has earned but not yet spent. */
+	double Budget = 0.0;
+	/** Litres in its tank. */
+	double Tank = 0.0;
+	/** Seconds until an idle robot looks for a sector again (the search walks the whole lot). */
+	double SearchCooldown = 0.0;
+	/** Upgrade level per ELotPaverUpgrade (0..MaxPaverUpgradeLevel); it belongs to the robot and stays 0 until the robot is owned. */
+	int32 Upgrade[static_cast<int32>(ELotPaverUpgrade::Count)] = {0, 0};
+};
+
 /** Where one movable stands. The engine layer moves it; the core only keeps the position so it can be saved. */
 struct ASPHALTCORE_API FLotMovable
 {
@@ -143,7 +162,7 @@ public:
 	static ELotItem VesselItem(ELotHand Vessel);
 	/**
 	 * Moves litres from the source into the vessel: DispenseRateLPerS * Dt from the plant stock, TapRateLPerS * Dt from
-	 * the content of the suitcase or the cart. The vessel must be owned (it is filled while in hand or not), a movable source must be owned
+	 * the content of the trolley or the cart. The vessel must be owned (it is filled while in hand or not), a movable source must be owned
 	 * and not held. Limited by the source content and the free room in the vessel. Returns litres moved.
 	 */
 	double FillVessel(ELotHand Vessel, ELotSource Source, double Dt);
@@ -166,40 +185,57 @@ public:
 	bool Grab(ELotMovable Movable);
 	/** Lets go of the held movable at the given place (a non-finite position keeps the old one); nothing held does nothing. */
 	void Release(FVector2D Pos, double YawDeg);
-	/** Litres in the suitcase or the cart; 0 for the others. */
+	/** Litres in the trolley or the cart; 0 for the others. */
 	double GetMovableLitres(ELotMovable Movable) const;
 	double GetMovableCapacity(ELotMovable Movable) const;
-	/** Moves DispenseRateLPerS * Dt from the plant stock into the owned suitcase or cart; the engine decides where it stands. Returns litres moved. */
+	/** Moves DispenseRateLPerS * Dt from the plant stock into the owned trolley or cart; the engine decides where it stands. Returns litres moved. */
 	double FillMovable(ELotMovable Movable, double Dt);
-	/**
-	 * The owned, not held suitcase doses asphalt into the cell under Mouth for Dt seconds: the dose budget grows by
-	 * SuitcaseDoseRateLPerS * Dt (at most the content) and the part below one texel's price is carried to the next call.
-	 */
-	FLotEvents DoseSuitcase(FVector2D Mouth, FVector2D From, double Dt);
-	/** The held cart lays a strip CartStripWidthCm wide along A->B; its content is the budget. */
-	FLotEvents LayCartStrip(FVector2D A, FVector2D B);
+	/** The held cart (CartStripWidthCm wide) or trolley (TrolleyStripWidthCm wide) lays a strip along A->B; its content is the budget. */
+	FLotEvents LayStrip(FVector2D A, FVector2D B);
 
-	/** Auto paver level by upgrades bought: 0..2; -1 without the auto paver. */
-	int32 GetAutoPaverLevel() const;
-	/** Cells per minute the auto paver paves at its level; 0 without it. */
-	double GetAutoPaverRateCellsPerMin() const;
+	/** Upgrade level (0..MaxPaverUpgradeLevel) of a robot; -1 for a robot that is not owned. Every robot has its own levels. */
+	int32 GetPaverUpgradeLevel(int32 Paver, ELotPaverUpgrade Upgrade) const;
+	/** Price of the NEXT level of the upgrade; -1 at the maximum level or for a robot that is not owned. */
+	double GetPaverUpgradePrice(int32 Paver, ELotPaverUpgrade Upgrade) const;
+	/** True if the robot is owned, below the maximum level and the credits cover the price. */
+	bool CanBuyPaverUpgrade(int32 Paver, ELotPaverUpgrade Upgrade) const;
+	/** Pays and raises the level; a speed level raises the rate at once, a capacity level raises the size of the tank but does not fill it. */
+	bool BuyPaverUpgrade(int32 Paver, ELotPaverUpgrade Upgrade);
+	/** Cells per minute the robot paves at its speed level; 0 for a robot that is not owned. */
+	double GetAutoPaverRateCellsPerMin(int32 Paver) const;
+	/** Robots owned, 0..MaxAutoPavers; they are bought in order, so robot n exists once n + 1 are owned. */
+	int32 GetNumAutoPavers() const;
 	/**
-	 * Sends the owned auto paver to a sector (0..74): it travels to the centre of the sector's first cell, then works
-	 * through the sector's 400 cells inside Tick. Every assignment, the current sector too, restarts: the step and the budget go back to 0 and the paver travels to the first cell again. False without the
-	 * auto paver or for an invalid sector.
+	 * Sends an owned robot to a sector (0..74): it travels to the centre of the sector's first cell, then works
+	 * through the sector's 400 cells inside Tick. Every assignment, the current sector too, restarts: the step and the budget go back to 0 and the robot travels to the first cell again.
+	 * A sector has one robot: the robot that had it loses it (no sector, step 0, no budget, idle; its tank and place stay). False for a robot that is not owned or for an invalid sector.
 	 */
-	bool AssignAutoPaverSector(int32 Sector);
-	/** Sector the auto paver is assigned to; INDEX_NONE while it waits. */
-	int32 GetAutoPaverSector() const { return AutoPaverSector; }
+	bool AssignAutoPaverSector(int32 Paver, int32 Sector);
+	/** The robot assigned to the sector; INDEX_NONE if there is none. */
+	int32 FindAutoPaverInSector(int32 Sector) const;
+	/**
+	 * Automatic mode (on in a new game, one switch for all robots): a robot without a sector takes the nearest sector that still has a free cell
+	 * and that no other robot has, loads at a station when its tank is empty, and goes on to the next sector when one is finished; sending it to a sector by hand
+	 * (AssignAutoPaverSector) overrides the choice once. Off: they wait for orders.
+	 */
+	void SetAutoPaverAuto(bool bAuto);
+	bool IsAutoPaverAuto() const { return bAutoPaverAuto; }
+	/**
+	 * True while the robot stands at a station with an empty plant stock and cannot load: it waits for the plant to make asphalt.
+	 * The getters below return the value of an empty FLotPaver for a robot that is not owned (or does not exist).
+	 */
+	bool IsAutoPaverStarved(int32 Paver) const;
+	/** Sector the robot is assigned to; INDEX_NONE while it waits. */
+	int32 GetAutoPaverSector(int32 Paver) const;
 	/** Cell of the sector being worked on (0..399). */
-	int32 GetAutoPaverStep() const { return AutoPaverStep; }
-	FVector2D GetAutoPaverPos() const { return AutoPaverPos; }
-	/** True while the auto paver drives (to its sector or to a station). */
-	bool IsAutoPaverTravelling() const { return AutoPaverPhase == ELotPaverPhase::ToSector || AutoPaverPhase == ELotPaverPhase::ToStation; }
-	ELotPaverPhase GetAutoPaverPhase() const { return AutoPaverPhase; }
-	/** Litres in the tank of the auto paver, and the size of the tank. */
-	double GetAutoPaverTank() const { return AutoPaverTank; }
-	double GetAutoPaverTankCapacity() const { return LotBalance::AutoPaverTankL; }
+	int32 GetAutoPaverStep(int32 Paver) const;
+	FVector2D GetAutoPaverPos(int32 Paver) const;
+	/** True while the robot drives (to its sector or to a station). */
+	bool IsAutoPaverTravelling(int32 Paver) const;
+	ELotPaverPhase GetAutoPaverPhase(int32 Paver) const;
+	/** Litres in the tank of the robot, and the size of its tank at its capacity level (0 for a robot that is not owned). */
+	double GetAutoPaverTank(int32 Paver) const;
+	double GetAutoPaverTankCapacity(int32 Paver) const;
 	/** Where the vehicles load: the fixed station and, once bought and set down, the portable one. */
 	int32 GetNumStations() const;
 	FVector2D GetStationPos(int32 Index) const;
@@ -208,7 +244,7 @@ public:
 	/** True if Pos is within VehicleStationRadiusCm of a station. */
 	bool IsAtStation(FVector2D Pos) const;
 
-	/** Car level: 0 plain bar, 1 wide bar; -1 without the car. */
+	/** Car level: 0..3 = the highest tier owned (Car, CarT2, CarT3, CarT4); -1 without the car. */
 	int32 GetCarLevel() const;
 	/** Litres in the tank of the car, and the size of the tank (0 without the car). */
 	double GetCarTank() const { return CarTank; }
@@ -223,10 +259,15 @@ public:
 	 * Nothing without the car.
 	 */
 	FLotEvents PourFromCar(FVector2D A, FVector2D B);
+	/**
+	 * The same for a bar that turns while it moves: ForwardA and ForwardB are the car's headings (unit vectors) at A and at B;
+	 * the bar stands across them, and the swept quad between the two bars is laid, so a turn leaves an unbroken line.
+	 */
+	FLotEvents PourFromCar(FVector2D A, FVector2D B, FVector2D ForwardA, FVector2D ForwardB);
 
 	/** First four bytes of a save ("DIA2" in little-endian order). */
 	static constexpr uint32 SaveMagic = 0x32414944;
-	static constexpr int32 SaveVersion = 3;
+	static constexpr int32 SaveVersion = 7;
 
 	/**
 	 * Serialises the whole game state (little-endian, fixed order, exact length) for the autosave slot. The pour
@@ -241,6 +282,8 @@ public:
 
 	void DebugGive(double CreditsToAdd);
 	void DebugGrantItem(ELotItem Item);
+	/** Sets the upgrade level of an owned robot, clipped to 0..MaxPaverUpgradeLevel; a robot that is not owned is left alone. A tank above the new size is cut to it. */
+	void DebugSetPaverUpgrade(int32 Paver, ELotPaverUpgrade Upgrade, int32 Level);
 	/** Sets the plant level; a level outside 0..5 is ignored. The stock is clipped to the new storage. */
 	void DebugSetPlantLevel(int32 Level);
 	/** Sets the plant stock, clipped to 0..GetPlantStorage(). */
@@ -260,11 +303,15 @@ private:
 	void PlaceBoughtItem(ELotItem Item);
 	/**
 	 * Grows a stream budget by Earned (never above Content), spends it through Spend, charges the litres used to both
-	 * and drops a rest the grid could still pay for. Shared by the hand pour and the suitcase dose.
+	 * and drops a rest the grid could still pay for. Shared by the hand pour and the trolley dose.
 	 */
 	FLotPour SpendStream(double& Budget, double& Content, double Earned, TFunctionRef<FLotPour(double)> Spend);
-	/** Advances the auto paver by one sub-step: drive, work through the sector from its tank, or load at a station; appends what it pours to Events. */
-	void TickAutoPaver(double Step, FLotEvents& Events);
+	/** Advances one robot by one sub-step: drive, work through the sector from its tank, or load at a station; appends what it pours to Events. */
+	void TickAutoPaver(int32 Paver, double Step, FLotEvents& Events);
+	/** The nearest sector to From that still has an incomplete cell and no robot; INDEX_NONE if there is none. */
+	int32 FindSectorToPave(FVector2D From) const;
+	/** The robot, or null for a robot that is not owned or does not exist. */
+	const FLotPaver* OwnedPaver(int32 Paver) const;
 	/** Books a pour: pays credits, adds litres, compares the unlock state before and after. */
 	FLotEvents ApplyPour(const FLotPour& Pour);
 
@@ -288,19 +335,12 @@ private:
 	double StreamBudget = 0.0;
 	FLotWorldState WorldState;
 	ELotMovable Held = ELotMovable::Count;
-	/** Litres of the suitcase and the cart; the other movables stay at 0. */
+	/** Litres of the trolley and the cart; the other movables stay at 0. */
 	double MovableLitres[static_cast<int32>(ELotMovable::Count)] = {};
-	/** Litres of the suitcase dose earned but not yet spent (below one texel's price between calls). */
-	double DoseBudget = 0.0;
-	/** Sector the auto paver works in; INDEX_NONE while it waits. */
-	int32 AutoPaverSector = INDEX_NONE;
-	/** Cell of the sector being worked on. */
-	int32 AutoPaverStep = 0;
-	FVector2D AutoPaverPos = FVector2D::ZeroVector;
-	ELotPaverPhase AutoPaverPhase = ELotPaverPhase::Idle;
-	/** Litres the auto paver has earned but not yet spent. */
-	double AutoPaverBudget = 0.0;
-	/** Litres in the tank of the auto paver and of the car. */
-	double AutoPaverTank = 0.0;
+	/** The robots; only the first GetNumAutoPavers() are in play, the others stay empty. */
+	FLotPaver Pavers[MaxAutoPavers];
+	/** Litres in the tank of the car. */
 	double CarTank = 0.0;
+	/** Whether an idle robot chooses its sector itself. */
+	bool bAutoPaverAuto = true;
 };

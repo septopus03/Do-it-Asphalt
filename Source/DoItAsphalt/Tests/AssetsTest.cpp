@@ -53,7 +53,7 @@ bool FAxisTestImportedTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-// Every one of the 30 models of docs/03-3d-modely.md and the 12 of docs/04-plan-zmien-asphalt-self.md (chapter 4.1) is imported: /Game/Models/<Name> is a real mesh (not the placeholder shape
+// Every one of the 51 models of docs/03-3d-modely.md (chapter 4, incl. the paver car tiers 4.4 and the upgrade buildings 4.5) is imported: /Game/Models/<Name> is a real mesh (not the placeholder shape
 // of the game) whose envelope matches the manifest of the model generator (metres there, centimetres in the engine).
 DIA_TEST(FAllModelsImportedTest, "DoItAsphalt.Game.AllModelsImported")
 
@@ -76,12 +76,16 @@ namespace
 		TEXT("SM_AutoPaver"), TEXT("SM_PaverCar"),
 		TEXT("SM_Fence"), TEXT("SM_Cone"), TEXT("SM_Barrel"), TEXT("SM_Lamp"), TEXT("SM_DirtPile"),
 		// Asphalt-self (docs/04, chapter 4.1): hand tools, containers, finisher, trough, curb, wide bar, mall.
-		TEXT("SM_Spoon"), TEXT("SM_Bowl"), TEXT("SM_Trowel"), TEXT("SM_Scoop"), TEXT("SM_Bucket"), TEXT("SM_Suitcase"),
+		TEXT("SM_Spoon"), TEXT("SM_Bowl"), TEXT("SM_Trowel"), TEXT("SM_Scoop"), TEXT("SM_Bucket"), TEXT("SM_Trolley"),
 		TEXT("SM_Cart"), TEXT("SM_Finisher"), TEXT("SM_Trough"), TEXT("SM_Curb"), TEXT("SM_PaverCar_WideBar"), TEXT("SM_Mall"),
 		// Vessels and stations of the second pass: canister, tub, the fixed vehicle station.
 		TEXT("SM_Canister"), TEXT("SM_Tub"), TEXT("SM_VehicleStation"),
+		// The three bigger tiers of the paver car (docs/03, chapter 4.4).
+		TEXT("SM_PaverCar_T2"), TEXT("SM_PaverCar_T3"), TEXT("SM_PaverCar_T4"),
+		// The three upgrade buildings (docs/03, chapter 4.5).
+		TEXT("SM_ToolShop"), TEXT("SM_PaverDepot"), TEXT("SM_Garage"),
 	};
-	constexpr int32 AssetsTestNumModels = 45;
+	constexpr int32 AssetsTestNumModels = 51;
 
 	bool AssetsTestReadVector(const TSharedPtr<FJsonObject>& Entry, const TCHAR* Field, FVector& Out)
 	{
@@ -97,7 +101,7 @@ namespace
 
 bool FAllModelsImportedTest::RunTest(const FString& Parameters)
 {
-	TestEqual(TEXT("the model list has 45 names"), static_cast<int32>(UE_ARRAY_COUNT(AssetsTestModelNames)), AssetsTestNumModels);
+	TestEqual(TEXT("the model list has 51 names"), static_cast<int32>(UE_ARRAY_COUNT(AssetsTestModelNames)), AssetsTestNumModels);
 
 	const FString ManifestPath = FPaths::Combine(FPaths::ProjectDir(), TEXT("Tools/ModelGen/manifest.json"));
 	FString Text;

@@ -1099,9 +1099,9 @@ bool FSaveLoadMovesEverythingTest::RunTest(const FString& Parameters)
 	Scene.SetMovable(ELotMovable::Cart, CartSaved, CartYaw);
 	PlaceCarAt(Car, CarSaved, CarYaw);
 	Scene.StandAt(PlayerSaved);
-	TestTrue(TEXT("the paver is sent to sector 5"), Game.AssignAutoPaverSector(PaverSector));
+	TestTrue(TEXT("the paver is sent to sector 5"), Game.AssignAutoPaverSector(0, PaverSector));
 	Scene.TickFor(3.0);
-	const FVector2D PaverSaved = Game.GetAutoPaverPos();
+	const FVector2D PaverSaved = Game.GetAutoPaverPos(0);
 	TestTrue(TEXT("the paver has left its start"), FVector2D::Distance(PaverSaved, LotLayout::ItemSpawn(ELotItem::AutoPaver)) > 10.0);
 	const double Credits = Game.GetCredits();
 	const int32 Cells = Game.GetCompletedCells();
@@ -1114,7 +1114,7 @@ bool FSaveLoadMovesEverythingTest::RunTest(const FString& Parameters)
 	Scene.StandAt(FVector2D(0.0, 0.0));
 	Game.DebugGive(777.0);
 	Scene.TickFor(3.0);
-	TestTrue(TEXT("the shown paver lags behind the core while it drives"), FVector2D(Paver->GetActorLocation()).Equals(Game.GetAutoPaverPos(), MovedCm) == false);
+	TestTrue(TEXT("the shown paver lags behind the core while it drives"), FVector2D(Paver->GetActorLocation()).Equals(Game.GetAutoPaverPos(0), MovedCm) == false);
 
 	// Every actor stands where the core says, as the call returns and still a few ticks later.
 	auto CheckAll = [&](const TCHAR* When, bool bFrozen)
@@ -1126,7 +1126,7 @@ bool FSaveLoadMovesEverythingTest::RunTest(const FString& Parameters)
 			TestEqual(*(TEXT("credits") + Suffix), Game.GetCredits(), Credits);
 			TestEqual(*(TEXT("cells") + Suffix), Game.GetCompletedCells(), Cells);
 		}
-		TestEqual(*(TEXT("the paver's sector") + Suffix), Game.GetAutoPaverSector(), PaverSector);
+		TestEqual(*(TEXT("the paver's sector") + Suffix), Game.GetAutoPaverSector(0), PaverSector);
 		TestEqual(*(TEXT("one movable") + Suffix), Scene.Find<ADIAMovable>().Num(), 1);
 		TestEqual(*(TEXT("one auto paver") + Suffix), Scene.Find<ADIAAutoPaver>().Num(), 1);
 		TestEqual(*(TEXT("one car") + Suffix), Scene.Find<ADIAPaverCar>().Num(), 1);
@@ -1147,7 +1147,7 @@ bool FSaveLoadMovesEverythingTest::RunTest(const FString& Parameters)
 	const int32 UploadsBefore = Ground->GetNumFullUploads();
 	TestTrue(TEXT("LoadGame"), Scene.Subsystem->LoadGame());
 	CheckAll(TEXT("as the load returns"), true);
-	TestTrue(TEXT("the paver's position is the saved one"), Game.GetAutoPaverPos().Equals(PaverSaved, MovedCm));
+	TestTrue(TEXT("the paver's position is the saved one"), Game.GetAutoPaverPos(0).Equals(PaverSaved, MovedCm));
 	const ADIAAutoPaver* LoadedPaver = Scene.Only<ADIAAutoPaver>();
 	if (TestNotNull(TEXT("the paver actor"), LoadedPaver))
 	{
@@ -1272,7 +1272,7 @@ bool FSaveNewGameRemovesMachinesTest::RunTest(const FString& Parameters)
 	{
 		return false;
 	}
-	for (const ELotItem Item : {ELotItem::Suitcase, ELotItem::Cart, ELotItem::Station, ELotItem::AutoPaver, ELotItem::Car})
+	for (const ELotItem Item : {ELotItem::Trolley, ELotItem::Cart, ELotItem::Station, ELotItem::AutoPaver, ELotItem::Car})
 	{
 		Scene.Grant(Item);
 	}
@@ -1548,7 +1548,7 @@ bool FSaveHeldNeedsRoomTest::RunTest(const FString& Parameters)
 {
 	using namespace SaveWorldTestSupport;
 	CheckHeldKind(*this, ELotMovable::Cart, ELotItem::Cart, TEXT("cart"));
-	CheckHeldKind(*this, ELotMovable::Suitcase, ELotItem::Suitcase, TEXT("suitcase"));
+	CheckHeldKind(*this, ELotMovable::Trolley, ELotItem::Trolley, TEXT("trolley"));
 	CheckHeldKind(*this, ELotMovable::Station, ELotItem::Station, TEXT("station"));
 	return true;
 }

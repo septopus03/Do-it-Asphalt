@@ -173,42 +173,77 @@ void UDIAAudioSubsystem::HandleWon()
 	PlayOnce(DIAAudio::ESound::Win);
 }
 
-void UDIAAudioSubsystem::TickHand(const ADIACharacter* Character, float DeltaTime, bool bCarPours)
+void FDIATrend::Update(double Now, float DeltaTime, bool bReset)
 {
-	const bool bHandPour = Character && Character->IsPouringNow();
-	const bool bPour = bHandPour || bCarPours;
-	const bool bFill = Character && Character->IsFillingNow();
-	const UDIAWorldSubsystem* Game = GameSubsystem.Get();
-	const bool bSpoon = bFill && Game && Game->GetGame().GetHand() == ELotHand::Bowl;
+	constexpr double Epsilon = 1.0e-6;
+	bJustRose = false;
+	Down = FMath::Max(0.f, Down - DeltaTime);
+	Up = FMath::Max(0.f, Up - DeltaTime);
+	if (bReset || Last < 0.0)
+	{
+		Down = 0.f;
+		Up = 0.f;
+	}
+	else if (Now < Last - Epsilon)
+	{
+		Down = HoldSeconds;
+	}
+	else if (Now > Last + Epsilon)
+	{
+		Up = HoldSeconds;
+		bJustRose = true;
+	}
+	Last = Now;
+}
+
+void UDIAAudioSubsystem::TickHand(float DeltaTime, bool bCarPours)
+{
+	const UDIAWorldSubsystem* GameSub = GameSubsystem.Get();
+	if (!GameSub)
+	{
+		return;
+	}
+	const FLotGame& Game = GameSub->GetGame();
+
+	// The hand in use: a change of hand is not a change of litres.
+	const int32 Hand = static_cast<int32>(Game.GetHand());
+	HandTrend.Update(Game.GetHandLitres(Game.GetHand()), DeltaTime, Hand != LastHand);
+	LastHand = Hand;
+
+	// The movable in the hands (a cart or a trolley laying a strip gives its asphalt out) and all of them (a trough or a tap fills them).
+	const int32 Held = static_cast<int32>(Game.GetHeld());
+	const bool bHeldMovable = Held != static_cast<int32>(ELotMovable::Count);
+	HeldTrend.Update(bHeldMovable ? Game.GetMovableLitres(Game.GetHeld()) : 0.0, DeltaTime, Held != LastHeldMovable);
+	double MovablesTotal = 0.0;
+	for (int32 I = 0; I < static_cast<int32>(ELotMovable::Count); ++I)
+	{
+		MovablesTotal += Game.GetMovableLitres(static_cast<ELotMovable>(I));
+	}
+	MovablesTrend.Update(MovablesTotal, DeltaTime);
+
+	const bool bBowl = Game.GetHand() == ELotHand::Bowl;
+	const bool bHandPour = !bHeldMovable && HandTrend.IsFalling();
+	const bool bPour = bHandPour || bCarPours || (bHeldMovable && HeldTrend.IsFalling());
+	// A vessel that gets asphalt is heard filling; the bowl only squelches once per spoonful.
+	const bool bFill = (!bBowl && !bHeldMovable && HandTrend.IsRising()) || (MovablesTrend.IsRising() && !HeldTrend.IsFalling());
 
 	Drive(DIAAudio::ESound::Pour, bPour ? 1.f : 0.f, (bHandPour ? 0.8f : 0.9f) * Sfx(), bHandPour ? 1.f : 0.8f, DeltaTime);
-	Drive(DIAAudio::ESound::Fill, bFill && !bSpoon ? 1.f : 0.f, 0.7f * Sfx(), 1.f, DeltaTime);
+	Drive(DIAAudio::ESound::Fill, bFill ? 1.f : 0.f, 0.7f * Sfx(), 1.f, DeltaTime);
 
-	// The spoon: one squelch per stroke.
-	if (bSpoon)
+	// The spoon: one squelch for every spoonful that lands in the bowl.
+	ScoopCooldown = FMath::Max(0.f, ScoopCooldown - DeltaTime);
+	if (bBowl && !bHeldMovable && HandTrend.HasJustRisen() && ScoopCooldown <= 0.f)
 	{
-		ScoopTimer += DeltaTime;
-		if (ScoopTimer >= LotBalance::ScoopCycleSeconds)
-		{
-			ScoopTimer = 0.f;
-			PlayOnce(DIAAudio::ESound::Scoop, 0.8f, FMath::FRandRange(0.92f, 1.08f));
-		}
-	}
-	else
-	{
-		ScoopTimer = 0.f;
+		ScoopCooldown = 0.25f;
+		PlayOnce(DIAAudio::ESound::Scoop, 0.8f, FMath::FRandRange(0.92f, 1.08f));
 	}
 
 	// Picking something up or letting it go.
-	if (Game)
+	if (LastHeldMovable >= 0 && Held != LastHeldMovable)
 	{
-		const int32 Held = static_cast<int32>(Game->GetGame().GetHeld());
-		if (LastHeld >= 0 && Held != LastHeld)
-		{
-			PlayOnce(DIAAudio::ESound::Thud, 0.6f, Held == static_cast<int32>(ELotMovable::Count) ? 0.85f : 1.1f);
-		}
-		LastHeld = Held;
+		PlayOnce(DIAAudio::ESound::Thud, 0.6f, Held == static_cast<int32>(ELotMovable::Count) ? 0.85f : 1.1f);
 	}
+	LastHeldMovable = Held;
 }
 
 void UDIAAudioSubsystem::TickFootsteps(const ADIACharacter* Character, float DeltaTime)
@@ -264,20 +299,62 @@ bool UDIAAudioSubsystem::TickVehicles(float DeltaTime)
 	const FVector CarAt = Car ? Car->GetActorLocation() : FVector::ZeroVector;
 	Drive(DIAAudio::ESound::Engine, bDriven ? 1.f : 0.f, DIAAudio::EngineVolume(SpeedFraction) * Sfx(), DIAAudio::EnginePitch(SpeedFraction), DeltaTime);
 
-	// The car pours its tank out: the same stream as at the hand.
-	const bool bCarPour = bDriven && Car->IsPouring() && Game.GetCarTank() > 0.0;
-
-	// A vehicle that stands at a station and takes asphalt: the pump of the station sounds there.
-	const bool bCarLoading = bDriven && Game.IsAtStation(Game.World().CarPos) && Game.GetCarTank() < Game.GetCarTankCapacity() - 1.0 && Game.GetPlantStock() > 0.0;
-	const bool bPaverLoading = Game.Owns(ELotItem::AutoPaver) && Game.GetAutoPaverPhase() == ELotPaverPhase::Loading;
-	const FVector PaverAt(Game.GetAutoPaverPos().X, Game.GetAutoPaverPos().Y, 60.0);
-	const FVector At = bCarLoading ? CarAt : PaverAt;
+	// The car pours its tank out (the same stream as at the hand) only while the tank really empties; a car that stands at a station and
+	// takes asphalt sounds the pump of the station, and only until the tank is full.
+	CarTrend.Update(Game.GetCarTank(), DeltaTime);
+	// The robots: the sound of the one nearest to the player plays (one source, as for the single robot before).
+	const ADIACharacter* Listener = ADIACharacter::GetLocal(this);
+	const FVector ListenerAt = Listener ? Listener->GetActorLocation() : FVector::ZeroVector;
+	const auto Nearer = [&ListenerAt](int32 Best, const FVector& Candidate, const FVector& BestAt)
+	{
+		return Best == INDEX_NONE || FVector::DistSquared2D(Candidate, ListenerAt) < FVector::DistSquared2D(BestAt, ListenerAt);
+	};
+	int32 Loading = INDEX_NONE;
+	int32 Running = INDEX_NONE;
+	FVector LoadingAt = FVector::ZeroVector;
+	FVector RunningAt = FVector::ZeroVector;
+	for (int32 Paver = 0; Paver < Game.GetNumAutoPavers(); ++Paver)
+	{
+		PaverTrend[Paver].Update(Game.GetAutoPaverTank(Paver), DeltaTime);
+		const FVector2D Pos = Game.GetAutoPaverPos(Paver);
+		const FVector At(Pos.X, Pos.Y, 60.0);
+		if (PaverTrend[Paver].IsRising() && Nearer(Loading, At, LoadingAt))
+		{
+			Loading = Paver;
+			LoadingAt = At;
+		}
+		// The motor runs while the robot drives or paves.
+		const ELotPaverPhase Phase = Game.GetAutoPaverPhase(Paver);
+		const bool bRuns = Game.GetAutoPaverSector(Paver) != INDEX_NONE && Phase != ELotPaverPhase::Idle && Phase != ELotPaverPhase::Loading;
+		if (bRuns && Nearer(Running, At, RunningAt))
+		{
+			Running = Paver;
+			RunningAt = At;
+		}
+	}
+	// While nothing runs or loads, the fading loops keep the place they had (not the world origin).
+	if (Loading != INDEX_NONE)
+	{
+		LastLoadingAt = LoadingAt;
+	}
+	if (Running != INDEX_NONE)
+	{
+		LastRunningAt = RunningAt;
+	}
+	const bool bCarPour = CarTrend.IsFalling();
+	const bool bCarLoading = CarTrend.IsRising();
+	const bool bPaverLoading = Loading != INDEX_NONE;
+	// The pump sounds where it last played: at the car while it loads, else at the robot that loads (and stays there while it fades).
+	if (bCarLoading)
+	{
+		LastLoadingAt = CarAt;
+	}
+	const FVector At = LastLoadingAt;
 	Drive(DIAAudio::ESound::Station, (bCarLoading || bPaverLoading) ? 1.f : 0.f, 0.8f * Sfx(), 1.f, DeltaTime, &At);
 
-	// The auto paver's motor while it drives or paves.
-	const ELotPaverPhase Phase = Game.GetAutoPaverPhase();
-	const bool bPaverRuns = Game.Owns(ELotItem::AutoPaver) && Game.GetAutoPaverSector() != INDEX_NONE && Phase != ELotPaverPhase::Idle && Phase != ELotPaverPhase::Loading;
-	Drive(DIAAudio::ESound::Paver, bPaverRuns ? 1.f : 0.f, 0.7f * Sfx(), Phase == ELotPaverPhase::Working ? 0.9f : 1.15f, DeltaTime, &PaverAt);
+	const bool bPaverRuns = Running != INDEX_NONE;
+	const ELotPaverPhase Phase = bPaverRuns ? Game.GetAutoPaverPhase(Running) : ELotPaverPhase::Idle;
+	Drive(DIAAudio::ESound::Paver, bPaverRuns ? 1.f : 0.f, 0.7f * Sfx(), Phase == ELotPaverPhase::Working ? 0.9f : 1.15f, DeltaTime, &LastRunningAt);
 	return bCarPour;
 }
 
@@ -296,6 +373,6 @@ void UDIAAudioSubsystem::Tick(float DeltaTime)
 
 	const ADIACharacter* Character = ADIACharacter::GetLocal(this);
 	const bool bCarPours = TickVehicles(DeltaTime);
-	TickHand(Character, DeltaTime, bCarPours);
+	TickHand(DeltaTime, bCarPours);
 	TickFootsteps(Character, DeltaTime);
 }

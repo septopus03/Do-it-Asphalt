@@ -29,8 +29,8 @@ public:
 	 * position in the core), none if it does not. Runs at the start, after a purchase and after a loaded or restarted game.
 	 */
 	void EnsureMovable(ELotMovable Kind);
-	/** Makes the actors match the core for the auto paver: exactly one ADIAAutoPaver while the game owns it, none otherwise. */
-	void EnsureAutoPaver();
+	/** Makes the actors match the core for the auto paver robots: exactly one ADIAAutoPaver per robot the game owns (Index 0, 1, ...), none for the others. */
+	void EnsureAutoPavers();
 	/** Makes the actors match the core for the paver car: exactly one ADIAPaverCar while the game owns it (at the core's pose), none otherwise. */
 	void EnsureCar();
 	virtual void EndPlay(const EEndPlayReason::Type Reason) override;
@@ -41,7 +41,7 @@ public:
 	virtual void RestartPlayerAtPlayerStart(AController* NewPlayer, AActor* StartSpot) override;
 
 private:
-	/** EnsureMovable for every kind, EnsureAutoPaver and EnsureCar: the start of play, a purchase and a loaded or restarted game all end here. */
+	/** EnsureMovable for every kind, EnsureAutoPavers and EnsureCar: the start of play, a purchase and a loaded or restarted game all end here. */
 	void EnsureAllMovables();
 	void HandleItemBought(ELotItem Item) { EnsureAllMovables(); }
 

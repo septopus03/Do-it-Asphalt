@@ -26,11 +26,11 @@ bool FUiPromptSplitTest::RunTest(const FString& Parameters)
 		Check(TEXT("one line"), Lines[0], TEXT("E"), TEXT("Push"));
 	}
 
-	Lines = Split(TEXT("E – Pull\nF – Open flap"));
+	Lines = Split(TEXT("E – Let go\nR – Rotate"));
 	if (TestEqual(TEXT("two lines"), Lines.Num(), 2))
 	{
-		Check(TEXT("two lines [0]"), Lines[0], TEXT("E"), TEXT("Pull"));
-		Check(TEXT("two lines [1]"), Lines[1], TEXT("F"), TEXT("Open flap"));
+		Check(TEXT("two lines [0]"), Lines[0], TEXT("E"), TEXT("Let go"));
+		Check(TEXT("two lines [1]"), Lines[1], TEXT("R"), TEXT("Rotate"));
 	}
 
 	Lines = Split(TEXT("No room here"));

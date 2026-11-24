@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Game/DIAWorldSubsystem.h"
 #include "GameFramework/Actor.h"
+#include "LotBalance.h"
 #include "LotGrid.h"
 #include "LotMap.h"
 #include "DIAGroundActor.generated.h"
@@ -29,6 +30,8 @@ namespace DIAGround
 	inline constexpr int64 BulkyUploadTexels = 100000;
 	/** A sector's side in cm: the rectangle the auto paver's outline is drawn around. */
 	inline constexpr double SectorSizeCm = AsphaltLot::SectorSide * AsphaltLot::CellCm;
+	/** The width of an outline drawn as strips (the second and third robot's), the same as the material's one for the first. */
+	inline constexpr double OutlineWidthCm = 10.0;
 }
 
 /**
@@ -60,10 +63,16 @@ public:
 	float GetMissingHighlight() const { return MissingHighlight; }
 
 	/**
-	 * The outline of the auto paver's sector: the material's vector parameter SectorRect (min X, min Y, max X, max Y in world cm), set
-	 * when the paver's sector changes; a zero rectangle (no sector) draws nothing.
+	 * The outline of every robot's sector, set when a robot's sector changes. The first robot's is the material's vector parameter
+	 * SectorRect (min X, min Y, max X, max Y in world cm; a zero rectangle, no sector, draws nothing); the material has one such
+	 * parameter only, so the second and third robot's are four thin strips each, lying on the ground.
 	 */
 	void SyncSectorRect();
+
+	/** The rectangle (min X, min Y, max X, max Y) the robot's outline shows now; all zero if it has no sector. */
+	FVector4 GetPaverOutline(int32 Paver) const;
+	/** One of the four strips of the second or third robot's outline (null for the first robot, whose outline is in the material). */
+	const UStaticMeshComponent* GetOutlineStrip(int32 Paver, int32 Side) const;
 
 	UTexture2D* GetCoverageTexture() const { return CoverageTexture; }
 	UMaterialInstanceDynamic* GetGroundMaterial() const { return GroundMaterial; }
@@ -98,8 +107,13 @@ private:
 	TArray<uint8> Mirror;
 
 	int32 NumFullUploads = 0;
-	/** The sector the material's SectorRect shows now (-2: nothing was set yet). */
-	int32 ShownSector = -2;
+	/** The sector each robot's outline shows now (-2: nothing was set yet). */
+	static_assert(MaxAutoPavers == 3, "ShownSector and ShownRect list three initialisers: extend them with MaxAutoPavers");
+	int32 ShownSector[MaxAutoPavers] = {-2, -2, -2};
+	FVector4 ShownRect[MaxAutoPavers] = {FVector4(0, 0, 0, 0), FVector4(0, 0, 0, 0), FVector4(0, 0, 0, 0)};
+	/** Four strips per robot but the first (south, north, west, east); they are made in BeginPlay and shown while the robot has a sector. */
+	UPROPERTY()
+	TArray<TObjectPtr<UStaticMeshComponent>> OutlineStrips;
 	float MissingHighlight = 0.f;
 
 	FDIAStateSubscription StateSub;

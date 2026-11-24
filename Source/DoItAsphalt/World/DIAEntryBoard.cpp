@@ -19,19 +19,20 @@ namespace
 	{
 		return FMath::RadiansToDegrees(FMath::Atan2(Direction.Y, Direction.X));
 	}
+}
 
-	/** Number of lines of a text, and the length of the longest. */
-	void MeasureText(const FString& Text, int32& OutLines, int32& OutLongest)
+double DIABoard::FitTextSize(const FString& Text, FVector2D AreaCm)
+{
+	// The text component has a fixed glyph height: the size at which the longest line fills the width, or all the lines the height.
+	TArray<FString> Lines;
+	Text.ParseIntoArrayLines(Lines, false);
+	const int32 NumLines = FMath::Max(1, Lines.Num());
+	int32 Longest = 1;
+	for (const FString& Line : Lines)
 	{
-		TArray<FString> Lines;
-		Text.ParseIntoArrayLines(Lines, false);
-		OutLines = FMath::Max(1, Lines.Num());
-		OutLongest = 1;
-		for (const FString& Line : Lines)
-		{
-			OutLongest = FMath::Max(OutLongest, Line.Len());
-		}
+		Longest = FMath::Max(Longest, Line.Len());
 	}
+	return FMath::Min(AreaCm.X / (Longest * CharAspect), AreaCm.Y / (NumLines * LineSpacing));
 }
 
 FTransform DIABoard::BoardTransform(int32 Entry)
@@ -142,12 +143,8 @@ void ADIAEntryBoard::Refresh()
 	const UDIAWorldSubsystem* Subsystem = UDIAWorldSubsystem::Get(this);
 	const bool bUnlocked = Subsystem && Subsystem->GetGame().IsUnlocked(static_cast<ELotUnlock>(Entry));
 
-	// The text component has a fixed glyph height: the board gets the size at which the longest line fills its width, or all the lines its height.
-	int32 Lines = 1;
-	int32 Longest = 1;
-	MeasureText(Shown.ToString(), Lines, Longest);
 	const FVector2D Area = bKiosk ? DIABoard::KioskTextAreaCm : DIAModelSizes::MallSignSizeCm * 0.9;
-	Text->SetWorldSize(static_cast<float>(FMath::Min(Area.X / (Longest * DIABoard::CharAspect), Area.Y / (Lines * DIABoard::LineSpacing))));
+	Text->SetWorldSize(static_cast<float>(DIABoard::FitTextSize(Shown.ToString(), Area)));
 	Text->SetTextRenderColor(bUnlocked ? DIABoard::UnlockedTextColor : bKiosk ? DIABoard::KioskTextColor : DIABoard::SignTextColor);
 	Text->SetText(Shown);
 }

@@ -20,30 +20,33 @@ DIA_TEST(FLotBalanceSimPlaythroughTest, "DoItAsphalt.Lot.BalanceSim.Playthrough"
  * no Debug* calls; the only clock is GetPlaytimeSeconds(), and time passes only through Tick.
  *
  * Measured times (game time, with the tunables of LotBalance.h as committed; asphalt is not smoothed, so the cart lays
- * finished strips on its own and the game is shorter than it was with the finisher):
+ * finished strips on its own; the player buys all three robots and all of their upgrades):
  *   milestone      measured   allowed
  *   1st cell       0:42 min   40 - 80 s
  *   10 cells       1:55       up to 6:00
  *   100 cells      6:34       up to 18:00
  *   350 cells      13:33      (logged only)
  *   800 cells      23:04      up to 42:00
- *   6 000 cells    48:41      up to 78:00
- *   30 000 cells   141:12     105 - 165 min (the exit opens at the same moment)
- *   Unlock steps: quick swap 2:01, sprint 6:38, strip work 13:38, auto paver 23:05, car 49:39, exit 141:12.
+ *   6 000 cells    52:34      up to 78:00
+ *   30 000 cells   108:24     105 - 165 min (the exit opens at the same moment)
+ *   Unlock steps: quick swap 2:01, sprint 6:38, strip work 13:38, auto paver 23:05, car 53:31, exit 108:24.
+ *   Robots: no.1 23:05, no.2 52:59, no.3 95:22. The milestones up to 800 cells come before the first robot and did not move with the three robots.
  *   The auto paver and the car draw from tanks that they refill at the stations, which makes the second half longer than it was.
+ *   With one robot (and its upgrades) alone the same game takes about 122 min; the two extra robots shorten it to 108.
+ *   The last truck tier (96 000) is bought only when the money is there: the exit opens before it.
  *
  * Player policy
- *  - Buying: after every step it buys the cheapest offered thing it can afford (items and plant levels).
+ *  - Buying: after every step it buys the cheapest offered thing it can afford (items, the speed and capacity upgrades of every robot, plant levels).
  *  - Target: while the next unlock step is within 12 cells of its cell count and its entry segment is not complete,
  *    it paves that segment. Otherwise the nearest incomplete cell to the source (the trough, or the portable station
  *    once owned), not counting the sector the auto paver works in (unless nothing else is left).
  *  - Method: the best one owned: bowl (scoop, walk, pour on a grid of aim points) -> bucket (fill, walk, dump; with
- *    the suitcase as a stock for the bucket when the walk is long) -> cart -> car. The auto paver always gets the nearest incomplete sector that the player is not working in.
+ *    the trolley as a stock for the bucket when the walk is long) -> cart -> car. The first auto paver always gets the nearest incomplete sector that the player is not working in; robots 2 and 3 work in the game's automatic mode, like the idle robots of a real player.
  *  - Walking: WalkSpeedCmS, times SprintMultiplier once the sprint is unlocked. A vessel is filled within
  *    RefillRadiusCm of the source; an aim point must lie within ReachCm of the player.
  *
  * Modelling choices the core leaves open (none of them is a game number):
- *  - Carrying the station uses its own tunable; pulling the suitcase SuitcasePullSpeedCmS.
+ *  - Carrying the station uses its own tunable; pulling the trolley TrolleyPushSpeedCmS.
  *  - The core has no "enter the car" action; the player walks to the car and sets World().bPlayerInCar.
  *  - The station is moved only when the next target lies farther than StationRelocateCm from it, to 5 m from the target.
  *  - The car (3 m or 3.5 m bar) lays bands along the X axis and waits whenever the stock cannot pay the next step.
@@ -62,12 +65,12 @@ namespace
 	constexpr int32 MaxJobLoops = 60;
 	/** The player works on an entry segment this many cells before its cell threshold. */
 	constexpr int32 UnlockLeadCells = 12;
-	/** A suitcase trip pays off when the walk from the source to the work spot is longer than this. */
-	constexpr double SuitcaseMinWalkCm = 1000.0;
-	/** The suitcase is reused for cells within this distance of where it stands. */
-	constexpr double SuitcaseReuseCm = 1500.0;
-	/** The suitcase is put down this far before the target. */
-	constexpr double SuitcaseStandOffCm = 200.0;
+	/** A trolley trip pays off when the walk from the source to the work spot is longer than this. */
+	constexpr double TrolleyMinWalkCm = 1000.0;
+	/** The trolley is reused for cells within this distance of where it stands. */
+	constexpr double TrolleyReuseCm = 1500.0;
+	/** The trolley is put down this far before the target. */
+	constexpr double TrolleyStandOffCm = 200.0;
 	/** The station is placed this far from the target. */
 	constexpr double StationOffsetCm = 500.0;
 	/** The station is moved when the target lies farther than this from it. */
@@ -85,9 +88,11 @@ namespace
 
 	constexpr int32 NumItems = static_cast<int32>(ELotItem::Count);
 	constexpr int32 NumUnlocks = static_cast<int32>(ELotUnlock::Count);
+	/** Names of the upgrade kinds the simulated player buys for every robot (log lines). */
+	const TCHAR* const UpgradeNames[static_cast<int32>(ELotPaverUpgrade::Count)] = {TEXT("speed"), TEXT("capacity")};
 
-	const TCHAR* const ItemNames[NumItems] = {TEXT("Bucket"), TEXT("Canister"), TEXT("Tub"), TEXT("Suitcase"), TEXT("Cart"), TEXT("Station"),
-		TEXT("AutoPaver"), TEXT("AutoPaverFast"), TEXT("AutoPaverFaster"), TEXT("Car"), TEXT("CarWideBar")};
+	const TCHAR* const ItemNames[NumItems] = {TEXT("Bucket"), TEXT("Canister"), TEXT("Tub"), TEXT("Trolley"), TEXT("Cart"), TEXT("Station"),
+		TEXT("AutoPaver"), TEXT("Car"), TEXT("CarT2"), TEXT("CarT3"), TEXT("CarT4"), TEXT("AutoPaver2"), TEXT("AutoPaver3")};
 	const TCHAR* const UnlockNames[NumUnlocks] = {TEXT("QuickSwap"), TEXT("Sprint"), TEXT("StripWork"), TEXT("AutoPaver"), TEXT("Car"), TEXT("Exit")};
 	/** Cell counts at which the time is recorded; the test asserts those named in the brief. */
 	constexpr int32 MilestoneCells[] = {1, 10, 100, 350, 800, 6000, 30000};
@@ -133,6 +138,7 @@ namespace
 			}
 			Pos = LotLayout::PlayerStart;
 			MilestoneSeconds.Init(-1.0, NumMilestones);
+			ItemSeconds.Init(-1.0, NumItems);
 			UnlockSeconds.Init(-1.0, NumUnlocks);
 			SectorDone.Init(false, AsphaltLot::NumSectors);
 			ActSeconds.Init(0.0, NumActs);
@@ -179,6 +185,8 @@ namespace
 		TArray<FString> Log;
 		TArray<double> MilestoneSeconds;
 		TArray<double> UnlockSeconds;
+		/** Game time at which each item was bought (-1: never), indexed by ELotItem. */
+		TArray<double> ItemSeconds;
 		double MinStock = TNumericLimits<double>::Max();
 		bool bGaveUp = false;
 		/** Strips the cart laid and the cells they hold. */
@@ -241,33 +249,68 @@ namespace
 
 		// --- shopping and machines ------------------------------------------------------------------------------
 
-		/** Buys the cheapest offered thing it can afford, until nothing is left to buy. */
+		/** Buys the cheapest offered thing it can afford (items, robot upgrades, plant levels), until nothing is left to buy. */
 		void Shop()
 		{
 			for (;;)
 			{
-				int32 Best = INDEX_NONE;
+				// Candidates are looked at in this order: items, robot upgrades, the plant; on a tie the first one wins.
+				enum class EKind : uint8 { None, Item, Upgrade, Plant };
+				EKind Kind = EKind::None;
+				int32 Index = INDEX_NONE;
+				ELotPaverUpgrade Upgrade = ELotPaverUpgrade::Speed;
 				double BestPrice = 0.0;
+				const auto Offer = [&](EKind OfferKind, int32 OfferIndex, ELotPaverUpgrade OfferUpgrade, double Price)
+				{
+					if (Kind == EKind::None || Price < BestPrice)
+					{
+						Kind = OfferKind;
+						Index = OfferIndex;
+						Upgrade = OfferUpgrade;
+						BestPrice = Price;
+					}
+				};
 				for (int32 I = 0; I < NumItems; ++I)
 				{
 					const ELotItem Item = static_cast<ELotItem>(I);
-					if (G.CanBuyItem(Item) && (Best == INDEX_NONE || G.GetItemPrice(Item) < BestPrice))
+					if (G.CanBuyItem(Item))
 					{
-						Best = I;
-						BestPrice = G.GetItemPrice(Item);
+						Offer(EKind::Item, I, ELotPaverUpgrade::Speed, G.GetItemPrice(Item));
 					}
 				}
-				const bool bPlantBest = G.CanBuyPlant() && (Best == INDEX_NONE || G.GetPlantNextPrice() < BestPrice);
-				if (bPlantBest)
+				for (int32 Paver = 0; Paver < MaxAutoPavers; ++Paver)
 				{
-					const double Price = G.GetPlantNextPrice();
-					G.BuyPlant();
-					Note(FString::Printf(TEXT("[%s] bought plant level %d for %.0f (%d cells)"), *Clock(G.GetPlaytimeSeconds()), G.GetPlantLevel(), Price, G.GetCompletedCells()));
+					for (int32 K = 0; K < static_cast<int32>(ELotPaverUpgrade::Count); ++K)
+					{
+						const ELotPaverUpgrade Candidate = static_cast<ELotPaverUpgrade>(K);
+						if (G.CanBuyPaverUpgrade(Paver, Candidate))
+						{
+							Offer(EKind::Upgrade, Paver, Candidate, G.GetPaverUpgradePrice(Paver, Candidate));
+						}
+					}
 				}
-				else if (Best != INDEX_NONE)
+				if (G.CanBuyPlant())
 				{
-					G.BuyItem(static_cast<ELotItem>(Best));
-					Note(FString::Printf(TEXT("[%s] bought %s for %.0f (%d cells)"), *Clock(G.GetPlaytimeSeconds()), ItemNames[Best], BestPrice, G.GetCompletedCells()));
+					Offer(EKind::Plant, INDEX_NONE, ELotPaverUpgrade::Speed, G.GetPlantNextPrice());
+				}
+
+				const FString When = Clock(G.GetPlaytimeSeconds());
+				if (Kind == EKind::Plant)
+				{
+					G.BuyPlant();
+					Note(FString::Printf(TEXT("[%s] bought plant level %d for %.0f (%d cells)"), *When, G.GetPlantLevel(), BestPrice, G.GetCompletedCells()));
+				}
+				else if (Kind == EKind::Upgrade)
+				{
+					G.BuyPaverUpgrade(Index, Upgrade);
+					Note(FString::Printf(TEXT("[%s] bought %s level %d of robot %d for %.0f (%d cells)"), *When, UpgradeNames[static_cast<int32>(Upgrade)],
+						G.GetPaverUpgradeLevel(Index, Upgrade), Index + 1, BestPrice, G.GetCompletedCells()));
+				}
+				else if (Kind == EKind::Item)
+				{
+					G.BuyItem(static_cast<ELotItem>(Index));
+					ItemSeconds[Index] = G.GetPlaytimeSeconds();
+					Note(FString::Printf(TEXT("[%s] bought %s for %.0f (%d cells)"), *When, ItemNames[Index], BestPrice, G.GetCompletedCells()));
 				}
 				else
 				{
@@ -293,7 +336,7 @@ namespace
 		/** Whenever the auto paver waits, it gets the nearest unfinished sector that the player does not work in. */
 		void ManagePaver()
 		{
-			if (!G.Owns(ELotItem::AutoPaver) || G.GetAutoPaverSector() != INDEX_NONE || G.GetPlaytimeSeconds() < NextPaverCheck)
+			if (!G.Owns(ELotItem::AutoPaver) || G.GetAutoPaverSector(0) != INDEX_NONE || G.GetPlaytimeSeconds() < NextPaverCheck)
 			{
 				return;
 			}
@@ -314,7 +357,7 @@ namespace
 			}
 			if (Best != INDEX_NONE)
 			{
-				G.AssignAutoPaverSector(Best);
+				G.AssignAutoPaverSector(0, Best);
 			}
 			else
 			{
@@ -394,7 +437,7 @@ namespace
 					return Best;
 				}
 			}
-			const int32 Cell = NearestIncomplete(Ref, G.GetAutoPaverSector());
+			const int32 Cell = NearestIncomplete(Ref, G.GetAutoPaverSector(0));
 			return Cell != INDEX_NONE ? Cell : NearestIncomplete(Ref, INDEX_NONE);
 		}
 
@@ -520,9 +563,9 @@ namespace
 			else if (G.Owns(ELotItem::Bucket))
 			{
 				const double Walk = FVector2D::Distance(SourcePos(), Centres[Target]) - LotLayout::RefillRadiusCm - WorkReach();
-				if (G.Owns(ELotItem::Suitcase) && Walk > SuitcaseMinWalkCm)
+				if (G.Owns(ELotItem::Trolley) && Walk > TrolleyMinWalkCm)
 				{
-					SuitcaseJob(Target);
+					TrolleyJob(Target);
 				}
 				else
 				{
@@ -638,51 +681,51 @@ namespace
 			}
 		}
 
-		/** The suitcase carries up to 60 l out to the work and feeds the bucket there; it is left standing. */
-		void SuitcaseJob(int32 Target)
+		/** The trolley carries up to 80 l out to the work and feeds the bucket there; it is left standing. */
+		void TrolleyJob(int32 Target)
 		{
-			const ELotMovable Suitcase = ELotMovable::Suitcase;
+			const ELotMovable Trolley = ELotMovable::Trolley;
 			const FVector2D TargetPos = Centres[Target];
-			const FVector2D SuitcasePos = G.World().Movables[static_cast<int32>(Suitcase)].Pos;
-			if (G.GetMovableLitres(Suitcase) < LotBalance::LitresPerCell || FVector2D::Distance(SuitcasePos, TargetPos) > SuitcaseReuseCm)
+			const FVector2D TrolleyPos = G.World().Movables[static_cast<int32>(Trolley)].Pos;
+			if (G.GetMovableLitres(Trolley) < LotBalance::LitresPerCell || FVector2D::Distance(TrolleyPos, TargetPos) > TrolleyReuseCm)
 			{
-				if (!FetchMovable(Suitcase, LotBalance::SuitcasePullSpeedCmS))
+				if (!FetchMovable(Trolley, LotBalance::TrolleyPushSpeedCmS))
 				{
 					return;
 				}
-				FillMovableFull(Suitcase);
-				if (!G.Grab(Suitcase))
+				FillMovableFull(Trolley);
+				if (!G.Grab(Trolley))
 				{
 					return;
 				}
 				const double Distance = FVector2D::Distance(Pos, TargetPos);
-				Travel(TargetPos - (TargetPos - Pos) / Distance * SuitcaseStandOffCm, LotBalance::SuitcasePullSpeedCmS);
+				Travel(TargetPos - (TargetPos - Pos) / Distance * TrolleyStandOffCm, LotBalance::TrolleyPushSpeedCmS);
 				G.Release(Pos, 0.0);
 			}
 
-			const FVector2D Stand = G.World().Movables[static_cast<int32>(Suitcase)].Pos;
+			const FVector2D Stand = G.World().Movables[static_cast<int32>(Trolley)].Pos;
 			int32 Cell = Target;
 			for (int32 Loop = 0; Loop < MaxJobLoops && !bAborted && Cell != INDEX_NONE; ++Loop)
 			{
 				if (G.GetGrid().IsCellComplete(Cell))
 				{
 					Cell = ChooseTarget(Stand);
-					if (Cell == INDEX_NONE || FVector2D::Distance(Stand, Centres[Cell]) > SuitcaseReuseCm)
+					if (Cell == INDEX_NONE || FVector2D::Distance(Stand, Centres[Cell]) > TrolleyReuseCm)
 					{
 						return;
 					}
 					continue;
 				}
-				if (G.GetMovableLitres(Suitcase) <= 1e-9 && G.GetHandLitres(ELotHand::Bucket) <= 1e-9)
+				if (G.GetMovableLitres(Trolley) <= 1e-9 && G.GetHandLitres(ELotHand::Bucket) <= 1e-9)
 				{
 					return;
 				}
 				EnsureHand(ELotHand::Bucket);
 				GoWithin(Stand, LotBalance::InteractionRangeCm, WalkSpeed());
 				Cur = EAct::Fill;
-				while (!bAborted && G.GetMovableLitres(Suitcase) > 1e-9 && G.GetHandLitres(ELotHand::Bucket) < G.GetHandCapacity(ELotHand::Bucket) - 1e-9)
+				while (!bAborted && G.GetMovableLitres(Trolley) > 1e-9 && G.GetHandLitres(ELotHand::Bucket) < G.GetHandCapacity(ELotHand::Bucket) - 1e-9)
 				{
-					G.FillVessel(ELotHand::Bucket, ELotSource::Suitcase, HandStep);
+					G.FillVessel(ELotHand::Bucket, ELotSource::Trolley, HandStep);
 					Advance(HandStep);
 				}
 				DumpInto(Cell);
@@ -768,7 +811,7 @@ namespace
 			Cur = EAct::Lay;
 			MoveAlong(Strip.B, LotBalance::CartLaySpeedCmS, [](double) { return true; }, [this](FVector2D From, FVector2D To)
 			{
-				G.LayCartStrip(From, To);
+				G.LayStrip(From, To);
 			});
 			G.Release(Pos, 0.0);
 		}
@@ -874,7 +917,28 @@ bool FLotBalanceSimPlaythroughTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("800 cells within 42 min"), Sim->MilestoneSeconds[4] >= 0.0 && Minutes(4) <= 42.0);
 	TestTrue(TEXT("6000 cells within 78 min"), Sim->MilestoneSeconds[5] >= 0.0 && Minutes(5) <= 78.0);
 	TestTrue(TEXT("30000 cells between 105 and 165 min"), Sim->MilestoneSeconds[6] >= 0.0 && Minutes(6) >= 105.0 && Minutes(6) <= 165.0);
-	TestEqual(TEXT("all items are bought"), G.GetNumItemsOwned(), static_cast<int32>(ELotItem::Count));
+	// Every item is bought except the last truck tier (CarT4, 96 000), on purpose: with three robots and per-robot upgrades the whole shop costs
+	// more than the game earns (items 304,615 + upgrades 3 x 100,000 + plant 33,900 = about 638,500 against about 585,000 earned from the cells
+	// and the litres), so the scripted player ends with credits left over and without the top truck tier. The economy makes the player choose.
+	for (int32 I = 0; I < NumItems; ++I)
+	{
+		if (static_cast<ELotItem>(I) != ELotItem::CarT4)
+		{
+			TestTrue(*FString::Printf(TEXT("%s is bought"), ItemNames[I]), Sim->ItemSeconds[I] >= 0.0);
+		}
+	}
+	for (int32 Paver = 0; Paver < MaxAutoPavers; ++Paver)
+	{
+		TestEqual(*FString::Printf(TEXT("robot %d: speed at the maximum level"), Paver + 1), G.GetPaverUpgradeLevel(Paver, ELotPaverUpgrade::Speed), MaxPaverUpgradeLevel);
+		TestEqual(*FString::Printf(TEXT("robot %d: capacity at the maximum level"), Paver + 1), G.GetPaverUpgradeLevel(Paver, ELotPaverUpgrade::Capacity), MaxPaverUpgradeLevel);
+	}
+	// The curve of the robots: each one comes clearly after the one before it, and the third still has time to work before the exit.
+	const double Robot1 = Sim->ItemSeconds[static_cast<int32>(ELotItem::AutoPaver)];
+	const double Robot2 = Sim->ItemSeconds[static_cast<int32>(ELotItem::AutoPaver2)];
+	const double Robot3 = Sim->ItemSeconds[static_cast<int32>(ELotItem::AutoPaver3)];
+	TestTrue(TEXT("robot 2 comes at least 15 min after robot 1"), Robot1 >= 0.0 && Robot2 >= Robot1 + 15.0 * 60.0);
+	TestTrue(TEXT("robot 3 comes at least 15 min after robot 2"), Robot2 >= 0.0 && Robot3 >= Robot2 + 15.0 * 60.0);
+	TestTrue(TEXT("robot 3 works for at least 10 min before the exit"), Robot3 >= 0.0 && Sim->MilestoneSeconds[6] - Robot3 >= 10.0 * 60.0);
 	TestEqual(TEXT("all 5 plant levels are bought"), G.GetPlantLevel(), 5);
 	TestTrue(TEXT("the stock is never negative"), Sim->MinStock >= 0.0);
 	TestTrue(TEXT("the game ends within the six hour cap"), G.GetPlaytimeSeconds() <= 6.0 * 3600.0);
